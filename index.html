@@ -53,6 +53,14 @@
                 </button>
             </div>
 
+            <!-- Résumé État Émotionnel -->
+            <div class="bg-slate-950 p-4 rounded-xl border border-slate-800 text-xs text-slate-300">
+                <div class="font-bold text-indigo-400 mb-1 flex items-center gap-2">
+                    <i class="fa-solid fa-brain"></i> Résumé de l'état émotionnel & Analyse de Congruence :
+                </div>
+                <p id="report-emotional-summary" class="italic text-slate-300">Analyse en cours...</p>
+            </div>
+
             <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 <div class="bg-slate-950 p-3 rounded-xl border border-slate-800 text-center">
                     <div class="text-[11px] text-slate-400 mb-1">Congruence</div>
@@ -103,7 +111,8 @@
     <!-- Contenu Principal -->
     <main class="flex-1 overflow-y-auto p-4 md:p-8 max-w-7xl mx-auto w-full grid grid-cols-1 lg:grid-cols-3 gap-6">
 
-        <div class="lg:col-span-2 space-y-6">
+        <!-- Colonne Principale -->
+        <div class="lg:col-span-2 space-y-6 order-1">
             
             <!-- Video Container -->
             <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl relative">
@@ -112,6 +121,12 @@
                         <span id="cam-status-dot" class="h-2.5 w-2.5 rounded-full bg-amber-500"></span>
                         <h2 class="font-semibold text-sm text-slate-200">Flux Caméra, ROI Frontal (rPPG) & Pose</h2>
                     </div>
+                </div>
+
+                <!-- Alerte en direct sur l'écran -->
+                <div id="live-alert-banner" class="hidden mb-3 bg-rose-950/80 border border-rose-800/80 text-rose-300 text-xs px-3 py-2 rounded-xl flex items-center space-x-2 animate-pulse z-20 relative">
+                    <i class="fa-solid fa-triangle-exclamation text-rose-400"></i>
+                    <span id="live-alert-text">Alerte : Dissonance ou micro-tension détectée en direct.</span>
                 </div>
 
                 <div id="video-container" class="relative w-full h-64 md:h-80 bg-slate-950 rounded-xl overflow-hidden border border-slate-800 flex items-center justify-center">
@@ -143,7 +158,7 @@
                 </div>
             </div>
 
-            <!-- MODULE : Analyse Forensique & Dissonances (Intégration demandée) -->
+            <!-- MODULE : Analyse Forensique & Dissonances -->
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl">
                     <h3 class="font-semibold text-sm text-slate-200 mb-4 flex items-center gap-2">
@@ -182,7 +197,7 @@
                 </div>
             </div>
 
-            <!-- MODULE : Prosodie Vocale (Affichage Son & Jitter/Shimmer) -->
+            <!-- MODULE : Prosodic Vocale -->
             <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl">
                 <div class="flex items-center justify-between mb-4">
                     <div class="flex items-center space-x-2">
@@ -223,7 +238,7 @@
         </div>
 
         <!-- Colonne Droite : Signes Vitaux rPPG & Journal -->
-        <div class="space-y-6">
+        <div class="space-y-6 order-2">
             <!-- Signes Vitaux rPPG -->
             <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl">
                 <div class="flex items-center space-x-2 mb-4">
@@ -369,7 +384,26 @@
             const t = document.getElementById('toast');
             document.getElementById('toast-message').textContent = m;
             t.classList.remove('translate-y-[-150%]');
-            setTimeout(() => t.classList.add('translate-y-[-150%]'), 3000);
+            setTimeout(() => t.classList.add('translate-y-[-150%]', 3000));
+        }
+
+        // Gestionnaire d'alertes en direct sur l'écran
+        function updateLiveAlerts(congruence, jitter, cogLoad) {
+            const banner = document.getElementById('live-alert-banner');
+            const alertText = document.getElementById('live-alert-text');
+
+            if (congruence < 80 && jitter > 1.5) {
+                banner.classList.remove('hidden');
+                alertText.textContent = `ALERTE : Forte dissonance (Congruence ${congruence}%) couplée à un stress vocal élevé !`;
+            } else if (congruence < 85) {
+                banner.classList.remove('hidden');
+                alertText.textContent = `Avertissement : Instabilité posturale détectée (Congruence à ${congruence}%).`;
+            } else if (jitter > 2.0 || cogLoad > 60) {
+                banner.classList.remove('hidden');
+                alertText.textContent = `Avertissement : Pic de charge cognitive ou de micro-tensions vocales (${jitter}% Jitter).`;
+            } else {
+                banner.classList.add('hidden');
+            }
         }
 
         async function toggleWebcam() {
@@ -451,7 +485,7 @@
             const status = document.getElementById('calibration-status');
             status.textContent = "Calibration en cours... restez stable";
             setTimeout(() => {
-                baselineShoulderY = 0.45; // Valeur étalon ou capturée dynamiquement
+                baselineShoulderY = 0.45;
                 status.textContent = "Baseline calibrée avec succès.";
                 showToast("Baseline posturale enregistrée");
             }, 1000);
@@ -463,6 +497,9 @@
             
             document.getElementById('score-cog').textContent = `${cogLoad}%`;
             document.getElementById('bar-cog').style.width = `${cogLoad}%`;
+
+            // Déclenchement des alertes en direct sur l'écran
+            updateLiveAlerts(congruence, lastJitter, cogLoad);
         }
 
         async function toggleAudioAnalysis() {
@@ -550,22 +587,40 @@
         function stopSessionTimer() {
             if (sessionTimerInterval) clearInterval(sessionTimerInterval);
             document.getElementById('session-timer').classList.add('hidden');
+            document.getElementById('live-alert-banner').classList.add('hidden'); // Masquer l'alerte live
             
+            let avgBpmVal = lastBPM;
+            let avgJitVal = lastJitter;
+            let finalCongruence = lastCongruence;
+            
+            let emotionalText = "État global stable. Aucune dissonance majeure détectée entre la posture et la prosodie vocale.";
+            
+            if (finalCongruence < 80 && avgJitVal > 1.5) {
+                emotionalText = "Attention : Forte dissonance détectée. Instabilité posturale couplée à un stress vocal (jitter élevé), suggérant une charge cognitive importante ou de l'hésitation.";
+            } else if (finalCongruence < 85) {
+                emotionalText = "Légère instabilité posturale observée par rapport à la baseline, mais la prosodie vocale reste cohérente.";
+            } else if (avgJitVal > 2.0) {
+                emotionalText = "Variations vocales notables (micro-tensions dans la voix) malgré une bonne stabilité physique apparente.";
+            }
+
             const sessionPayload = {
                 timestamp: new Date().toISOString(),
                 duration: document.getElementById('timer-display').textContent,
-                avgBPM: lastBPM,
-                avgJitter: lastJitter,
+                avgBPM: avgBpmVal,
+                avgJitter: avgJitVal,
                 dissonanceEvents: dissonanceCount,
+                emotionalSummary: emotionalText,
                 timeline: sessionDataLog
             };
             saveSessionToLocalDB(sessionPayload);
 
             document.getElementById('report-duration').textContent = sessionPayload.duration;
-            document.getElementById('report-congruence').textContent = `${lastCongruence}%`;
-            document.getElementById('report-bpm').textContent = `${lastBPM} BPM`;
-            document.getElementById('report-jitter').textContent = `${lastJitter}%`;
+            document.getElementById('report-congruence').textContent = `${finalCongruence}%`;
+            document.getElementById('report-bpm').textContent = `${avgBpmVal} BPM`;
+            document.getElementById('report-jitter').textContent = `${avgJitVal}%`;
             document.getElementById('report-dissonance').textContent = dissonanceCount;
+            document.getElementById('report-emotional-summary').textContent = emotionalText;
+            
             document.getElementById('session-modal').classList.remove('hidden');
         }
 
