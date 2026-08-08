@@ -71,9 +71,12 @@
                     </h2>
                     <span id="predictive-alert" class="text-xs text-gray-400 bg-gray-800 px-2 py-0.5 rounded border border-gray-700 transition-all duration-300">Stabilité Nominale</span>
                 </div>
-                <div class="relative w-full aspect-video bg-black rounded-xl overflow-hidden border border-gray-800">
-                    <video id="webcam" class="absolute inset-0 w-full h-full object-cover -scale-x-100" autoplay playsinline muted></video>
-                    <canvas id="output-canvas" class="absolute inset-0 w-full h-full pointer-events-none -scale-x-100"></canvas>
+                
+                <!-- CORRECTION ALIGNEMENT: object-contain sur video et canvas -->
+                <div class="relative w-full aspect-video bg-black rounded-xl overflow-hidden border border-gray-800 flex justify-center items-center">
+                    <video id="webcam" class="absolute inset-0 w-full h-full object-contain -scale-x-100" autoplay playsinline muted></video>
+                    <canvas id="output-canvas" class="absolute inset-0 w-full h-full object-contain pointer-events-none -scale-x-100"></canvas>
+                    
                     <!-- Calibration Overlay -->
                     <div id="calibration-overlay" class="absolute inset-0 bg-black/85 backdrop-blur-sm flex flex-col items-center justify-center text-center p-4 transition-opacity duration-300 opacity-0 pointer-events-none">
                         <i data-lucide="activity" class="w-10 h-10 text-accent animate-spin mb-2"></i>
@@ -82,6 +85,7 @@
                         <p class="text-[10px] text-accent mt-2 animate-pulse">Restez neutre et regardez l'objectif</p>
                     </div>
                 </div>
+
                 <!-- Controls -->
                 <div class="mt-4 flex space-x-2">
                     <button id="btn-start" onclick="startSession()" class="flex-1 py-2.5 bg-accent hover:bg-accenthover text-white text-xs font-semibold rounded-xl transition shadow-lg shadow-accent/25 flex items-center justify-center space-x-2">
@@ -154,7 +158,7 @@
 
     </main>
 
-    <!-- Script Application Logic v7.1 -->
+    <!-- Script Application Logic v7.1.2 (Optimized) -->
     <script>
         lucide.createIcons();
 
@@ -162,7 +166,7 @@
         let canvasElement = document.getElementById('output-canvas');
         let canvasCtx = canvasElement.getContext('2d');
 
-        let localStream; // Global stream reference
+        let localStream;
         let isRunning = false;
         let isCalibrating = false;
         let sessionData = [];
@@ -177,7 +181,6 @@
         let currentMotion = 0;
         let lastNosePos = { x: 0, y: 0 };
 
-        // Variables pour la calibration personnalisée (v7.1.1)
         let calibrationSamples = [];
         let baselineEye = 0.08;
         let baselineLip = 0.25;
@@ -185,7 +188,9 @@
 
         let audioContext, analyser, microphone;
 
-        // Configuration Chart.js v7
+        const rppgCanvas = document.createElement('canvas');
+        const rppgCtx = rppgCanvas.getContext('2d', { willReadFrequently: true });
+
         const ctxChart = document.getElementById('realtime-chart').getContext('2d');
         const realtimeChart = new Chart(ctxChart, {
             type: 'line',
@@ -212,9 +217,15 @@
 
         async function initMediaPipe() {
             try {
-                localStream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 }, audio: true });
+                // CORRECTION SÉCURITÉ AUDIO : Fallback sur vidéo seule si pas de micro
+                try {
+                    localStream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 }, audio: true });
+                } catch (audioErr) {
+                    console.warn("Accès micro refusé ou inexistant. Lancement vidéo uniquement.");
+                    localStream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 } });
+                }
+
                 videoElement.srcObject = localStream;
-                // Note: setupAudio est déplacé dans startSession() pour éviter les blocages du navigateur.
 
                 faceMesh = new FaceMesh({
                     locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`
@@ -241,11 +252,14 @@
                 cameraUtils.start();
             } catch (err) {
                 console.error("Erreur d'accès multimédia:", err);
-                alert("Accès caméra/micro requis pour initialiser le Jumeau Numérique.");
+                alert("Accès caméra requis pour initialiser le Jumeau Numérique.");
             }
         }
 
         function setupAudio(stream) {
+            // Ne setup l'audio que si des pistes audio existent dans le stream
+            if (stream.getAudioTracks().length === 0) return;
+            
             audioContext = new (window.AudioContext || window.webkitAudioContext)();
             analyser = audioContext.createAnalyser();
             analyser.fftSize = 2048;
@@ -274,12 +288,10 @@
 
             const landmarks = results.multiFaceLandmarks[0];
 
-            // Maillage 3D
             drawConnectors(canvasCtx, landmarks, FACEMESH_TESSELATION, { color: 'rgba(139, 92, 246, 0.15)', lineWidth: 0.5 });
             drawConnectors(canvasCtx, landmarks, FACEMESH_RIGHT_EYE, { color: 'rgba(34, 211, 238, 0.8)', lineWidth: 1 });
             drawConnectors(canvasCtx, landmarks, FACEMESH_LEFT_EYE, { color: 'rgba(34, 211, 238, 0.8)', lineWidth: 1 });
 
-            // Extraction des distances brutes
             const leftEyeTop = landmarks[159];
             const leftEyeBottom = landmarks[145];
             const eyeOpening = Math.hypot(leftEyeTop.x - leftEyeBottom.x, leftEyeTop.y - leftEyeBottom.y);
@@ -292,18 +304,15 @@
             const rightBrow = landmarks[300];
             const browDistance = Math.hypot(leftBrow.x - rightBrow.x, leftBrow.y - rightBrow.y);
 
-            // Logique de Calibration Personnalisée
             if (isCalibrating) {
                 calibrationSamples.push({ eye: eyeOpening, lip: lipDistance, brow: browDistance });
             } else if (calibrationSamples.length > 0) {
-                // Fin de calibration : calcul des moyennes de référence pour cet utilisateur
                 baselineEye = calibrationSamples.reduce((sum, val) => sum + val.eye, 0) / calibrationSamples.length;
                 baselineLip = calibrationSamples.reduce((sum, val) => sum + val.lip, 0) / calibrationSamples.length;
                 baselineBrow = calibrationSamples.reduce((sum, val) => sum + val.brow, 0) / calibrationSamples.length;
-                calibrationSamples = []; // Vide le tableau
+                calibrationSamples = []; 
             }
 
-            // Calculs relatifs aux baselines de l'utilisateur
             currentPupilLoad = Math.min(100, Math.max(10, Math.round((baselineEye - eyeOpening) * 800 + 40)));
             
             au12Score = +((lipDistance - baselineLip) * 10).toFixed(2);
@@ -323,20 +332,21 @@
 
         function extractRPPGFrame() {
             if (!videoElement.videoWidth) return;
-            const tempCanvas = document.createElement('canvas');
-            tempCanvas.width = videoElement.videoWidth;
-            tempCanvas.height = videoElement.videoHeight;
-            const tCtx = tempCanvas.getContext('2d');
-            tCtx.drawImage(videoElement, 0, 0);
+            
+            if (rppgCanvas.width !== videoElement.videoWidth) {
+                rppgCanvas.width = videoElement.videoWidth;
+                rppgCanvas.height = videoElement.videoHeight;
+            }
+            
+            rppgCtx.drawImage(videoElement, 0, 0);
 
-            // Cible le front (approximation)
-            const x = Math.floor(tempCanvas.width * 0.4);
-            const y = Math.floor(tempCanvas.height * 0.2);
-            const w = Math.floor(tempCanvas.width * 0.2);
-            const h = Math.floor(tempCanvas.height * 0.1);
+            const x = Math.floor(rppgCanvas.width * 0.4);
+            const y = Math.floor(rppgCanvas.height * 0.2);
+            const w = Math.floor(rppgCanvas.width * 0.2);
+            const h = Math.floor(rppgCanvas.height * 0.1);
 
             try {
-                const imageData = tCtx.getImageData(x, y, w, h);
+                const imageData = rppgCtx.getImageData(x, y, w, h);
                 let greenSum = 0;
                 let count = imageData.data.length / 4;
                 for (let i = 1; i < imageData.data.length; i += 4) { greenSum += imageData.data[i]; }
@@ -347,21 +357,47 @@
                     rppgBuffer.shift();
                     currentRealHR = calculateHeartRate(rppgBuffer);
                 }
-            } catch(e) {}
+            } catch(e) { }
         }
 
+        // CORRECTION LISSAGE DU BPM (Moving Average)
         function calculateHeartRate(signal) {
-            let peaks = 0;
-            let mean = signal.reduce((a, b) => a + b, 0) / signal.length;
-            for (let i = 1; i < signal.length - 1; i++) {
-                if (signal[i] > mean && signal[i] > signal[i-1] && signal[i] > signal[i+1]) { peaks++; }
+            if (signal.length < 10) return currentRealHR;
+
+            // 1. Lissage du signal (Moving Average) pour éliminer le bruit optique
+            const windowSize = 5;
+            let smoothed = [];
+            for (let i = 0; i < signal.length; i++) {
+                let start = Math.max(0, i - windowSize);
+                let end = Math.min(signal.length, i + windowSize);
+                let sum = 0;
+                for (let j = start; j < end; j++) sum += signal[j];
+                smoothed.push(sum / (end - start));
             }
-            let bpm = Math.round((peaks * (60 / (signal.length / 15))));
-            return (bpm >= 50 && bpm <= 140) ? bpm : currentRealHR;
+
+            // 2. Calcul de la moyenne du signal lissé
+            let mean = smoothed.reduce((a, b) => a + b, 0) / smoothed.length;
+            let peaks = 0;
+            
+            // 3. Détection des pics locaux au-dessus de la moyenne
+            for (let i = 1; i < smoothed.length - 1; i++) {
+                if (smoothed[i] > mean && smoothed[i] > smoothed[i-1] && smoothed[i] > smoothed[i+1]) { 
+                    peaks++; 
+                }
+            }
+
+            // 4. Calcul du BPM (150 frames à environ ~30 FPS = ~5 secondes d'échantillonnage)
+            let durationSeconds = signal.length / 30; // Approximation du framerate MediaPipe
+            let bpm = Math.round(peaks * (60 / durationSeconds));
+
+            // 5. Lissage du changement de BPM final (évite les sauts brusques à l'affichage)
+            if (bpm >= 50 && bpm <= 140) {
+                return Math.round((currentRealHR * 0.7) + (bpm * 0.3));
+            }
+            return currentRealHR;
         }
 
         async function startSession() {
-            // Initialisation audio sécurisée au clic
             if (!audioContext && localStream) {
                 setupAudio(localStream);
             }
@@ -381,7 +417,6 @@
             document.getElementById('status-text').innerText = "Calibration Initiale v7...";
             document.getElementById('calibration-overlay').style.opacity = '1';
 
-            // Fin de la calibration après 8 secondes
             setTimeout(() => {
                 isCalibrating = false;
                 if (rppgBuffer.length > 10) baselineHR = currentRealHR;
@@ -408,7 +443,6 @@
 
             let audio = getAudioMetrics();
             
-            // Calcul de la charge avec pondération
             let cognitiveLoad = Math.min(100, Math.max(10, Math.round((currentPupilLoad * 0.4) + (au4Score * 20) + ((currentRealHR - baselineHR) * 1.5))));
             riskFactor = Math.min(100, Math.max(0, Math.round((cognitiveLoad * 0.6) + (currentMotion * 25))));
 
@@ -432,7 +466,6 @@
             let timestamp = new Date().toLocaleTimeString();
             sessionData.push({ timestamp, cognitiveLoad, riskFactor, hr: currentRealHR });
 
-            // Mise à jour Chart.js
             if (realtimeChart.data.labels.length > 20) {
                 realtimeChart.data.labels.shift();
                 realtimeChart.data.datasets[0].data.shift();
@@ -453,7 +486,7 @@
 
             let html = `
             <div class="space-y-1 text-left w-full">
-                <p class="text-gray-200 font-semibold mb-1">Synthèse du Jumeau Numérique (v7.1) :</p>
+                <p class="text-gray-200 font-semibold mb-1">Synthèse du Jumeau Numérique (v7.1.2) :</p>
                 <p>• <strong>Charge Cognitive Moyenne :</strong> ${avgLoad}/100.</p>
                 <p>• <strong>Pic d'Anticipation Pré-Cognitive (Risque Max) :</strong> ${maxRisk}%. ${maxRisk > 65 ? 'Présence de ruptures d\'alignement comportemental identifiées par le modèle.' : 'Excellente régulation homéostasique tout au long de la session.'}</p>
             </div>`;
@@ -472,7 +505,7 @@
                     <style>body { font-family: sans-serif; padding: 40px; color: #111; } h1 { color: #8b5cf6; border-bottom: 2px solid #8b5cf6; }</style>
                 </head>
                 <body>
-                    <h1>EgoLens v7.1 - Rapport Jumeau Numérique Psychophysiologique</h1>
+                    <h1>EgoLens v7.1.2 - Rapport Jumeau Numérique Psychophysiologique</h1>
                     <p>Date : ${new Date().toLocaleString()}</p>
                     <p>Analyse pré-cognitive et structurelle de la session terminée avec succès.</p>
                     <script>window.print();<\/script>
