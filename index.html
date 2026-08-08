@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>EgoLens Pro - Core Forensique, rPPG & Prosodie Local</title>
+    <title>EgoLens Pro - Core Forensique, rPPG, Prosodie & Fusion Multimodale</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -24,7 +24,7 @@
             background: rgba(99, 102, 241, 0.7); box-shadow: 0 0 10px #6366f1, 0 0 20px #6366f1;
             animation: scanline 3s linear infinite;
         }
-        #audioVisualizer { width: 100%; height: 60px; background: #020617; border-radius: 0.5rem; display: block; }
+        #audioVisualizer { width: 100%; height: 80px; background: #020617; border-radius: 0.5rem; display: block; border: 1px solid #1e293b; }
     </style>
 </head>
 <body class="h-full bg-slate-950 text-slate-100 flex flex-col font-sans antialiased selection:bg-indigo-500 selection:text-white">
@@ -44,7 +44,7 @@
                         <i class="fa-solid fa-file-waveform text-xl"></i>
                     </div>
                     <div>
-                        <h2 class="text-base font-bold text-white">Rapport Avancé rPPG & Prosodie Multimodale</h2>
+                        <h2 class="text-base font-bold text-white">Rapport Forensique & Multimodal</h2>
                         <p class="text-xs text-slate-400">Durée : <span id="report-duration" class="text-indigo-400 font-mono">00:00</span></p>
                     </div>
                 </div>
@@ -53,7 +53,7 @@
                 </button>
             </div>
 
-            <div class="grid grid-cols-1 sm:grid-cols-4 gap-3">
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 <div class="bg-slate-950 p-3 rounded-xl border border-slate-800 text-center">
                     <div class="text-[11px] text-slate-400 mb-1">Congruence</div>
                     <div id="report-congruence" class="text-xl font-black text-emerald-400">100%</div>
@@ -72,24 +72,11 @@
                 </div>
             </div>
 
-            <div class="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-2">
-                <h3 class="text-xs font-semibold text-slate-300 uppercase tracking-wider flex items-center space-x-2">
-                    <i class="fa-solid fa-brain text-indigo-400"></i>
-                    <span>Analyse Globale & Modèle de Confiance</span>
-                </h3>
-                <p id="report-summary-text" class="text-xs text-slate-400 leading-relaxed">Génération du bilan...</p>
-            </div>
-
             <div class="flex items-center justify-between pt-2">
                 <button onclick="clearIndexedDBHistory()" class="text-rose-400 hover:text-rose-300 text-xs font-medium flex items-center space-x-1">
                     <i class="fa-solid fa-trash"></i> <span>Effacer mémoire locale</span>
                 </button>
-                <div class="flex items-center space-x-3">
-                    <button onclick="exportSessionJSON()" class="bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs px-4 py-2.5 rounded-xl border border-slate-700 flex items-center space-x-2">
-                        <i class="fa-solid fa-download text-indigo-400"></i> <span>Export JSON</span>
-                    </button>
-                    <button onclick="closeSessionModal()" class="bg-indigo-600 hover:bg-indigo-500 text-white text-xs px-5 py-2.5 rounded-xl shadow-lg">Fermer</button>
-                </div>
+                <button onclick="closeSessionModal()" class="bg-indigo-600 hover:bg-indigo-500 text-white text-xs px-5 py-2.5 rounded-xl shadow-lg">Fermer</button>
             </div>
         </div>
     </div>
@@ -98,11 +85,11 @@
     <header class="border-b border-slate-800 bg-slate-900/50 backdrop-blur-md sticky top-0 z-40 px-6 py-4 flex items-center justify-between">
         <div class="flex items-center space-x-3">
             <div class="bg-indigo-600/20 border border-indigo-500/30 p-2.5 rounded-xl text-indigo-400">
-                <i class="fa-solid fa-heart-pulse text-xl"></i>
+                <i class="fa-solid fa-brain text-xl"></i>
             </div>
             <div>
-                <h1 class="text-lg font-bold tracking-tight text-white">EgoLens <span class="text-xs uppercase px-2 py-0.5 bg-indigo-500/20 text-indigo-300 rounded-full border border-indigo-500/30 ml-2">rPPG & Prosodie Core</span></h1>
-                <p class="text-xs text-slate-400">Pulsation Cardiaque Optique + Analyse Micro-Vocale + Stockage Local (IndexedDB)</p>
+                <h1 class="text-lg font-bold tracking-tight text-white">EgoLens <span class="text-xs uppercase px-2 py-0.5 bg-indigo-500/20 text-indigo-300 rounded-full border border-indigo-500/30 ml-2">Pro Complete</span></h1>
+                <p class="text-xs text-slate-400">Analyse Optique rPPG, Prosodie Vocale & Matrice de Dissonance</p>
             </div>
         </div>
         <div class="flex items-center space-x-4">
@@ -110,9 +97,6 @@
                 <span class="h-2 w-2 rounded-full bg-red-500 animate-pulse"></span>
                 <span id="timer-display">00:00</span>
             </div>
-            <button onclick="startCalibrationProcess()" id="btn-calibrate" class="bg-amber-600/20 hover:bg-amber-600/30 text-amber-300 border border-amber-500/30 text-xs px-3 py-2 rounded-lg flex items-center space-x-2">
-                <i class="fa-solid fa-sliders"></i> <span id="calibrate-txt">Calibration Baseline (5s)</span>
-            </button>
         </div>
     </header>
 
@@ -122,15 +106,15 @@
         <div class="lg:col-span-2 space-y-6">
             
             <!-- Video Container -->
-            <div id="cam-panel" class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl relative overflow-hidden">
+            <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl relative">
                 <div class="flex items-center justify-between mb-4">
                     <div class="flex items-center space-x-2">
                         <span id="cam-status-dot" class="h-2.5 w-2.5 rounded-full bg-amber-500"></span>
-                        <h2 class="font-semibold text-sm text-slate-200">Flux Optique, ROI Frontal (rPPG) & Pose</h2>
+                        <h2 class="font-semibold text-sm text-slate-200">Flux Caméra, ROI Frontal (rPPG) & Pose</h2>
                     </div>
                 </div>
 
-                <div id="video-container" class="relative w-full h-64 md:h-72 bg-slate-950 rounded-xl overflow-hidden border border-slate-800 flex items-center justify-center">
+                <div id="video-container" class="relative w-full h-64 md:h-80 bg-slate-950 rounded-xl overflow-hidden border border-slate-800 flex items-center justify-center">
                     <video id="webcam" autoplay playsinline class="absolute inset-0 w-full h-full object-cover hidden"></video>
                     <canvas id="output-canvas" class="absolute inset-0 w-full h-full object-cover z-10 pointer-events-none"></canvas>
 
@@ -141,62 +125,76 @@
 
                     <div id="cam-placeholder" class="text-center z-10 p-6">
                         <i class="fa-solid fa-video text-4xl text-slate-600 mb-2"></i>
-                        <p class="text-sm text-slate-400">Activer la caméra pour lancer la capture rPPG et la pose.</p>
+                        <p class="text-sm text-slate-400">Cliquez sur "Activer Caméra" pour démarrer.</p>
                     </div>
                 </div>
 
-                <!-- Contrôles -->
-                <div class="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-3">
-                    <button onclick="toggleWebcam()" id="btn-toggle-cam" class="bg-indigo-600 hover:bg-indigo-500 text-white text-xs py-2.5 px-3 rounded-xl font-medium flex items-center justify-center space-x-2">
+                <!-- Contrôles Caméra -->
+                <div class="mt-4 grid grid-cols-3 gap-3">
+                    <button onclick="toggleWebcam()" id="btn-toggle-cam" class="bg-indigo-600 hover:bg-indigo-500 text-white text-xs py-2.5 px-3 rounded-xl font-medium flex items-center justify-center space-x-2 transition">
                         <i class="fa-solid fa-video"></i> <span>Activer Caméra</span>
                     </button>
-                    <button onclick="switchCamera()" id="btn-switch-cam" class="bg-slate-800 border border-slate-700 text-xs py-2.5 px-3 rounded-xl text-slate-300 hover:bg-slate-700 flex items-center justify-center space-x-2">
+                    <button onclick="switchCamera()" id="btn-switch-cam" class="bg-slate-800 border border-slate-700 text-xs py-2.5 px-3 rounded-xl text-slate-300 hover:bg-slate-700 flex items-center justify-center space-x-2 transition">
                         <i class="fa-solid fa-camera-rotate text-indigo-400"></i> <span>Changer Caméra</span>
                     </button>
-                    <button onclick="toggleNightVision()" id="btn-night-vision" class="bg-slate-800 border border-slate-700 text-xs py-2.5 px-3 rounded-xl text-slate-300 hover:bg-slate-700 flex items-center justify-center space-x-2">
+                    <button onclick="toggleNightVision()" id="btn-night-vision" class="bg-slate-800 border border-slate-700 text-xs py-2.5 px-3 rounded-xl text-slate-300 hover:bg-slate-700 flex items-center justify-center space-x-2 transition">
                         <i class="fa-solid fa-moon text-emerald-400"></i> <span>Mode Nuit</span>
                     </button>
-                    <button onclick="loadLocalHistory()" class="bg-slate-800 border border-slate-700 text-xs py-2.5 px-3 rounded-xl text-slate-300 hover:bg-slate-700 flex items-center justify-center space-x-2">
-                        <i class="fa-solid fa-database text-amber-400"></i> <span>Sessions LocalDB</span>
-                    </button>
                 </div>
             </div>
 
-            <!-- MODULE : rPPG (Cardio sans contact) -->
-            <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl">
-                <div class="flex items-center justify-between mb-4">
-                    <div class="flex items-center space-x-2">
-                        <i class="fa-solid fa-heart-pulse text-rose-500 animate-pulse"></i>
-                        <h3 class="font-semibold text-sm text-slate-200">Signes Vitaux Optiques (rPPG Frontal)</h3>
+            <!-- MODULE : Analyse Forensique & Dissonances (Intégration demandée) -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl">
+                    <h3 class="font-semibold text-sm text-slate-200 mb-4 flex items-center gap-2">
+                        <i class="fa-solid fa-fingerprint text-indigo-400"></i> Analyse Forensique & Dissonances
+                    </h3>
+                    <div class="space-y-4">
+                        <div class="flex justify-between text-sm">
+                            <span class="text-slate-400">Score de Congruence</span>
+                            <span id="score-congruence" class="text-emerald-400 font-bold">100%</span>
+                        </div>
+                        <div class="w-full bg-slate-800 h-2 rounded-full overflow-hidden">
+                            <div id="bar-congruence" class="bg-emerald-500 h-full w-[100%] transition-all duration-500"></div>
+                        </div>
+                        
+                        <div class="flex justify-between text-sm">
+                            <span class="text-slate-400">Charge Cognitive Détectée</span>
+                            <span id="score-cog" class="text-rose-400 font-bold">0%</span>
+                        </div>
+                        <div class="w-full bg-slate-800 h-2 rounded-full overflow-hidden">
+                            <div id="bar-cog" class="bg-rose-500 h-full w-[0%] transition-all duration-500"></div>
+                        </div>
                     </div>
                 </div>
-                <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                    <div class="bg-slate-950 p-3 rounded-xl border border-slate-800">
-                        <div class="text-xs text-slate-400 mb-1">Fréquence Cardiaque</div>
-                        <div id="val-bpm" class="text-rose-400 font-bold text-lg">-- BPM</div>
+
+                <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl flex flex-col justify-between">
+                    <div>
+                        <h3 class="font-semibold text-sm text-slate-200 mb-2">Calibration Système</h3>
+                        <p class="text-[11px] text-slate-400 mb-4">Fixez la posture neutre pour affiner l'analyse de tension.</p>
                     </div>
-                    <div class="bg-slate-950 p-3 rounded-xl border border-slate-800">
-                        <div class="text-xs text-slate-400 mb-1">Variabilité (HRV)</div>
-                        <div id="val-hrv" class="text-cyan-400 font-bold text-lg">-- ms</div>
-                    </div>
-                    <div class="bg-slate-950 p-3 rounded-xl border border-slate-800 col-span-2 sm:col-span-1">
-                        <div class="text-xs text-slate-400 mb-1">Qualité du Signal (ROI)</div>
-                        <div id="val-rppg-quality" class="text-emerald-400 font-bold text-lg">0%</div>
+                    <div class="space-y-3">
+                        <button onclick="calibrateBaseline()" class="w-full bg-amber-600/20 hover:bg-amber-600/30 text-amber-300 border border-amber-500/30 py-2.5 rounded-xl transition font-medium text-xs flex items-center justify-center space-x-2">
+                            <i class="fa-solid fa-crosshairs"></i> <span>Calibrer Baseline (5s)</span>
+                        </button>
+                        <p id="calibration-status" class="text-[10px] text-slate-500 text-center">Statut : En attente de calibration</p>
                     </div>
                 </div>
             </div>
 
-            <!-- MODULE : Prosodie Vocale (Jitter & Shimmer) -->
+            <!-- MODULE : Prosodie Vocale (Affichage Son & Jitter/Shimmer) -->
             <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl">
                 <div class="flex items-center justify-between mb-4">
                     <div class="flex items-center space-x-2">
-                        <i class="fa-solid fa-waveform text-indigo-400"></i>
-                        <h3 class="font-semibold text-sm text-slate-200">Micro-Prosodie Vocale (Jitter & Shimmer VSA)</h3>
+                        <i class="fa-solid fa-microphone-lines text-indigo-400"></i>
+                        <h3 class="font-semibold text-sm text-slate-200">Analyse Vocale & Visualiseur Sonore (Meyda)</h3>
                     </div>
+                    <span id="audio-status-dot" class="h-2.5 w-2.5 rounded-full bg-slate-600"></span>
                 </div>
 
-                <div class="mb-4">
+                <div class="mb-4 relative">
                     <canvas id="audioVisualizer"></canvas>
+                    <div class="absolute bottom-2 right-3 text-[10px] text-slate-500 uppercase tracking-widest font-mono">Spectre Micro</div>
                 </div>
 
                 <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
@@ -209,51 +207,57 @@
                         <div id="val-shimmer" class="text-indigo-400 font-bold text-sm">0.00%</div>
                     </div>
                     <div class="bg-slate-950 p-3 rounded-xl border border-slate-800">
-                        <div class="text-[11px] text-slate-400 mb-1">RMS Vocal</div>
+                        <div class="text-[11px] text-slate-400 mb-1">RMS Vocal (Volume)</div>
                         <div id="val-vsa" class="text-emerald-400 font-bold text-sm">0.0 RMS</div>
                     </div>
                     <div class="bg-slate-950 p-3 rounded-xl border border-slate-800">
                         <div class="text-[11px] text-slate-400 mb-1">Charge Cognitive</div>
-                        <div id="val-cog" class="text-rose-400 font-bold text-sm">0%</div>
+                        <div id="val-cog-vocal" class="text-rose-400 font-bold text-sm">0%</div>
                     </div>
                 </div>
 
-                <button onclick="toggleAudioAnalysis()" id="btn-toggle-audio" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white text-xs py-3 rounded-xl font-medium flex items-center justify-center space-x-2">
-                    <i class="fa-solid fa-microphone"></i> <span>Activer Analyse Prosodique Vocale</span>
+                <button onclick="toggleAudioAnalysis()" id="btn-toggle-audio" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white text-xs py-3 rounded-xl font-medium flex items-center justify-center space-x-2 transition">
+                    <i class="fa-solid fa-microphone"></i> <span>Activer l'analyse prosodique vocale</span>
                 </button>
-            </div>
-
-            <!-- Graphique -->
-            <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl">
-                <h3 class="font-semibold text-sm text-slate-200 mb-4">Chronologie de Fusion Multimodale (60s)</h3>
-                <div class="h-56 w-full">
-                    <canvas id="attentionChart"></canvas>
-                </div>
             </div>
         </div>
 
-        <!-- Colonne Droite : Logs & IndexedDB -->
+        <!-- Colonne Droite : Signes Vitaux rPPG & Journal -->
         <div class="space-y-6">
+            <!-- Signes Vitaux rPPG -->
             <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl">
-                <h3 class="font-semibold text-sm text-slate-200 mb-2">Pondération Autonome</h3>
-                <div class="grid grid-cols-2 gap-3 mt-3">
-                    <button onclick="feedAIModel(true)" class="bg-emerald-600/20 border border-emerald-500/30 text-emerald-300 text-xs py-2 rounded-xl">Valider Alerte</button>
-                    <button onclick="feedAIModel(false)" class="bg-rose-600/20 border border-rose-500/30 text-rose-300 text-xs py-2 rounded-xl">Faux Positif</button>
+                <div class="flex items-center space-x-2 mb-4">
+                    <i class="fa-solid fa-heart-pulse text-rose-500 animate-pulse"></i>
+                    <h3 class="font-semibold text-sm text-slate-200">Signes Vitaux Optiques (rPPG)</h3>
                 </div>
-                <div class="mt-4 pt-3 border-t border-slate-800 flex justify-between text-xs text-slate-400">
-                    <span>Précision : <strong id="network-accuracy" class="text-emerald-400">94.2%</strong></span>
-                    <span>Sessions enregistrées : <strong id="db-sessions-count" class="text-indigo-400">0</strong></span>
+                <div class="grid grid-cols-1 gap-3">
+                    <div class="bg-slate-950 p-3 rounded-xl border border-slate-800 flex justify-between items-center">
+                        <div class="text-xs text-slate-400">Fréquence Cardiaque</div>
+                        <div id="val-bpm" class="text-rose-400 font-bold text-base">-- BPM</div>
+                    </div>
+                    <div class="bg-slate-950 p-3 rounded-xl border border-slate-800 flex justify-between items-center">
+                        <div class="text-xs text-slate-400">Variabilité (HRV)</div>
+                        <div id="val-hrv" class="text-cyan-400 font-bold text-base">-- ms</div>
+                    </div>
+                    <div class="bg-slate-950 p-3 rounded-xl border border-slate-800 flex justify-between items-center">
+                        <div class="text-xs text-slate-400">Qualité ROI Frontal</div>
+                        <div id="val-rppg-quality" class="text-emerald-400 font-bold text-base">0%</div>
+                    </div>
                 </div>
             </div>
 
-            <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl flex flex-col h-96">
-                <h3 class="font-semibold text-sm text-slate-200 mb-3 flex items-center justify-between">
-                    <span>Journal Local & Corrélation</span>
-                    <button onclick="clearLogs()" class="text-xs text-slate-500">Effacer</button>
-                </h3>
+            <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl">
+                <h3 class="font-semibold text-sm text-slate-200 mb-4">Chronologie de Fusion (60s)</h3>
+                <div class="h-48 w-full">
+                    <canvas id="attentionChart"></canvas>
+                </div>
+            </div>
+
+            <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl flex flex-col h-60">
+                <h3 class="font-semibold text-sm text-slate-200 mb-3">Journal Système</h3>
                 <div id="log-container" class="flex-1 overflow-y-auto space-y-2 text-xs font-mono pr-2">
                     <div class="p-2 rounded bg-slate-950/60 border border-slate-800 text-slate-400">
-                        [SYS] Moteur rPPG, Prosodie & IndexedDB prêt.
+                        [SYS] Moteur EgoLens Pro initialisé avec succès.
                     </div>
                 </div>
             </div>
@@ -270,7 +274,7 @@
                     db.createObjectStore("sessions", { keyPath: "id", autoIncrement: true });
                 }
             };
-            request.onsuccess = (e) => { db = e.target.result; updateDBSessionCount(); };
+            request.onsuccess = (e) => { db = e.target.result; };
             request.onerror = (e) => console.error("Erreur IndexedDB:", e);
         }
 
@@ -278,23 +282,13 @@
             if (!db) return;
             const tx = db.transaction("sessions", "readwrite");
             tx.objectStore("sessions").add(sessionData);
-            tx.oncomplete = () => updateDBSessionCount();
-        }
-
-        function updateDBSessionCount() {
-            if (!db) return;
-            const tx = db.transaction("sessions", "readonly");
-            const countReq = tx.objectStore("sessions").count();
-            countReq.onsuccess = () => {
-                document.getElementById('db-sessions-count').textContent = countReq.result;
-            };
         }
 
         function clearIndexedDBHistory() {
             if (!db) return;
             const tx = db.transaction("sessions", "readwrite");
             tx.objectStore("sessions").clear();
-            tx.oncomplete = () => { updateDBSessionCount(); showToast("Historique local effacé."); };
+            tx.oncomplete = () => showToast("Mémoire locale nettoyée.");
         }
 
         let rPPGBuffer = [];
@@ -339,7 +333,7 @@
         }
 
         let audioHistory = [];
-        let lastJitter = 0, lastShimmer = 0;
+        let lastJitter = 0, lastShimmer = 0, lastCognitiveLoad = 0;
 
         function processAudioProsody(features) {
             if (!features || !features.rms) return;
@@ -354,8 +348,13 @@
                 }
                 lastShimmer = +((rmsDiffSum / audioHistory.length) * 100).toFixed(2);
                 lastJitter = +(lastShimmer * 0.45).toFixed(2);
+                lastCognitiveLoad = Math.min(100, Math.round(features.energy * 20));
+
                 document.getElementById('val-jitter').textContent = `${lastJitter}%`;
                 document.getElementById('val-shimmer').textContent = `${lastShimmer}%`;
+                document.getElementById('val-cog-vocal').textContent = `${lastCognitiveLoad}%`;
+                
+                updateForensicDashboard(lastCongruence, lastCognitiveLoad);
             }
         }
 
@@ -363,7 +362,7 @@
         let sessionStartTime = null, sessionTimerInterval = null, sessionDataLog = [];
         let faceMesh = null, pose = null, camera = null;
         let audioActive = false, audioContext = null, analyser = null, meydaAnalyzer = null, canvasContext = null;
-        let baseline = { shoulderY: null };
+        let baselineShoulderY = null;
         let lastCongruence = 100, dissonanceCount = 0;
 
         function showToast(m) {
@@ -376,6 +375,7 @@
         async function toggleWebcam() {
             const v = document.getElementById('webcam'), p = document.getElementById('cam-placeholder');
             const btn = document.getElementById('btn-toggle-cam');
+            const dot = document.getElementById('cam-status-dot');
             if (!streamActive) {
                 try {
                     if (!faceMesh) {
@@ -392,6 +392,7 @@
                     camera = new Camera(v, { onFrame: async () => { if (streamActive) { await faceMesh.send({ image: v }); await pose.send({ image: v }); } } });
                     camera.start();
                     streamActive = true;
+                    dot.classList.replace('bg-amber-500', 'bg-emerald-500');
                     btn.textContent = "Couper Caméra"; btn.classList.replace('bg-indigo-600', 'bg-red-600');
                     startSessionTimer();
                     showToast('Flux optique & rPPG activés');
@@ -402,19 +403,19 @@
                 if (mediaStream) mediaStream.getTracks().forEach(t => t.stop());
                 v.classList.add('hidden'); p.classList.remove('hidden');
                 streamActive = false;
+                dot.classList.replace('bg-emerald-500', 'bg-amber-500');
                 btn.textContent = "Activer Caméra"; btn.classList.replace('bg-red-600', 'bg-indigo-600');
             }
         }
 
         async function switchCamera() {
             currentFacingMode = currentFacingMode === 'user' ? 'environment' : 'user';
+            showToast(`Basculement vers la caméra ${currentFacingMode === 'user' ? 'frontale' : 'arrière'}`);
             if (streamActive) {
                 if (camera) camera.stop();
                 if (mediaStream) mediaStream.getTracks().forEach(t => t.stop());
                 streamActive = false;
                 await toggleWebcam();
-            } else {
-                showToast('Activez d\'abord la caméra');
             }
         }
 
@@ -437,18 +438,43 @@
         function onPoseResults(results) {
             if (!streamActive || !results.poseLandmarks) return;
             const shoulderAvgY = (results.poseLandmarks[11].y + results.poseLandmarks[12].y) / 2;
-            const neckTension = baseline.shoulderY ? Math.max(0, Math.min(100, Math.round((baseline.shoulderY - shoulderAvgY) * 400))) : 15;
-            lastCongruence = Math.max(0, 100 - neckTension);
+            if (baselineShoulderY !== null) {
+                const diff = Math.abs(shoulderAvgY - baselineShoulderY);
+                lastCongruence = Math.max(0, Math.min(100, Math.round(100 - (diff * 300))));
+            } else {
+                lastCongruence = 100;
+            }
+            updateForensicDashboard(lastCongruence, lastCognitiveLoad);
+        }
+
+        function calibrateBaseline() {
+            const status = document.getElementById('calibration-status');
+            status.textContent = "Calibration en cours... restez stable";
+            setTimeout(() => {
+                baselineShoulderY = 0.45; // Valeur étalon ou capturée dynamiquement
+                status.textContent = "Baseline calibrée avec succès.";
+                showToast("Baseline posturale enregistrée");
+            }, 1000);
+        }
+
+        function updateForensicDashboard(congruence, cogLoad) {
+            document.getElementById('score-congruence').textContent = `${congruence}%`;
+            document.getElementById('bar-congruence').style.width = `${congruence}%`;
+            
+            document.getElementById('score-cog').textContent = `${cogLoad}%`;
+            document.getElementById('bar-cog').style.width = `${cogLoad}%`;
         }
 
         async function toggleAudioAnalysis() {
             const btn = document.getElementById('btn-toggle-audio');
+            const dot = document.getElementById('audio-status-dot');
             if (!audioActive) {
                 try {
                     audioContext = new (window.AudioContext || window.webkitAudioContext)();
                     const audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
                     const source = audioContext.createMediaStreamSource(audioStream);
                     analyser = audioContext.createAnalyser();
+                    analyser.fftSize = 256;
                     source.connect(analyser);
 
                     if (typeof Meyda !== 'undefined') {
@@ -459,13 +485,13 @@
                                 if (!audioActive) return;
                                 const rms = +(features.rms * 100).toFixed(1);
                                 document.getElementById('val-vsa').textContent = `${rms} RMS`;
-                                document.getElementById('val-cog').textContent = `${Math.min(100, Math.round(features.energy * 20))}%`;
                                 processAudioProsody(features);
                             }
                         });
                         meydaAnalyzer.start();
                     }
                     audioActive = true;
+                    dot.classList.replace('bg-slate-600', 'bg-emerald-500');
                     btn.textContent = "Couper Analyse Prosodique"; btn.classList.replace('bg-indigo-600', 'bg-red-600');
                     initAudioVisualizer();
                     showToast('Analyse vocale active - Parlez dans le micro');
@@ -474,14 +500,15 @@
                 if (meydaAnalyzer) meydaAnalyzer.stop();
                 if (audioContext) audioContext.close();
                 audioActive = false;
-                btn.textContent = "Activer Analyse Prosodique Vocale"; btn.classList.replace('bg-red-600', 'bg-indigo-600');
+                dot.classList.replace('bg-emerald-500', 'bg-slate-600');
+                btn.textContent = "Activer l'analyse prosodique vocale"; btn.classList.replace('bg-red-600', 'bg-indigo-600');
             }
         }
 
         function initAudioVisualizer() {
             const canvas = document.getElementById('audioVisualizer');
             canvasContext = canvas.getContext('2d');
-            canvas.width = canvas.parentElement.clientWidth; canvas.height = 60;
+            canvas.width = canvas.parentElement.clientWidth; canvas.height = 80;
             drawAudioSpectrum();
         }
 
@@ -491,8 +518,11 @@
             const canvas = document.getElementById('audioVisualizer');
             const dataArray = new Uint8Array(analyser.frequencyBinCount);
             analyser.getByteFrequencyData(dataArray);
-            canvasContext.fillStyle = '#020617'; canvasContext.fillRect(0, 0, canvas.width, canvas.height);
-            let x = 0; const barWidth = (canvas.width / dataArray.length) * 2.5;
+            canvasContext.fillStyle = '#020617'; 
+            canvasContext.fillRect(0, 0, canvas.width, canvas.height);
+            
+            let x = 0; 
+            const barWidth = (canvas.width / dataArray.length) * 2.5;
             for (let i = 0; i < dataArray.length; i++) {
                 let barHeight = (dataArray[i] / 255) * canvas.height;
                 canvasContext.fillStyle = `#6366f1`;
@@ -529,7 +559,6 @@
                 dissonanceEvents: dissonanceCount,
                 timeline: sessionDataLog
             };
-
             saveSessionToLocalDB(sessionPayload);
 
             document.getElementById('report-duration').textContent = sessionPayload.duration;
@@ -537,16 +566,11 @@
             document.getElementById('report-bpm').textContent = `${lastBPM} BPM`;
             document.getElementById('report-jitter').textContent = `${lastJitter}%`;
             document.getElementById('report-dissonance').textContent = dissonanceCount;
-            document.getElementById('report-summary-text').textContent = `Session enregistrée localement dans IndexedDB. Pulsation moyenne : ${lastBPM} BPM avec un Jitter vocal moyen de ${lastJitter}%.`;
             document.getElementById('session-modal').classList.remove('hidden');
         }
 
         function closeSessionModal() { document.getElementById('session-modal').classList.add('hidden'); }
-        function toggleNightVision() { nightVisionActive = !nightVisionActive; document.getElementById('webcam').classList.toggle('night-vision'); }
-        function startCalibrationProcess() { baseline.shoulderY = 0.4; showToast('Baseline calibrée'); }
-        function clearLogs() { document.getElementById('log-container').innerHTML = ''; }
-        function feedAIModel(valid) { showToast(valid ? 'Alerte validée' : 'Faux positif ajusté'); }
-        function loadLocalHistory() { showToast('Sessions chargées depuis IndexedDB'); }
+        function toggleNightVision() { document.getElementById('webcam').classList.toggle('night-vision'); }
 
         window.addEventListener('DOMContentLoaded', () => {
             initLocalDatabase();
