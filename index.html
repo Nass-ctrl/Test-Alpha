@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>EgoLens Pro – v7.0 Ultimate Horizon (Cognitive Twin)</title>
+<title>EgoLens Pro – v7.1 Ultimate Horizon (Cognitive Twin)</title>
 <!-- Tailwind CSS -->
 <script src="https://cdn.tailwindcss.com"></script>
 <script>
@@ -40,7 +40,7 @@ accenthover: '#7c3aed'
 <i data-lucide="cpu" class="w-6 h-6 text-accent animate-pulse"></i>
 </div>
 <div>
-<h1 class="font-bold text-lg tracking-wide">EgoLens <span class="text-accent text-xs px-2 py-0.5 rounded bg-accent/10 border border-accent/20 ml-1">v7.0 ULTIMATE</span></h1>
+<h1 class="font-bold text-lg tracking-wide">EgoLens <span class="text-accent text-xs px-2 py-0.5 rounded bg-accent/10 border border-accent/20 ml-1">v7.1 ULTIMATE</span></h1>
 <p class="text-xs text-gray-400">Jumeau Numérique Psychophysiologique & Anticipation Pré-Cognitive</p>
 </div>
 </div>
@@ -96,7 +96,9 @@ accenthover: '#7c3aed'
 <!-- Quantum Biometrics Card -->
 <div class="bg-cardbg rounded-2xl border border-gray-800/80 p-4 shadow-xl flex flex-col space-y-4">
 <h2 class="text-sm font-semibold flex items-center space-x-2">
-<i data-lucide="sliders" class="w-4 h-4 text-accent"><span>Indicateurs Profonds v7.0</span></h2>
+<i data-lucide="sliders" class="w-4 h-4 text-accent"></i>
+<span>Indicateurs Profonds v7.1</span>
+</h2>
 <div class="grid grid-cols-2 gap-3">
 <div class="bg-gray-900/60 p-3 rounded-xl border border-gray-800/60">
 <p class="text-xs text-gray-400">Charge Pupillaire</p>
@@ -141,7 +143,7 @@ accenthover: '#7c3aed'
 <div class="bg-cardbg rounded-2xl border border-gray-800/80 p-4 shadow-xl flex flex-col space-y-3">
 <h2 class="text-sm font-semibold flex items-center space-x-2">
 <i data-lucide="sparkles" class="w-4 h-4 text-accent"></i>
-<span>Rapport d'Introspection & Analyse Pré-Cognitive v7.0</span>
+<span>Rapport d'Introspection & Analyse Pré-Cognitive v7.1</span>
 </h2>
 <div id="narrative-insights" class="bg-gray-900/60 p-4 rounded-xl border border-gray-800/60 text-xs text-gray-300 leading-relaxed min-h-[90px] flex items-center justify-center text-center text-gray-500">
 En attente du flux d'activation du jumeau numérique...
@@ -151,7 +153,7 @@ En attente du flux d'activation du jumeau numérique...
 
 </main>
 
-<!-- Script Application Logic v7.0 -->
+<!-- Script Application Logic v7.1 -->
 <script>
 lucide.createIcons();
 
@@ -261,7 +263,7 @@ canvasElement.height = videoElement.videoHeight || 480;
 canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
 
 if (!results.multiFaceLandmarks || results.multiFaceLandmarks.length === 0) return;
-  
+
 const landmarks = results.multiFaceLandmarks[0];
 
 // Maillage 3D futuriste
@@ -269,7 +271,7 @@ drawConnectors(canvasCtx, landmarks, FACEMESH_TESSELATION, { color: 'rgba(139, 9
 drawConnectors(canvasCtx, landmarks, FACEMESH_RIGHT_EYE, { color: 'rgba(34, 211, 238, 0.8)', lineWidth: 1 });
 drawConnectors(canvasCtx, landmarks, FACEMESH_LEFT_EYE, { color: 'rgba(34, 211, 238, 0.8)', lineWidth: 1 });
 
-// Estimation Pupillaire & Ouverture oculaire (indices 159 et 145 pour l'œil haut/bas)
+// Estimation Pupillaire & Ouverture oculaire
 const leftEyeTop = landmarks[159];
 const leftEyeBottom = landmarks[145];
 const eyeOpening = Math.hypot(leftEyeTop.x - leftEyeBottom.x, leftEyeTop.y - leftEyeBottom.y);
@@ -372,7 +374,6 @@ let audio = getAudioMetrics();
 let cognitiveLoad = Math.min(100, Math.max(10, Math.round((currentPupilLoad * 0.4) + (au4Score * 20) + ((currentRealHR - baselineHR) * 1.5))));
 riskFactor = Math.min(100, Math.max(0, Math.round((cognitiveLoad * 0.6) + (currentMotion * 25))));
 
-// Alerte Prédictive en temps réel
 let alertBadge = document.getElementById('predictive-alert');
 if (riskFactor > 70) {
 alertBadge.className = "text-xs text-red-400 bg-red-500/10 px-2 py-0.5 rounded border border-red-500/20 animate-pulse";
@@ -411,25 +412,28 @@ if (sessionData.length === 0) return;
 let avgLoad = Math.round(sessionData.reduce((acc, curr) => acc + curr.cognitiveLoad, 0) / sessionData.length);
 let maxRisk = Math.max(...sessionData.map(d => d.riskFactor));
 
-let html = `<div class="space-y-1 text-left">
-<p class="text-gray-200 font-semibold mb-1">Synthèse du Jumeau Numérique (v7.0) :</p>
+let html = `
+<div class="space-y-1 text-left w-full">
+<p class="text-gray-200 font-semibold mb-1">Synthèse du Jumeau Numérique (v7.1) :</p>
 <p>• <strong>Charge Cognitive Moyenne :</strong> ${avgLoad}/100.</p>
 <p>• <strong>Pic d'Anticipation Pré-Cognitive (Risque Max) :</strong> ${maxRisk}%. ${maxRisk > 65 ? 'Présence de ruptures d\'alignement comportemental identifiées par le modèle.' : 'Excellente régulation homéostasique tout au long de la session.'}</p>
 </div>`;
 
-document.getElementById('narrative-insights').innerHTML = html;
-document.getElementById('narrative-insights').classList.remove('justify-center', 'text-center', 'text-gray-500');
+let insightsContainer = document.getElementById('narrative-insights');
+insightsContainer.innerHTML = html;
+insightsContainer.classList.remove('justify-center', 'text-center', 'text-gray-500');
 }
 
 function exportExecutivePDF() {
 let printWindow = window.open('', '_blank');
 printWindow.document.write(`
 <html>
-<head><title>Rapport Jumeau Numérique - EgoLens v7.0</title>
+<head>
+<title>Rapport Jumeau Numérique - EgoLens v7.1</title>
 <style>body { font-family: sans-serif; padding: 40px; color: #111; } h1 { color: #8b5cf6; border-bottom: 2px solid #8b5cf6; }</style>
 </head>
 <body>
-<h1>EgoLens v7.0 - Rapport Jumeau Numérique Psychophysiologique</h1>
+<h1>EgoLens v7.1 - Rapport Jumeau Numérique Psychophysiologique</h1>
 <p>Date : ${new Date().toLocaleString()}</p>
 <p>Analyse pré-cognitive et structurelle de la session terminée avec succès.</p>
 <script>window.print();</script>
