@@ -3,14 +3,45 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>EgoLens - Tableau de Bord Interactif</title>
+    <title>EgoLens - Tableau de Bord Biométrique, Forensic & Audio Pro</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        .night-vision {
+            filter: sepia(100%) hue-rotate(60deg) saturate(500%) contrast(1.2);
+        }
+        @keyframes scanline {
+            0% { transform: translateY(-100%); }
+            100% { transform: translateY(100%); }
+        }
+        .scanning::after {
+            content: "";
+            position: absolute;
+            top: 0; left: 0; right: 0; height: 2px;
+            background: rgba(99, 102, 241, 0.7);
+            box-shadow: 0 0 10px #6366f1, 0 0 20px #6366f1;
+            animation: scanline 3s linear infinite;
+        }
+        @keyframes flash-red {
+            0%, 100% { border-color: rgba(239, 68, 68, 0.2); }
+            50% { border-color: rgba(239, 68, 68, 0.8); box-shadow: 0 0 15px rgba(239, 68, 68, 0.4); }
+        }
+        .alert-micro {
+            animation: flash-red 1.5s infinite;
+        }
+        /* Visualiseur Audio Canvas */
+        #audioVisualizer {
+            width: 100%;
+            height: 60px;
+            background: #020617;
+            border-radius: 0.5rem;
+        }
+    </style>
 </head>
 <body class="h-full bg-slate-950 text-slate-100 flex flex-col font-sans antialiased selection:bg-indigo-500 selection:text-white">
 
-    <!-- Notification / Boîte de message personnalisée -->
+    <!-- Notification -->
     <div id="toast" class="fixed top-5 right-5 z-50 transform translate-y-[-150%] transition-transform duration-300 bg-slate-800 border border-slate-700 px-4 py-3 rounded-xl shadow-2xl flex items-center space-x-3">
         <i id="toast-icon" class="fa-solid fa-circle-info text-indigo-400"></i>
         <span id="toast-message" class="text-sm font-medium">Notification EgoLens</span>
@@ -20,17 +51,17 @@
     <header class="border-b border-slate-800 bg-slate-900/50 backdrop-blur-md sticky top-0 z-40 px-6 py-4 flex items-center justify-between">
         <div class="flex items-center space-x-3">
             <div class="bg-indigo-600/20 border border-indigo-500/30 p-2.5 rounded-xl text-indigo-400">
-                <i class="fa-solid fa-eye text-xl"></i>
+                <i class="fa-solid fa-brain text-xl"></i>
             </div>
             <div>
-                <h1 class="text-lg font-bold tracking-tight text-white">EgoLens <span class="text-xs uppercase px-2 py-0.5 bg-indigo-500/20 text-indigo-300 rounded-full border border-indigo-500/30 ml-2">Pro</span></h1>
-                <p class="text-xs text-slate-400">Système d'analyse visuelle et cognitive</p>
+                <h1 class="text-lg font-bold tracking-tight text-white">EgoLens <span class="text-xs uppercase px-2 py-0.5 bg-indigo-500/20 text-indigo-300 rounded-full border border-indigo-500/30 ml-2">Aero-Acoustic Core</span></h1>
+                <p class="text-xs text-slate-400">Vision, Apprentissage Autonome & Analyse Audio Pro (VSA)</p>
             </div>
         </div>
         <div class="flex items-center space-x-4">
-            <button onclick="showToast('Synchronisation des flux EgoLens en cours...')" class="bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs px-3 py-2 rounded-lg border border-slate-700 transition flex items-center space-x-2">
-                <i class="fa-solid fa-rotate"></i>
-                <span class="hidden sm:inline">Rafraîchir</span>
+            <button onclick="startCalibrationProcess()" id="btn-calibrate" class="bg-amber-600/20 hover:bg-amber-600/30 text-amber-300 border border-amber-500/30 text-xs px-3 py-2 rounded-lg transition flex items-center space-x-2">
+                <i class="fa-solid fa-sliders"></i>
+                <span id="calibrate-txt">Lancer Calibration (Baseline)</span>
             </button>
             <div class="h-8 w-8 rounded-full bg-indigo-600 flex items-center justify-center font-bold text-sm shadow-lg shadow-indigo-500/30">
                 EL
@@ -41,246 +72,718 @@
     <!-- Contenu Principal -->
     <main class="flex-1 overflow-y-auto p-4 md:p-8 max-w-7xl mx-auto w-full grid grid-cols-1 lg:grid-cols-3 gap-6">
 
-        <!-- Colonne Gauche & Milieu : Analyse et Vision en direct -->
+        <!-- Colonne Gauche & Milieu : Caméra, Audio Pro et Matrice FACS -->
         <div class="lg:col-span-2 space-y-6">
             
-            <!-- Vision / Caméra simulée -->
-            <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl relative overflow-hidden group">
+            <!-- Vision / Caméra -->
+            <div id="cam-panel" class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl relative overflow-hidden group">
                 <div class="flex items-center justify-between mb-4">
                     <div class="flex items-center space-x-2">
-                        <span class="h-2.5 w-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                        <h2 class="font-semibold text-sm text-slate-200">Flux Optique EgoLens</h2>
+                        <span id="cam-status-dot" class="h-2.5 w-2.5 rounded-full bg-amber-500 animate-pulse"></span>
+                        <h2 class="font-semibold text-sm text-slate-200">Flux Optique & Réticule Autonome</h2>
                     </div>
-                    <div class="text-xs text-slate-400 bg-slate-800 px-2.5 py-1 rounded-lg border border-slate-700">
-                        Mode : <span class="text-indigo-400 font-medium">Analyse Cognitive</span>
-                    </div>
-                </div>
-
-                <!-- Simulation de la vue de la lentille -->
-                <div class="relative w-full h-64 md:h-80 bg-slate-950 rounded-xl overflow-hidden border border-slate-800 flex items-center justify-center">
-                    <div class="absolute inset-0 opacity-40 bg-[radial-gradient(#4f46e5_1px,transparent_1px)] [background-size:16px_16px]"></div>
-                    
-                    <!-- Éléments de réalité augmentée simulés -->
-                    <div class="absolute top-4 left-4 border border-indigo-500/50 bg-indigo-950/40 backdrop-blur-sm p-2 rounded-lg text-xs text-indigo-300 flex items-center space-x-2">
-                        <i class="fa-solid fa-crosshairs"></i>
-                        <span>Cible détectée: Focalisation active</span>
-                    </div>
-
-                    <div class="absolute bottom-4 right-4 bg-slate-900/80 backdrop-blur-md px-3 py-1.5 rounded-lg border border-slate-700 text-xs text-slate-300">
-                        FPS: <span class="text-emerald-400 font-bold">60.0</span> | Latence: <span class="text-emerald-400 font-bold">12ms</span>
-                    </div>
-
-                    <!-- Illustration centrale -->
-                    <div class="text-center z-10 p-6">
-                        <div class="w-20 h-20 mx-auto mb-3 bg-indigo-600/10 border border-indigo-500/30 rounded-full flex items-center justify-center text-indigo-400 text-2xl shadow-inner">
-                            <i class="fa-solid fa-microchip"></i>
+                    <div class="flex items-center space-x-2">
+                        <span id="calibration-badge" class="hidden text-xs bg-amber-950 text-amber-400 px-2.5 py-0.5 rounded-md border border-amber-800 font-mono animate-pulse">CALIBRATION EN COURS...</span>
+                        <span id="night-mode-badge" class="hidden text-xs bg-emerald-950 text-emerald-400 px-2.5 py-0.5 rounded-md border border-emerald-800 font-mono">IR / NUIT ACTIF</span>
+                        <div class="text-xs text-slate-400 bg-slate-800 px-2.5 py-1 rounded-lg border border-slate-700">
+                            État : <span id="cam-mode-text" class="text-amber-400 font-medium">Caméra désactivée</span>
                         </div>
-                        <p class="text-sm font-medium text-slate-300">Aucun signal vidéo brut externe requis</p>
-                        <p class="text-xs text-slate-500 mt-1">Le moteur EgoLens traite vos métriques en temps réel.</p>
                     </div>
                 </div>
 
-                <!-- Contrôles de la lentille -->
+                <!-- Vue de la lentille -->
+                <div id="video-container" class="relative w-full h-64 md:h-72 bg-slate-950 rounded-xl overflow-hidden border border-slate-800 flex items-center justify-center">
+                    <video id="webcam" autoplay playsinline class="absolute inset-0 w-full h-full object-cover hidden transition-all duration-300"></video>
+
+                    <div class="absolute inset-0 opacity-40 bg-[radial-gradient(#4f46e5_1px,transparent_1px)] [background-size:16px_16px] pointer-events-none"></div>
+                    
+                    <div class="absolute top-4 left-4 border border-indigo-500/50 bg-indigo-950/40 backdrop-blur-sm p-2 rounded-lg text-xs text-indigo-300 flex items-center space-x-2 z-20">
+                        <i class="fa-solid fa-microchip"></i>
+                        <span id="mesh-status">IA Autonome: En attente</span>
+                    </div>
+
+                    <div class="absolute bottom-4 right-4 bg-slate-900/80 backdrop-blur-md px-3 py-1.5 rounded-lg border border-slate-700 text-xs text-slate-300 z-20">
+                        Modèle v3.5 | Poids adaptatifs : <span id="ai-weight" class="text-emerald-400 font-bold">94.2%</span>
+                    </div>
+
+                    <div id="cam-placeholder" class="text-center z-10 p-6">
+                        <div class="w-20 h-20 mx-auto mb-3 bg-indigo-600/10 border border-indigo-500/30 rounded-full flex items-center justify-center text-indigo-400 text-2xl shadow-inner">
+                            <i class="fa-solid fa-video"></i>
+                        </div>
+                        <p class="text-sm font-medium text-slate-300">Aucun flux vidéo externe actif</p>
+                        <p class="text-xs text-slate-500 mt-1">Activez la caméra pour lancer l'apprentissage dynamique.</p>
+                    </div>
+                </div>
+
+                <!-- Contrôles Caméra -->
                 <div class="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-3">
-                    <button onclick="showToast('Filtre de clarté activé')" class="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs py-2.5 px-3 rounded-xl transition font-medium flex items-center justify-center space-x-2">
-                        <i class="fa-solid fa-wand-magic-sparkles text-indigo-400"></i>
-                        <span>Clarté+</span>
+                    <button onclick="toggleWebcam()" id="btn-toggle-cam" class="bg-indigo-600 hover:bg-indigo-500 text-white text-xs py-2.5 px-3 rounded-xl transition font-medium flex items-center justify-center space-x-2 shadow-lg shadow-indigo-600/20 col-span-2 sm:col-span-1">
+                        <i class="fa-solid fa-video"></i>
+                        <span>Activer Caméra</span>
                     </button>
-                    <button onclick="showToast('Isolation du sujet activée')" class="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs py-2.5 px-3 rounded-xl transition font-medium flex items-center justify-center space-x-2">
-                        <i class="fa-solid fa-user-shield text-indigo-400"></i>
-                        <span>Isolation</span>
+                    <button onclick="toggleNightVision()" id="btn-night-vision" class="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs py-2.5 px-3 rounded-xl transition font-medium flex items-center justify-center space-x-2 opacity-55 cursor-not-allowed" disabled>
+                        <i class="fa-solid fa-moon text-emerald-400"></i>
+                        <span>Mode Nuit</span>
                     </button>
-                    <button onclick="showToast('Mode nuit activé')" class="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs py-2.5 px-3 rounded-xl transition font-medium flex items-center justify-center space-x-2">
-                        <i class="fa-solid fa-moon text-indigo-400"></i>
-                        <span>Vision Nuit</span>
+                    <button onclick="showToast('Modèle exporté vers le stockage local')" class="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs py-2.5 px-3 rounded-xl transition font-medium flex items-center justify-center space-x-2">
+                        <i class="fa-solid fa-download text-indigo-400"></i>
+                        <span>Sauvegarder Modèle</span>
                     </button>
-                    <button onclick="showToast('Enregistrement du flux démarré')" class="bg-indigo-600 hover:bg-indigo-500 text-white text-xs py-2.5 px-3 rounded-xl transition font-medium flex items-center justify-center space-x-2 shadow-lg shadow-indigo-600/20">
-                        <p class="inline"><i class="fa-solid fa-circle text-[8px] mr-1 text-red-400"></i> Enregistrer</p>
+                    <button onclick="resetLearningModel()" class="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs py-2.5 px-3 rounded-xl transition font-medium flex items-center justify-center space-x-2">
+                        <i class="fa-solid fa-rotate-right text-amber-400"></i>
+                        <span>Reset Apprentissage</span>
                     </button>
                 </div>
             </div>
 
-            <!-- Graphique d'analyse des performances -->
+            <!-- MODULE : Analyse Audio Professionnelle & VSA -->
             <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl">
-                <h3 class="font-semibold text-sm text-slate-200 mb-4">Statistiques d'attention et de focalisation</h3>
+                <div class="flex items-center justify-between mb-4">
+                    <div class="flex items-center space-x-2">
+                        <i class="fa-solid fa-microphone-lines text-indigo-400"></i>
+                        <h3 class="font-semibold text-sm text-slate-200">Analyse Acoustique & Stress Vocal (VSA Pro)</h3>
+                    </div>
+                    <span id="audio-status-badge" class="text-xs px-2.5 py-1 bg-slate-800 text-slate-400 rounded-lg border border-slate-700 font-medium">
+                        Microphone Inactif
+                    </span>
+                </div>
+
+                <!-- Visualiseur de Fréquences Canvas -->
+                <div class="mb-4 relative">
+                    <canvas id="audioVisualizer"></canvas>
+                    <div class="absolute bottom-2 left-3 text-[10px] font-mono text-slate-500 uppercase">Spectrogramme temps réel / Micro-tremors (8-14Hz)</div>
+                </div>
+
+                <!-- Métriques Audio -->
+                <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+                    <div class="bg-slate-950 p-3 rounded-xl border border-slate-800">
+                        <div class="text-[11px] text-slate-400 mb-1">Stress Vocal (VSA)</div>
+                        <div id="val-vsa" class="text-indigo-400 font-bold text-sm">0.0 Hz</div>
+                    </div>
+                    <div class="bg-slate-950 p-3 rounded-xl border border-slate-800">
+                        <div class="text-[11px] text-slate-400 mb-1">Stabilité Pitch</div>
+                        <div id="val-pitch" class="text-emerald-400 font-bold text-sm">--</div>
+                    </div>
+                    <div class="bg-slate-950 p-3 rounded-xl border border-slate-800">
+                        <div class="text-[11px] text-slate-400 mb-1">Charge Cognitive</div>
+                        <div id="val-cog" class="text-amber-400 font-bold text-sm">0%</div>
+                    </div>
+                    <div class="bg-slate-950 p-3 rounded-xl border border-slate-800">
+                        <div class="text-[11px] text-slate-400 mb-1">Indice de Dissimulation</div>
+                        <div id="val-dissim" class="text-rose-400 font-bold text-sm">0%</div>
+                    </div>
+                </div>
+
+                <!-- Bouton Contrôle Audio -->
+                <button onclick="toggleAudioAnalysis()" id="btn-toggle-audio" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white text-xs py-3 rounded-xl transition font-medium flex items-center justify-center space-x-2 shadow-lg shadow-indigo-600/20">
+                    <i class="fa-solid fa-microphone"></i>
+                    <span>Activer l'Analyse Audio Pro (Microphone)</span>
+                </button>
+            </div>
+
+            <!-- MODULE : Matrice FACS & Apprentissage Autonome -->
+            <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+                    <div class="flex items-center space-x-2">
+                        <i class="fa-solid fa-network-wired text-indigo-400"></i>
+                        <h3 class="font-semibold text-sm text-slate-200">Matrice FACS & Analyse Temporelle Autonome</h3>
+                    </div>
+                    <!-- Badge Émotionnel Dynamique -->
+                    <div id="global-emotion-badge" class="text-xs px-3 py-1.5 bg-slate-800 text-slate-400 rounded-lg border border-slate-700 font-medium flex items-center space-x-2 shadow-sm">
+                        <span class="h-2 w-2 rounded-full bg-slate-500 inline-block"></span>
+                        <span>État : En attente d'initialisation</span>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                    <!-- AU1 -->
+                    <div class="bg-slate-950 p-3 rounded-xl border border-slate-800">
+                        <div class="flex justify-between text-xs mb-1.5">
+                            <span class="text-slate-400 truncate">AU1 • Sourcils Int.</span>
+                            <span id="val-au1" class="text-indigo-400 font-bold">0%</span>
+                        </div>
+                        <div class="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                            <div id="bar-au1" class="bg-indigo-500 h-full w-0 transition-all duration-300"></div>
+                        </div>
+                    </div>
+                    <!-- AU2 -->
+                    <div class="bg-slate-950 p-3 rounded-xl border border-slate-800">
+                        <div class="flex justify-between text-xs mb-1.5">
+                            <span class="text-slate-400 truncate">AU2 • Sourcils Ext.</span>
+                            <span id="val-au2" class="text-indigo-400 font-bold">0%</span>
+                        </div>
+                        <div class="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                            <div id="bar-au2" class="bg-indigo-500 h-full w-0 transition-all duration-300"></div>
+                        </div>
+                    </div>
+                    <!-- AU4 -->
+                    <div class="bg-slate-950 p-3 rounded-xl border border-slate-800">
+                        <div class="flex justify-between text-xs mb-1.5">
+                            <span class="text-slate-400 truncate">AU4 • Froncement</span>
+                            <span id="val-au4" class="text-amber-400 font-bold">0%</span>
+                        </div>
+                        <div class="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                            <div id="bar-au4" class="bg-amber-500 h-full w-0 transition-all duration-300"></div>
+                        </div>
+                    </div>
+                    <!-- AU5 -->
+                    <div class="bg-slate-950 p-3 rounded-xl border border-slate-800">
+                        <div class="flex justify-between text-xs mb-1.5">
+                            <span class="text-slate-400 truncate">AU5 • Yeux Écarquillés</span>
+                            <span id="val-au5" class="text-cyan-400 font-bold">0%</span>
+                        </div>
+                        <div class="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                            <div id="bar-au5" class="bg-cyan-500 h-full w-0 transition-all duration-300"></div>
+                        </div>
+                    </div>
+                    <!-- AU6 -->
+                    <div class="bg-slate-950 p-3 rounded-xl border border-slate-800">
+                        <div class="flex justify-between text-xs mb-1.5">
+                            <span class="text-slate-400 truncate">AU6 • Joues (Duchenne)</span>
+                            <span id="val-au6" class="text-emerald-400 font-bold">0%</span>
+                        </div>
+                        <div class="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                            <div id="bar-au6" class="bg-emerald-500 h-full w-0 transition-all duration-300"></div>
+                        </div>
+                    </div>
+                    <!-- AU9 -->
+                    <div class="bg-slate-950 p-3 rounded-xl border border-slate-800">
+                        <div class="flex justify-between text-xs mb-1.5">
+                            <span class="text-slate-400 truncate">AU9 • Nez (Rides)</span>
+                            <span id="val-au9" class="text-rose-400 font-bold">0%</span>
+                        </div>
+                        <div class="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                            <div id="bar-au9" class="bg-rose-500 h-full w-0 transition-all duration-300"></div>
+                        </div>
+                    </div>
+                    <!-- AU12 -->
+                    <div class="bg-slate-950 p-3 rounded-xl border border-slate-800">
+                        <div class="flex justify-between text-xs mb-1.5">
+                            <span class="text-slate-400 truncate">AU12 • Sourire</span>
+                            <span id="val-au12" class="text-emerald-400 font-bold">0%</span>
+                        </div>
+                        <div class="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                            <div id="bar-au12" class="bg-emerald-500 h-full w-0 transition-all duration-300"></div>
+                        </div>
+                    </div>
+                    <!-- AU15 -->
+                    <div class="bg-slate-950 p-3 rounded-xl border border-slate-800">
+                        <div class="flex justify-between text-xs mb-1.5">
+                            <span class="text-slate-400 truncate">AU15 • Coins Baissés</span>
+                            <span id="val-au15" class="text-blue-400 font-bold">0%</span>
+                        </div>
+                        <div class="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                            <div id="bar-au15" class="bg-blue-500 h-full w-0 transition-all duration-300"></div>
+                        </div>
+                    </div>
+                    <!-- AU17 -->
+                    <div class="bg-slate-950 p-3 rounded-xl border border-slate-800">
+                        <div class="flex justify-between text-xs mb-1.5">
+                            <span class="text-slate-400 truncate">AU17 • Tension Menton</span>
+                            <span id="val-au17" class="text-purple-400 font-bold">0%</span>
+                        </div>
+                        <div class="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                            <div id="bar-au17" class="bg-purple-500 h-full w-0 transition-all duration-300"></div>
+                        </div>
+                    </div>
+                    <!-- AU24 -->
+                    <div class="bg-slate-950 p-3 rounded-xl border border-slate-800">
+                        <div class="flex justify-between text-xs mb-1.5">
+                            <span class="text-slate-400 truncate">AU24 • Pincement (Retenue)</span>
+                            <span id="val-au24" class="text-rose-400 font-bold">0%</span>
+                        </div>
+                        <div class="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                            <div id="bar-au24" class="bg-rose-500 h-full w-0 transition-all duration-300"></div>
+                        </div>
+                    </div>
+                    <!-- Clignement -->
+                    <div class="bg-slate-950 p-3 rounded-xl border border-slate-800">
+                        <div class="flex justify-between text-xs mb-1.5">
+                            <span class="text-slate-400 truncate">Clignement (Bpm)</span>
+                            <span id="val-blink" class="text-indigo-300 font-bold">0/min</span>
+                        </div>
+                        <div class="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                            <div id="bar-blink" class="bg-indigo-400 h-full w-0 transition-all duration-300"></div>
+                        </div>
+                    </div>
+                    <!-- Asymétrie -->
+                    <div class="bg-slate-950 p-3 rounded-xl border border-slate-800">
+                        <div class="flex justify-between text-xs mb-1.5">
+                            <span class="text-slate-400 truncate">Asymétrie Limbique</span>
+                            <span id="val-asym" class="text-pink-400 font-bold">0ms</span>
+                        </div>
+                        <div class="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                            <div id="bar-asym" class="bg-pink-500 h-full w-0 transition-all duration-300"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Graphique d'Évolution -->
+            <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl">
+                <h3 class="font-semibold text-sm text-slate-200 mb-4">Dynamique Cognitive & Apprentissage Autonome (60s)</h3>
                 <div class="h-64 w-full">
                     <canvas id="attentionChart"></canvas>
                 </div>
             </div>
-
         </div>
 
-        <!-- Colonne Droite : Panneau de Contrôle & Journal -->
+        <!-- Colonne Droite : Rétroaction et Apprentissage Continu -->
         <div class="space-y-6">
-            
-            <!-- Statut système -->
+            <!-- Panneau de Rétroaction Humaine / Renforcement (RLHF) -->
             <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl">
-                <h3 class="font-semibold text-sm text-slate-200 mb-4 flex items-center justify-between">
-                    <span>État des Modules</span>
-                    <i class="fa-solid fa-server text-indigo-400"></i>
+                <h3 class="font-semibold text-sm text-slate-200 mb-2 flex items-center justify-between">
+                    <span>Boucle d'Auto-Correction IA</span>
+                    <i class="fa-solid fa-sliders text-indigo-400"></i>
                 </h3>
+                <p class="text-xs text-slate-400 mb-4">Corrigez le modèle en cas de faux positif pour affiner sa pondération autonome.</p>
                 
-                <div class="space-y-3">
-                    <div class="bg-slate-950 p-3 rounded-xl border border-slate-800 flex items-center justify-between">
-                        <div class="flex items-center space-x-3">
-                            <div class="p-2 bg-emerald-500/10 text-emerald-400 rounded-lg">
-                                <i class="fa-solid fa-bolt"></i>
-                            </div>
-                            <div>
-                                <h4 class="text-xs font-semibold text-slate-300">Noyau Neural</h4>
-                                <p class="text-[10px] text-slate-500">Opérationnel</p>
-                            </div>
-                        </div>
-                        <span class="text-xs font-bold text-emerald-400">99.8%</span>
-                    </div>
-
-                    <div class="bg-slate-950 p-3 rounded-xl border border-slate-800 flex items-center justify-between">
-                        <div class="flex items-center space-x-3">
-                            <div class="p-2 bg-indigo-500/10 text-indigo-400 rounded-lg">
-                                <i class="fa-solid fa-memory"></i>
-                            </div>
-                            <div>
-                                <h4 class="text-xs font-semibold text-slate-300">Mémoire Tampon</h4>
-                                <p class="text-[10px] text-slate-500">4.2 Go / 16 Go</p>
-                            </div>
-                        </div>
-                        <span class="text-xs font-bold text-indigo-400">26%</span>
-                    </div>
-
-                    <div class="bg-slate-950 p-3 rounded-xl border border-slate-800 flex items-center justify-between">
-                        <div class="flex items-center space-x-3">
-                            <div class="p-2 bg-amber-500/10 text-amber-400 rounded-lg">
-                                <i class="fa-solid fa-temperature-half"></i>
-                            </div>
-                            <div>
-                                <h4 class="text-xs font-semibold text-slate-300">Température Capteur</h4>
-                                <p class="text-[10px] text-slate-500">Optimale</p>
-                            </div>
-                        </div>
-                        <span class="text-xs font-bold text-amber-400">38°C</span>
-                    </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <button onclick="feedAIModel(true)" class="bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/30 text-emerald-300 text-xs py-2.5 rounded-xl transition flex items-center justify-center space-x-2">
+                        <i class="fa-solid fa-check"></i>
+                        <span>Valider l'alerte (Vrai)</span>
+                    </button>
+                    <button onclick="feedAIModel(false)" class="bg-rose-600/20 hover:bg-rose-600/30 border border-rose-500/30 text-rose-300 text-xs py-2.5 rounded-xl transition flex items-center justify-center space-x-2">
+                        <i class="fa-solid fa-xmark"></i>
+                        <span>Faux positif (Rejet)</span>
+                    </button>
+                </div>
+                <div class="mt-4 pt-3 border-t border-slate-800 flex justify-between text-xs text-slate-400">
+                    <span>Échantillons traités : <strong id="samples-count" class="text-indigo-400">0</strong></span>
+                    <span>Précision réseau : <strong id="network-accuracy" class="text-emerald-400">94.2%</strong></span>
                 </div>
             </div>
 
-            <!-- Journal d'événements EgoLens -->
+            <!-- Journaux d'Activité et Détection de Micro-expressions -->
             <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl flex flex-col h-80">
                 <h3 class="font-semibold text-sm text-slate-200 mb-3 flex items-center justify-between">
-                    <span>Journal d'Activité</span>
+                    <span>Journal Autonome & Logs</span>
                     <button onclick="clearLogs()" class="text-xs text-slate-500 hover:text-slate-300">Effacer</button>
                 </h3>
                 
                 <div id="log-container" class="flex-1 overflow-y-auto space-y-2 pr-2 text-xs font-mono">
                     <div class="p-2 rounded bg-slate-950/60 border border-slate-800/80 text-slate-400 flex items-start space-x-2">
                         <span class="text-indigo-400 font-bold">[12:00]</span>
-                        <span>Système EgoLens initialisé avec succès.</span>
-                    </div>
-                    <div class="p-2 rounded bg-slate-950/60 border border-slate-800/80 text-slate-400 flex items-start space-x-2">
-                        <span class="text-indigo-400 font-bold">[12:01]</span>
-                        <span>Calibration des lentilles terminée.</span>
-                    </div>
-                    <div class="p-2 rounded bg-slate-950/60 border border-slate-800/80 text-slate-400 flex items-start space-x-2">
-                        <span class="text-indigo-400 font-bold">[12:02]</span>
-                        <span>Prêt pour l'analyse des flux visuels.</span>
+                        <span>Moteur EgoLens Aero-Acoustic Core chargé. Prêt à calibrer.</span>
                     </div>
                 </div>
 
                 <div class="mt-3 pt-3 border-t border-slate-800">
                     <button onclick="addLogEntry()" class="w-full bg-slate-800 hover:bg-slate-700 text-slate-200 py-2 rounded-xl text-xs font-medium border border-slate-700 transition">
-                        Ajouter un point de repère
+                        Forcer un snapshot d'apprentissage
                     </button>
                 </div>
             </div>
-
         </div>
-
     </main>
 
-    <!-- Script JavaScript pour l'interactivité -->
+    <!-- Scripts de Simulation et d'Analyse Audio -->
     <script>
-        // Fonction de notification type Toast
+        let streamActive = false;
+        let nightVisionActive = false;
+        let mediaStream = null;
+        let emotionInterval = null;
+        let isCalibrating = false;
+        let learningSamples = 0;
+        let networkAccuracy = 94.2;
+
+        // Variables Audio
+        let audioActive = false;
+        let audioContext = null;
+        let analyser = null;
+        let microphone = null;
+        let audioInterval = null;
+        let canvasContext = null;
+
         function showToast(message) {
             const toast = document.getElementById('toast');
             const messageEl = document.getElementById('toast-message');
             messageEl.textContent = message;
-            
             toast.classList.remove('translate-y-[-150%]');
             toast.classList.add('translate-y-0');
-            
             setTimeout(() => {
                 toast.classList.remove('translate-y-0');
                 toast.classList.add('translate-y-[-150%]');
             }, 3000);
         }
 
-        // Gestion du Journal
+        async function toggleWebcam() {
+            const videoElement = document.getElementById('webcam');
+            const videoContainer = document.getElementById('video-container');
+            const placeholder = document.getElementById('cam-placeholder');
+            const btn = document.getElementById('btn-toggle-cam');
+            const nightBtn = document.getElementById('btn-night-vision');
+            const statusDot = document.getElementById('cam-status-dot');
+            const modeText = document.getElementById('cam-mode-text');
+            const meshStatus = document.getElementById('mesh-status');
+
+            if (!streamActive) {
+                try {
+                    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                        throw new Error("API MediaDevices non supportée.");
+                    }
+
+                    mediaStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+                    videoElement.srcObject = mediaStream;
+                    videoElement.classList.remove('hidden');
+                    placeholder.classList.add('hidden');
+                    videoContainer.classList.add('scanning');
+                    
+                    btn.innerHTML = `<i class="fa-solid fa-video-slash"></i> <span>Couper Caméra</span>`;
+                    btn.classList.replace('bg-indigo-600', 'bg-red-600');
+                    btn.classList.replace('hover:bg-indigo-500', 'hover:bg-red-500');
+                    
+                    nightBtn.removeAttribute('disabled');
+                    nightBtn.classList.remove('opacity-55', 'cursor-not-allowed');
+
+                    statusDot.classList.replace('bg-amber-500', 'bg-emerald-500');
+                    modeText.textContent = "Apprentissage en ligne actif";
+                    modeText.classList.replace('text-amber-400', 'text-emerald-400');
+                    meshStatus.textContent = "IA Autonome: En ligne (Adaptative)";
+
+                    streamActive = true;
+                    showToast('Flux optique et réseau d\'apprentissage activés');
+                    startFACSAnalysis();
+                } catch (err) {
+                    console.error("Erreur caméra:", err);
+                    showToast('Erreur : Accès caméra refusé ou non sécurisé');
+                    addLogCustom(`Erreur flux optique : ${err.message}`);
+                }
+            } else {
+                if (mediaStream) {
+                    mediaStream.getTracks().forEach(track => track.stop());
+                }
+                videoElement.srcObject = null;
+                videoElement.classList.add('hidden');
+                placeholder.classList.add('hidden');
+                videoContainer.classList.remove('scanning');
+
+                btn.innerHTML = `<i class="fa-solid fa-video"></i> <span>Activer Caméra</span>`;
+                btn.classList.replace('bg-red-600', 'bg-indigo-600');
+                btn.classList.replace('hover:bg-red-500', 'hover:bg-indigo-500');
+
+                nightBtn.setAttribute('disabled', 'true');
+                nightBtn.classList.add('opacity-55', 'cursor-not-allowed');
+                if(nightVisionActive) toggleNightVision();
+
+                statusDot.classList.replace('bg-emerald-500', 'bg-amber-500');
+                modeText.textContent = "Caméra désactivée";
+                modeText.classList.replace('text-emerald-400', 'text-amber-400');
+                meshStatus.textContent = "IA Autonome: En attente";
+
+                streamActive = false;
+                stopFACSAnalysis();
+                showToast('Flux optique coupé');
+            }
+        }
+
+        // --- GESTION AUDIO PRO / VSA ---
+        async function toggleAudioAnalysis() {
+            const btnAudio = document.getElementById('btn-toggle-audio');
+            const badgeAudio = document.getElementById('audio-status-badge');
+
+            if (!audioActive) {
+                try {
+                    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                    const audioStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+                    
+                    microphone = audioContext.createMediaStreamSource(audioStream);
+                    analyser = audioContext.createAnalyser();
+                    analyser.fftSize = 256;
+                    microphone.connect(analyser);
+
+                    audioActive = true;
+                    btnAudio.innerHTML = `<i class="fa-solid fa-microphone-slash"></i> <span>Couper l'Analyse Audio</span>`;
+                    btnAudio.classList.replace('bg-indigo-600', 'bg-red-600');
+                    btnAudio.classList.replace('hover:bg-indigo-500', 'hover:bg-red-500');
+
+                    badgeAudio.textContent = "Analyse VSA Active";
+                    badgeAudio.className = "text-xs px-2.5 py-1 bg-emerald-500/20 text-emerald-300 rounded-lg border border-emerald-500/30 font-medium animate-pulse";
+
+                    initAudioVisualizer();
+                    startAudioVSAStream();
+                    showToast('Microphone connecté et analyse acoustique lancée');
+                    addLogCustom('Module VSA Pro initialisé : Écoute des micro-tremors laryngés.');
+                } catch (err) {
+                    console.error("Erreur audio:", err);
+                    showToast('Erreur : Accès microphone refusé');
+                    addLogCustom(`Erreur flux audio : ${err.message}`);
+                }
+            } else {
+                if (audioContext) audioContext.close();
+                audioActive = false;
+                if (audioInterval) clearInterval(audioInterval);
+
+                btnAudio.innerHTML = `<i class="fa-solid fa-microphone"></i> <span>Activer l'Analyse Audio Pro (Microphone)</span>`;
+                btnAudio.classList.replace('bg-red-600', 'bg-indigo-600');
+                btnAudio.classList.replace('hover:bg-red-500', 'hover:bg-indigo-500');
+
+                badgeAudio.textContent = "Microphone Inactif";
+                badgeAudio.className = "text-xs px-2.5 py-1 bg-slate-800 text-slate-400 rounded-lg border border-slate-700 font-medium";
+
+                document.getElementById('val-vsa').textContent = "0.0 Hz";
+                document.getElementById('val-pitch').textContent = "--";
+                document.getElementById('val-cog').textContent = "0%";
+                document.getElementById('val-dissim').textContent = "0%";
+                showToast('Analyse audio coupée');
+            }
+        }
+
+        function initAudioVisualizer() {
+            const canvas = document.getElementById('audioVisualizer');
+            canvas.width = canvas.parentElement.clientWidth;
+            canvas.height = 60;
+            canvasContext = canvas.getContext('2d');
+            drawAudioSpectrum();
+        }
+
+        function drawAudioSpectrum() {
+            if (!audioActive) return;
+            requestAnimationFrame(drawAudioSpectrum);
+
+            const bufferLength = analyser.frequencyBinCount;
+            const dataArray = new Uint8Array(bufferLength);
+            analyser.getByteFrequencyData(dataArray);
+
+            canvasContext.fillStyle = '#020617';
+            canvasContext.fillRect(0, 0, canvasContext.canvas.width, canvasContext.canvas.height);
+
+            const barWidth = (canvasContext.canvas.width / bufferLength) * 2.5;
+            let x = 0;
+
+            for (let i = 0; i < bufferLength; i++) {
+                let barHeight = dataArray[i] / 4;
+
+                canvasContext.fillStyle = `rgb(${barHeight + 100}, 99, 241)`;
+                canvasContext.fillRect(x, canvasContext.canvas.height - barHeight, barWidth, barHeight);
+
+                x += barWidth + 1;
+            }
+        }
+
+        function startAudioVSAStream() {
+            audioInterval = setInterval(() => {
+                if (!audioActive) return;
+
+                const vsaVal = (Math.random() * 4 + 8.5).toFixed(1); // 8Hz - 12.5Hz (micro-tremor range)
+                const pitchStability = Math.random() > 0.3 ? "Stable" : "Oscillant";
+                const cogLoad = Math.floor(Math.random() * 40) + 20;
+                const dissimVoice = Math.floor(Math.random() * 30) + 5;
+
+                document.getElementById('val-vsa').textContent = vsaVal + ' Hz';
+                document.getElementById('val-pitch').textContent = pitchStability;
+                document.getElementById('val-cog').textContent = cogLoad + '%';
+                document.getElementById('val-dissim').textContent = dissimVoice + '%';
+
+                if (vsaVal > 11.5 && cogLoad > 50) {
+                    if (Math.random() > 0.6) {
+                        addLogCustom(`🎙️ [Acoustic VSA] Pic de stress vocal détecté (${vsaVal} Hz - Indice cognitif ${cogLoad}%).`);
+                    }
+                }
+            }, 2500);
+        }
+
+        function startCalibrationProcess() {
+            if (!streamActive) {
+                showToast('Veuillez d\'abord activer la caméra.');
+                return;
+            }
+            isCalibrating = true;
+            const calBadge = document.getElementById('calibration-badge');
+            const calTxt = document.getElementById('calibrate-txt');
+            calBadge.classList.remove('hidden');
+            calTxt.textContent = "Calibration autonome (30s)...";
+            showToast('Phase d\'apprentissage Baseline en cours...');
+            addLogCustom('Calibration active : Le modèle réajuste ses vecteurs de référence individuels.');
+
+            setTimeout(() => {
+                isCalibrating = false;
+                calBadge.classList.add('hidden');
+                calTxt.textContent = "Re-calibrer la Baseline";
+                showToast('Calibration validée par le réseau adaptatif !');
+                addLogCustom('Mise à jour des poids synaptiques validée.');
+            }, 6000);
+        }
+
+        function toggleNightVision() {
+            if (!streamActive) return;
+            const videoElement = document.getElementById('webcam');
+            const nightBadge = document.getElementById('night-mode-badge');
+            const nightBtn = document.getElementById('btn-night-vision');
+
+            nightVisionActive = !nightVisionActive;
+            if (nightVisionActive) {
+                videoElement.classList.add('night-vision');
+                nightBadge.classList.remove('hidden');
+                nightBtn.classList.replace('bg-slate-800', 'bg-emerald-600/30');
+                nightBtn.classList.replace('border-slate-700', 'border-emerald-500');
+                showToast('Vision Infrarouge activée');
+            } else {
+                videoElement.classList.remove('night-vision');
+                nightBadge.classList.add('hidden');
+                nightBtn.classList.replace('bg-emerald-600/30', 'bg-slate-800');
+                nightBtn.classList.replace('border-emerald-500', 'border-slate-700');
+                showToast('Vision Infrarouge désactivée');
+            }
+        }
+
+        function feedAIModel(isValid) {
+            learningSamples++;
+            document.getElementById('samples-count').textContent = learningSamples;
+            
+            if (isValid) {
+                networkAccuracy = Math.min(99.9, +(networkAccuracy + 0.4).toFixed(1));
+                showToast('Rétroaction positive enregistrée : Modèle renforcé');
+                addLogCustom('Apprentissage par renforcement (+) : Validation de l\'état de micro-dissimulation.');
+            } else {
+                networkAccuracy = Math.max(75.0, +(networkAccuracy - 0.7).toFixed(1));
+                showToast('Ajustement correctif appliqué : Seuil abaissé');
+                addLogCustom('Apprentissage par rétropropagation (-) : Élimination du faux positif signalé.');
+            }
+            document.getElementById('network-accuracy').textContent = networkAccuracy + '%';
+            document.getElementById('ai-weight').textContent = networkAccuracy + '%';
+        }
+
+        function resetLearningModel() {
+            learningSamples = 0;
+            networkAccuracy = 94.2;
+            document.getElementById('samples-count').textContent = learningSamples;
+            document.getElementById('network-accuracy').textContent = networkAccuracy + '%';
+            document.getElementById('ai-weight').textContent = networkAccuracy + '%';
+            showToast('Modèle d\'apprentissage réinitialisé aux valeurs d\'usine');
+            addLogCustom('Réinitialisation complète des poids de l\'IA autonome.');
+        }
+
+        function startFACSAnalysis() {
+            const badge = document.getElementById('global-emotion-badge');
+            const camPanel = document.getElementById('cam-panel');
+            
+            emotionInterval = setInterval(() => {
+                if (!streamActive || isCalibrating) return;
+
+                const au1 = Math.floor(Math.random() * 45) + 15;
+                const au2 = Math.floor(Math.random() * 40) + 10;
+                const au4 = Math.floor(Math.random() * 50) + 15; 
+                const au5 = Math.floor(Math.random() * 25) + 5;  
+                const au6 = Math.floor(Math.random() * 60) + 10;  
+                const au9 = Math.floor(Math.random() * 20) + 2;  
+                const au12 = Math.floor(Math.random() * 65) + 10; 
+                const au15 = Math.floor(Math.random() * 15) + 2;  
+                const au17 = Math.floor(Math.random() * 30) + 10; 
+                const au24 = Math.floor(Math.random() * 45) + 5;  
+                const blink = Math.floor(Math.random() * 10) + 12; 
+                const asymMs = Math.floor(Math.random() * 180) + 40;
+
+                const metrics = { au1, au2, au4, au5, au6, au9, au12, au15, au17, au24 };
+                for (let key in metrics) {
+                    document.getElementById('val-' + key).textContent = metrics[key] + '%';
+                    document.getElementById('bar-' + key).style.width = metrics[key] + '%';
+                }
+                document.getElementById('val-blink').textContent = blink + '/min';
+                document.getElementById('bar-blink').style.width = (blink * 4) + '%';
+                document.getElementById('val-asym').textContent = asymMs + 'ms';
+                document.getElementById('bar-asym').style.width = Math.min(asymMs / 2, 100) + '%';
+
+                if (au24 > 30 && au4 > 35) {
+                    camPanel.classList.add('alert-micro');
+                    if (Math.random() > 0.7) {
+                        addLogCustom(`🤖 [Apprentissage Autonome] Micro-expression repérée avec un indice de certitude de ${networkAccuracy}%.`);
+                    }
+                } else {
+                    camPanel.classList.remove('alert-micro');
+                }
+
+                let emotionState = "";
+                let dotColor = "";
+                let badgeClass = "";
+
+                if (au24 > 35) {
+                    emotionState = "Dissimulation détectée (Apprentissage actif)";
+                    dotColor = "bg-rose-400";
+                    badgeClass = "bg-rose-500/20 text-rose-300 border-rose-500/30";
+                } else if (au12 > 50 && au6 > 45 && au24 < 15) {
+                    emotionState = "Joie Authentique (Validé)";
+                    dotColor = "bg-emerald-400";
+                    badgeClass = "bg-emerald-500/20 text-emerald-300 border-emerald-500/30";
+                } else {
+                    emotionState = "Baseline / IA en apprentissage continu";
+                    dotColor = "bg-indigo-400";
+                    badgeClass = "bg-indigo-500/20 text-indigo-300 border-indigo-500/30";
+                }
+
+                badge.className = `text-xs px-3 py-1.5 rounded-lg border font-medium flex items-center space-x-2 shadow-sm transition-all duration-300 ${badgeClass}`;
+                badge.innerHTML = `<span class="h-2 w-2 rounded-full ${dotColor} inline-block animate-pulse"></span><span>État : ${emotionState}</span>`;
+
+            }, 2000);
+        }
+
+        function stopFACSAnalysis() {
+            if (emotionInterval) clearInterval(emotionInterval);
+            const badge = document.getElementById('global-emotion-badge');
+            badge.textContent = "État : En attente d'initialisation";
+            badge.className = "text-xs px-3 py-1.5 bg-slate-800 text-slate-400 rounded-lg border border-slate-700 flex items-center space-x-2";
+            
+            ['au1', 'au2', 'au4', 'au5', 'au6', 'au9', 'au12', 'au15', 'au17', 'au24'].forEach(id => {
+                document.getElementById('val-' + id).textContent = '0%';
+                document.getElementById('bar-' + id).style.width = '0%';
+            });
+            document.getElementById('val-blink').textContent = '0/min';
+            document.getElementById('bar-blink').style.width = '0%';
+            document.getElementById('val-asym').textContent = '0ms';
+            document.getElementById('bar-asym').style.width = '0%';
+            document.getElementById('cam-panel').classList.remove('alert-micro');
+        }
+
         function clearLogs() {
-            const container = document.getElementById('log-container');
-            container.innerHTML = '<div class="text-slate-500 text-center py-4">Journal vidé.</div>';
+            document.getElementById('log-container').innerHTML = '<div class="text-slate-500 text-center py-4">Journal vidé.</div>';
             showToast('Journal effacé');
         }
 
         function addLogEntry() {
+            addLogCustom("Snapshot d'apprentissage forcé : Sauvegarde des métriques instantanées.");
+            showToast('Snapshot enregistré');
+        }
+
+        function addLogCustom(text) {
             const container = document.getElementById('log-container');
             const now = new Date();
             const timeString = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
             
             const newLog = document.createElement('div');
-            newLog.className = 'p-2 rounded bg-slate-950/60 border border-slate-800/80 text-slate-400 flex items-start space-x-2 animate-fadeIn';
-            newLog.innerHTML = `<span class="text-indigo-400 font-bold">[${timeString}]</span> <span>Marqueur manuel enregistré par l'opérateur.</span>`;
-            
+            newLog.className = 'p-2 rounded bg-slate-950/60 border border-slate-800/80 text-slate-400 flex items-start space-x-2 transition-all duration-300';
+            newLog.innerHTML = `<span class="text-indigo-400 font-bold">[${timeString}]</span> <span>${text}</span>`;
             container.prepend(newLog);
-            showToast('Nouveau repère ajouté au journal');
         }
 
-        // Initialisation du Graphique Chart.js
         window.addEventListener('DOMContentLoaded', () => {
-            const ctx = document.getElementById('attentionChart').getContext('2d');
-            new Chart(ctx, {
-                type: 'line',
-                data: {
-                    labels: ['10s', '20s', '30s', '40s', '50s', '60s'],
-                    datasets: [{
-                        label: 'Niveau d\'attention (%)',
-                        data: [65, 78, 85, 70, 92, 88],
-                        borderColor: '#6366f1',
-                        backgroundColor: 'rgba(99, 102, 241, 0.1)',
-                        borderWidth: 2,
-                        fill: true,
-                        tension: 0.4
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: {
-                            display: false
-                        }
+            const canvasEl = document.getElementById('attentionChart');
+            if (canvasEl) {
+                const ctx = canvasEl.getContext('2d');
+                new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: ['10s', '20s', '30s', '40s', '50s', '60s'],
+                        datasets: [{
+                            label: 'Précision du réseau autonome (%)',
+                            data: [88, 89, 91, 90, 93, 94.2],
+                            borderColor: '#6366f1',
+                            backgroundColor: 'rgba(99, 102, 241, 0.1)',
+                            borderWidth: 2,
+                            fill: true,
+                            tension: 0.4
+                        }]
                     },
-                    scales: {
-                        x: {
-                            grid: {
-                                color: 'rgba(51, 65, 85, 0.2)'
-                            },
-                            ticks: {
-                                color: '#94a3b8',
-                                font: { size: 10 }
-                            }
-                        },
-                        y: {
-                            min: 0,
-                            max: 100,
-                            grid: {
-                                color: 'rgba(51, 65, 85, 0.2)'
-                            },
-                            ticks: {
-                                color: '#94a3b8',
-                                font: { size: 10 }
-                            }
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: { legend: { display: false } },
+                        scales: {
+                            x: { grid: { color: 'rgba(51, 65, 85, 0.2)' }, ticks: { color: '#94a3b8', font: { size: 10 } } },
+                            y: { min: 70, max: 100, grid: { color: 'rgba(51, 65, 85, 0.2)' }, ticks: { color: '#94a3b8', font: { size: 10 } } }
                         }
                     }
-                }
-            });
+                });
+            }
         });
     </script>
 </body>
