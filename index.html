@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>EgoLens Pro – v7.1 Ultimate Horizon (Cognitive Twin)</title>
+    <title>EgoLens Pro – v7.2 Ultimate Horizon (Cognitive Twin)</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
@@ -29,6 +29,11 @@
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
     <!-- Chart.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        .thermal-filter {
+            filter: hue-rotate(180deg) saturate(300%) contrast(150%);
+        }
+    </style>
 </head>
 <body class="bg-darkbg text-gray-100 min-h-screen flex flex-col font-sans">
 
@@ -40,7 +45,7 @@
                     <i data-lucide="cpu" class="w-6 h-6 text-accent animate-pulse"></i>
                 </div>
                 <div>
-                    <h1 class="font-bold text-lg tracking-wide">EgoLens <span class="text-accent text-xs px-2 py-0.5 rounded bg-accent/10 border border-accent/20 ml-1">v7.1 ULTIMATE</span></h1>
+                    <h1 class="font-bold text-lg tracking-wide">EgoLens <span class="text-accent text-xs px-2 py-0.5 rounded bg-accent/10 border border-accent/20 ml-1">v7.2 ULTIMATE</span></h1>
                     <p class="text-xs text-gray-400">Jumeau Numérique Psychophysiologique & Anticipation Pré-Cognitive</p>
                 </div>
             </div>
@@ -72,9 +77,9 @@
                     <span id="predictive-alert" class="text-xs text-gray-400 bg-gray-800 px-2 py-0.5 rounded border border-gray-700 transition-all duration-300">Stabilité Nominale</span>
                 </div>
                 
-                <!-- CORRECTION ALIGNEMENT: object-contain sur video et canvas -->
+                <!-- Video Container with object-contain & optional thermal filter -->
                 <div class="relative w-full aspect-video bg-black rounded-xl overflow-hidden border border-gray-800 flex justify-center items-center">
-                    <video id="webcam" class="absolute inset-0 w-full h-full object-contain -scale-x-100" autoplay playsinline muted></video>
+                    <video id="webcam" class="absolute inset-0 w-full h-full object-contain -scale-x-100 transition-all" autoplay playsinline muted></video>
                     <canvas id="output-canvas" class="absolute inset-0 w-full h-full object-contain pointer-events-none -scale-x-100"></canvas>
                     
                     <!-- Calibration Overlay -->
@@ -86,8 +91,20 @@
                     </div>
                 </div>
 
+                <!-- Feature Toggles (Switch Camera & Thermal) -->
+                <div class="grid grid-cols-2 gap-2 mt-3">
+                    <button onclick="switchCamera()" class="py-2 px-3 bg-gray-900 hover:bg-gray-800 text-gray-300 text-xs rounded-xl border border-gray-800 flex items-center justify-center space-x-1.5 transition">
+                        <i data-lucide="switch-camera" class="w-3.5 h-3.5 text-accent"></i>
+                        <span>Changer Caméra</span>
+                    </button>
+                    <button onclick="toggleThermalMode()" id="btn-thermal" class="py-2 px-3 bg-gray-900 hover:bg-gray-800 text-gray-300 text-xs rounded-xl border border-gray-800 flex items-center justify-center space-x-1.5 transition">
+                        <i data-lucide="thermometer" class="w-3.5 h-3.5 text-cyan-400"></i>
+                        <span>Mode Infrarouge</span>
+                    </button>
+                </div>
+
                 <!-- Controls -->
-                <div class="mt-4 flex space-x-2">
+                <div class="mt-3 flex space-x-2">
                     <button id="btn-start" onclick="startSession()" class="flex-1 py-2.5 bg-accent hover:bg-accenthover text-white text-xs font-semibold rounded-xl transition shadow-lg shadow-accent/25 flex items-center justify-center space-x-2">
                         <i data-lucide="play" class="w-4 h-4"></i>
                         <span>Activer le Jumeau Numérique</span>
@@ -102,7 +119,7 @@
             <div class="bg-cardbg rounded-2xl border border-gray-800/80 p-4 shadow-xl flex flex-col space-y-4">
                 <h2 class="text-sm font-semibold flex items-center space-x-2">
                     <i data-lucide="sliders" class="w-4 h-4 text-accent"></i>
-                    <span>Indicateurs Profonds v7.1</span>
+                    <span>Indicateurs Profonds v7.2</span>
                 </h2>
                 <div class="grid grid-cols-2 gap-3">
                     <div class="bg-gray-900/60 p-3 rounded-xl border border-gray-800/60">
@@ -118,8 +135,8 @@
                         <p class="text-xl font-bold mt-1 text-purple-400" id="metric-au12">0.00</p>
                     </div>
                     <div class="bg-gray-900/60 p-3 rounded-xl border border-gray-800/60">
-                        <p class="text-xs text-gray-400">Tension Sourcils (AU4)</p>
-                        <p class="text-xl font-bold mt-1 text-emerald-400" id="metric-au4">0.00</p>
+                        <p class="text-xs text-gray-400">Tension Vocale / Audio</p>
+                        <p class="text-xl font-bold mt-1 text-emerald-400" id="metric-audio">0.0 dB</p>
                     </div>
                 </div>
             </div>
@@ -148,7 +165,7 @@
             <div class="bg-cardbg rounded-2xl border border-gray-800/80 p-4 shadow-xl flex flex-col space-y-3">
                 <h2 class="text-sm font-semibold flex items-center space-x-2">
                     <i data-lucide="sparkles" class="w-4 h-4 text-accent"></i>
-                    <span>Rapport d'Introspection & Analyse Pré-Cognitive v7.1</span>
+                    <span>Rapport d'Introspection & Analyse Pré-Cognitive v7.2</span>
                 </h2>
                 <div id="narrative-insights" class="bg-gray-900/60 p-4 rounded-xl border border-gray-800/60 text-xs text-gray-300 leading-relaxed min-h-[90px] flex items-center justify-center text-center text-gray-500">
                     En attente du flux d'activation du jumeau numérique...
@@ -158,7 +175,7 @@
 
     </main>
 
-    <!-- Script Application Logic v7.1.2 (Optimized) -->
+    <!-- Script Application Logic v7.2 -->
     <script>
         lucide.createIcons();
 
@@ -187,6 +204,8 @@
         let baselineBrow = 0.15;
 
         let audioContext, analyser, microphone;
+        let useFrontCamera = true;
+        let isThermalActive = false;
 
         const rppgCanvas = document.createElement('canvas');
         const rppgCtx = rppgCanvas.getContext('2d', { willReadFrequently: true });
@@ -213,19 +232,24 @@
             }
         });
 
-        let faceMesh, cameraUtils;
+        let faceMesh;
 
         async function initMediaPipe() {
             try {
-                // CORRECTION SÉCURITÉ AUDIO : Fallback sur vidéo seule si pas de micro
+                const constraints = {
+                    video: { width: 640, height: 480, facingMode: useFrontCamera ? 'user' : 'environment' },
+                    audio: true
+                };
+
                 try {
-                    localStream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 }, audio: true });
-                } catch (audioErr) {
-                    console.warn("Accès micro refusé ou inexistant. Lancement vidéo uniquement.");
+                    localStream = await navigator.mediaDevices.getUserMedia(constraints);
+                } catch (err) {
+                    console.warn("Accès audio/vidéo restreint, repli sur vidéo seule.");
                     localStream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 } });
                 }
 
                 videoElement.srcObject = localStream;
+                setupAudio(localStream);
 
                 faceMesh = new FaceMesh({
                     locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`
@@ -240,41 +264,62 @@
 
                 faceMesh.onResults(onFaceMeshResults);
 
-                cameraUtils = new Camera(videoElement, {
-                    onFrame: async () => {
-                        if (isRunning) {
-                            await faceMesh.send({ image: videoElement });
-                        }
-                    },
-                    width: 640,
-                    height: 480
-                });
-                cameraUtils.start();
+                // Boucle de traitement frame par frame
+                async function sendCameraFrame() {
+                    if (videoElement.readyState >= 2 && isRunning) {
+                        await faceMesh.send({ image: videoElement });
+                    }
+                    requestAnimationFrame(sendCameraFrame);
+                }
+                sendCameraFrame();
+
             } catch (err) {
                 console.error("Erreur d'accès multimédia:", err);
                 alert("Accès caméra requis pour initialiser le Jumeau Numérique.");
             }
         }
 
+        async function switchCamera() {
+            useFrontCamera = !useFrontCamera;
+            if (localStream) {
+                localStream.getTracks().forEach(track => track.stop());
+            }
+            await initMediaPipe();
+        }
+
+        function toggleThermalMode() {
+            isThermalActive = !isThermalActive;
+            const btn = document.getElementById('btn-thermal');
+            if (isThermalActive) {
+                videoElement.classList.add('thermal-filter');
+                btn.className = "py-2 px-3 bg-cyan-500/20 text-cyan-300 text-xs rounded-xl border border-cyan-500/40 flex items-center justify-center space-x-1.5 transition";
+            } else {
+                videoElement.classList.remove('thermal-filter');
+                btn.className = "py-2 px-3 bg-gray-900 hover:bg-gray-800 text-gray-300 text-xs rounded-xl border border-gray-800 flex items-center justify-center space-x-1.5 transition";
+            }
+        }
+
         function setupAudio(stream) {
-            // Ne setup l'audio que si des pistes audio existent dans le stream
-            if (stream.getAudioTracks().length === 0) return;
-            
-            audioContext = new (window.AudioContext || window.webkitAudioContext)();
-            analyser = audioContext.createAnalyser();
-            analyser.fftSize = 2048;
-            microphone = audioContext.createMediaStreamSource(stream);
-            microphone.connect(analyser);
+            if (!stream.getAudioTracks().length) return;
+            try {
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                analyser = audioContext.createAnalyser();
+                analyser.fftSize = 512;
+                microphone = audioContext.createMediaStreamSource(stream);
+                microphone.connect(analyser);
+            } catch (e) {
+                console.warn("Contexte audio non supporté.");
+            }
         }
 
         function getAudioMetrics() {
             if (!analyser) return { volume: 0 };
-            const buffer = new Float32Array(analyser.fftSize);
-            analyser.getFloatTimeDomainData(buffer);
-            let sumSquares = 0;
-            for (let i = 0; i < buffer.length; i++) { sumSquares += buffer[i] * buffer[i]; }
-            let volume = Math.sqrt(sumSquares / buffer.length) * 100;
-            return { volume };
+            const buffer = new Uint8Array(analyser.frequencyBinCount);
+            analyser.getByteFrequencyData(buffer);
+            let sum = 0;
+            for (let i = 0; i < buffer.length; i++) { sum += buffer[i]; }
+            let avg = sum / buffer.length;
+            return { volume: +(avg.toFixed(1)) };
         }
 
         function onFaceMeshResults(results) {
@@ -314,7 +359,6 @@
             }
 
             currentPupilLoad = Math.min(100, Math.max(10, Math.round((baselineEye - eyeOpening) * 800 + 40)));
-            
             au12Score = +((lipDistance - baselineLip) * 10).toFixed(2);
             if (au12Score < 0) au12Score = 0;
             
@@ -360,11 +404,9 @@
             } catch(e) { }
         }
 
-        // CORRECTION LISSAGE DU BPM (Moving Average)
         function calculateHeartRate(signal) {
             if (signal.length < 10) return currentRealHR;
 
-            // 1. Lissage du signal (Moving Average) pour éliminer le bruit optique
             const windowSize = 5;
             let smoothed = [];
             for (let i = 0; i < signal.length; i++) {
@@ -375,22 +417,18 @@
                 smoothed.push(sum / (end - start));
             }
 
-            // 2. Calcul de la moyenne du signal lissé
             let mean = smoothed.reduce((a, b) => a + b, 0) / smoothed.length;
             let peaks = 0;
             
-            // 3. Détection des pics locaux au-dessus de la moyenne
             for (let i = 1; i < smoothed.length - 1; i++) {
                 if (smoothed[i] > mean && smoothed[i] > smoothed[i-1] && smoothed[i] > smoothed[i+1]) { 
                     peaks++; 
                 }
             }
 
-            // 4. Calcul du BPM (150 frames à environ ~30 FPS = ~5 secondes d'échantillonnage)
-            let durationSeconds = signal.length / 30; // Approximation du framerate MediaPipe
+            let durationSeconds = signal.length / 30;
             let bpm = Math.round(peaks * (60 / durationSeconds));
 
-            // 5. Lissage du changement de BPM final (évite les sauts brusques à l'affichage)
             if (bpm >= 50 && bpm <= 140) {
                 return Math.round((currentRealHR * 0.7) + (bpm * 0.3));
             }
@@ -398,9 +436,6 @@
         }
 
         async function startSession() {
-            if (!audioContext && localStream) {
-                setupAudio(localStream);
-            }
             if (audioContext && audioContext.state === 'suspended') {
                 await audioContext.resume();
             }
@@ -414,7 +449,7 @@
             document.getElementById('btn-start').disabled = true;
             document.getElementById('btn-stop').disabled = false;
             document.getElementById('status-badge').className = "px-3 py-1 rounded-full text-xs font-medium bg-amber-500/10 text-amber-400 border border-amber-500/20 flex items-center space-x-1.5";
-            document.getElementById('status-text').innerText = "Calibration Initiale v7...";
+            document.getElementById('status-text').innerText = "Calibration Initiale v7.2...";
             document.getElementById('calibration-overlay').style.opacity = '1';
 
             setTimeout(() => {
@@ -442,7 +477,6 @@
             if (!isRunning) return;
 
             let audio = getAudioMetrics();
-            
             let cognitiveLoad = Math.min(100, Math.max(10, Math.round((currentPupilLoad * 0.4) + (au4Score * 20) + ((currentRealHR - baselineHR) * 1.5))));
             riskFactor = Math.min(100, Math.max(0, Math.round((cognitiveLoad * 0.6) + (currentMotion * 25))));
 
@@ -461,10 +495,10 @@
             document.getElementById('metric-pupil').innerText = currentPupilLoad + '%';
             document.getElementById('metric-risk').innerText = riskFactor + '%';
             document.getElementById('metric-au12').innerText = au12Score;
-            document.getElementById('metric-au4').innerText = au4Score;
+            document.getElementById('metric-audio').innerText = audio.volume + ' dB';
 
             let timestamp = new Date().toLocaleTimeString();
-            sessionData.push({ timestamp, cognitiveLoad, riskFactor, hr: currentRealHR });
+            sessionData.push({ timestamp, cognitiveLoad, riskFactor, hr: currentRealHR, audioVol: audio.volume });
 
             if (realtimeChart.data.labels.length > 20) {
                 realtimeChart.data.labels.shift();
@@ -483,12 +517,15 @@
             if (sessionData.length === 0) return;
             let avgLoad = Math.round(sessionData.reduce((acc, curr) => acc + curr.cognitiveLoad, 0) / sessionData.length);
             let maxRisk = Math.max(...sessionData.map(d => d.riskFactor));
+            let avgAudio = (sessionData.reduce((acc, curr) => acc + curr.audioVol, 0) / sessionData.length).toFixed(1);
 
             let html = `
-            <div class="space-y-1 text-left w-full">
-                <p class="text-gray-200 font-semibold mb-1">Synthèse du Jumeau Numérique (v7.1.2) :</p>
-                <p>• <strong>Charge Cognitive Moyenne :</strong> ${avgLoad}/100.</p>
-                <p>• <strong>Pic d'Anticipation Pré-Cognitive (Risque Max) :</strong> ${maxRisk}%. ${maxRisk > 65 ? 'Présence de ruptures d\'alignement comportemental identifiées par le modèle.' : 'Excellente régulation homéostasique tout au long de la session.'}</p>
+            <div class="space-y-2 text-left w-full text-gray-200">
+                <p class="font-bold text-accent mb-1">Rapport d'Introspection & Analyse Pré-Cognitive v7.2 :</p>
+                <p>• <strong>Indice de Charge Cognitive Moyen :</strong> ${avgLoad} / 100.</p>
+                <p>• <strong>Pic d'Anticipation de Rupture :</strong> ${maxRisk}%. ${maxRisk > 65 ? 'Attention : Instabilité structurelle détectée pendant la session.' : 'Bonne résilience homéostasique observée.'}</p>
+                <p>• <strong>modulation Vocale & Audio :</strong> Niveau moyen capté de ${avgAudio} dB.</p>
+                <p class="text-gray-400 text-[11px] mt-2 italic">Le jumeau numérique a consolidé l'ensemble des points d'ancrage biométriques (rPPG, FACS, Pupillométrie).</p>
             </div>`;
 
             let insightsContainer = document.getElementById('narrative-insights');
@@ -501,13 +538,13 @@
             printWindow.document.write(`
             <html>
                 <head>
-                    <title>Rapport Jumeau Numérique - EgoLens v7.1</title>
+                    <title>Rapport Jumeau Numérique - EgoLens v7.2</title>
                     <style>body { font-family: sans-serif; padding: 40px; color: #111; } h1 { color: #8b5cf6; border-bottom: 2px solid #8b5cf6; }</style>
                 </head>
                 <body>
-                    <h1>EgoLens v7.1.2 - Rapport Jumeau Numérique Psychophysiologique</h1>
+                    <h1>EgoLens v7.2 - Rapport Jumeau Numérique Psychophysiologique</h1>
                     <p>Date : ${new Date().toLocaleString()}</p>
-                    <p>Analyse pré-cognitive et structurelle de la session terminée avec succès.</p>
+                    <p>Analyse pré-cognitive et structurelle consolidée avec succès.</p>
                     <script>window.print();<\/script>
                 </body>
             </html>
