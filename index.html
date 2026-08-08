@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>EgoLens Pro – v7.4 Ultimate Horizon (Cognitive Twin)</title>
+    <title>EgoLens - Jumeau Numérique Multimodal (Vision, Audio & LSTM)</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
@@ -12,658 +12,351 @@
             theme: {
                 extend: {
                     colors: {
-                        darkbg: '#050811',
-                        cardbg: '#0f172a',
-                        accent: '#8b5cf6',
-                        accenthover: '#7c3aed'
+                        accent: '#3b82f6',
                     }
                 }
             }
         }
     </script>
-    <!-- Lucide Icons -->
-    <script src="https://unpkg.com/lucide@latest"></script>
-    <!-- MediaPipe Face Mesh & Camera -->
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <!-- TensorFlow.js pour le modèle LSTM embarqué -->
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.10.0/dist/tf.min.js"></script>
+    <!-- MediaPipe Face Mesh -->
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js" crossorigin="anonymous"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
-    <!-- Chart.js -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <style>
-        .thermal-filter {
-            filter: hue-rotate(180deg) saturate(300%) contrast(150%);
-        }
-        .reactive-glow-normal { box-shadow: 0 0 25px rgba(139, 92, 246, 0.15); border-color: rgba(139, 92, 246, 0.3); }
-        .reactive-glow-tension { box-shadow: 0 0 25px rgba(245, 158, 11, 0.25); border-color: rgba(245, 158, 11, 0.5); }
-        .reactive-glow-danger { box-shadow: 0 0 35px rgba(239, 68, 68, 0.35); border-color: rgba(239, 68, 68, 0.7); }
-    </style>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
 </head>
-<body id="app-body" class="bg-darkbg text-gray-100 min-h-screen flex flex-col font-sans transition-colors duration-500">
+<body class="bg-gray-950 text-gray-100 min-h-screen flex flex-col items-center justify-center p-4">
 
-    <!-- Header -->
-    <header class="border-b border-gray-800/80 bg-cardbg/40 backdrop-blur sticky top-0 z-50">
-        <div class="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
-            <div class="flex items-center space-x-3">
-                <div class="bg-accent/10 p-2 rounded-xl border border-accent/25">
-                    <i data-lucide="cpu" class="w-6 h-6 text-accent animate-pulse"></i>
-                </div>
-                <div>
-                    <h1 class="font-bold text-lg tracking-wide">EgoLens <span class="text-accent text-xs px-2 py-0.5 rounded bg-accent/10 border border-accent/25 ml-1">v7.4 ULTIMATE</span></h1>
-                    <p class="text-xs text-gray-400">Jumeau Numérique Psychophysiologique & Anticipation Pré-Cognitive</p>
-                </div>
+    <div class="w-full max-w-4xl bg-gray-900 border border-gray-800 rounded-2xl shadow-2xl overflow-hidden p-6">
+        <!-- En-tête -->
+        <div class="flex justify-between items-center mb-6 border-b border-gray-800 pb-4">
+            <div>
+                <h1 class="text-2xl font-bold tracking-wider text-accent">EGOLENS <span class="text-xs font-normal text-gray-400">v8.1 Précision Adaptative</span></h1>
+                <p class="text-xs text-gray-400">Multimodal : Pupillométrie, FACS (Lissage Adaptatif), Audio & LSTM</p>
             </div>
-            <div class="flex items-center space-x-3">
-                <button id="btn-export-pdf" onclick="exportExecutivePDF()" class="hidden px-3 py-1.5 bg-accent/20 hover:bg-accent/30 text-accent text-xs rounded-lg border border-accent/30 transition flex items-center space-x-1.5 font-medium">
-                    <i data-lucide="file-text" class="w-3.5 h-3.5"></i>
-                    <span>Rapport Jumeau Numérique</span>
-                </button>
-                <div id="status-badge" class="px-3 py-1 rounded-full text-xs font-medium bg-purple-500/10 text-purple-400 border border-purple-500/20 flex items-center space-x-1.5">
-                    <span class="w-2 h-2 rounded-full bg-purple-400 animate-ping"></span>
-                    <span id="status-text">Système Prêt (Mode Autonome)</span>
-                </div>
+            <div id="status" class="px-3 py-1 bg-red-500/20 text-red-400 border border-red-500/30 rounded-full text-xs font-medium">
+                Système Arrêté
             </div>
         </div>
-    </header>
 
-    <!-- Main Content -->
-    <main class="flex-1 max-w-7xl w-full mx-auto p-4 grid grid-cols-1 lg:grid-cols-3 gap-6">
-
-        <!-- Left Column: Video & Predictive Alerts -->
-        <div class="lg:col-span-1 flex flex-col space-y-6">
-            <!-- Camera Card with Reactive Glow -->
-            <div id="camera-card" class="bg-cardbg rounded-2xl border border-gray-800/80 p-4 shadow-xl relative overflow-hidden flex flex-col transition-all duration-500 reactive-glow-normal">
-                <div class="flex justify-between items-center mb-3">
-                    <h2 class="text-sm font-semibold flex items-center space-x-2">
-                        <i data-lucide="scan" class="w-4 h-4 text-accent"></i>
-                        <span>Flux 3D & Pupillométrie Edge</span>
-                    </h2>
-                    <span id="predictive-alert" class="text-xs text-gray-400 bg-gray-800 px-2 py-0.5 rounded border border-gray-700 transition-all duration-300">Stabilité Nominale</span>
+        <!-- Contenu Principal -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <!-- Flux Vidéo & Canvas -->
+            <div class="relative bg-black rounded-xl overflow-hidden aspect-video flex items-center justify-center border border-gray-800">
+                <video id="webcam" class="absolute inset-0 w-full h-full object-cover transform -scale-x-100" autoplay playsinline></video>
+                <canvas id="output_canvas" class="absolute inset-0 w-full h-full object-cover transform -scale-x-100"></canvas>
+                <div class="absolute bottom-2 left-2 bg-black/60 backdrop-blur-md px-2 py-1 rounded text-[10px] text-gray-300">
+                    Flux Temps Réel & Landmarks Adaptatifs
                 </div>
-                
-                <!-- Video Container -->
-                <div class="relative w-full aspect-video bg-black rounded-xl overflow-hidden border border-gray-800 flex justify-center items-center">
-                    <video id="webcam" class="absolute inset-0 w-full h-full object-contain -scale-x-100 transition-all" autoplay playsinline muted></video>
-                    <canvas id="output-canvas" class="absolute inset-0 w-full h-full object-contain pointer-events-none -scale-x-100"></canvas>
+            </div>
+
+            <!-- Télémétrie Multimodale -->
+            <div class="flex flex-col justify-between space-y-4">
+                <div class="bg-gray-950 p-4 rounded-xl border border-gray-800 space-y-2.5">
+                    <h2 class="text-sm font-semibold text-gray-300 uppercase tracking-wider">Métriques Croisées</h2>
                     
-                    <!-- Calibration Overlay -->
-                    <div id="calibration-overlay" class="absolute inset-0 bg-black/85 backdrop-blur-sm flex flex-col items-center justify-center text-center p-4 transition-opacity duration-300 opacity-0 pointer-events-none">
-                        <i data-lucide="activity" class="w-10 h-10 text-accent animate-spin mb-2"></i>
-                        <p id="calibration-msg" class="text-sm font-medium">Calibration du Jumeau Numérique (8s)</p>
-                        <p class="text-xs text-gray-400 mt-1">Analyse des structures de référence faciale et vocale</p>
-                        <p class="text-[10px] text-accent mt-2 animate-pulse">Restez neutre et regardez l'objectif</p>
+                    <div class="flex justify-between text-xs">
+                        <span class="text-gray-400">Dilatation Pupillaire :</span>
+                        <span id="metric-pupil" class="font-mono text-accent">0.00</span>
+                    </div>
+                    <div class="flex justify-between text-xs">
+                        <span class="text-gray-400">Micro-expression AU12 (Sourire) :</span>
+                        <span id="metric-au12" class="font-mono text-accent">0.00</span>
+                    </div>
+                    <div class="flex justify-between text-xs">
+                        <span class="text-gray-400">Micro-expression AU4 (Concentration) :</span>
+                        <span id="metric-au4" class="font-mono text-accent">0.00</span>
+                    </div>
+                    <div class="flex justify-between text-xs">
+                        <span class="text-gray-400">Tension Vocale / Audio (RMS) :</span>
+                        <span id="metric-audio" class="font-mono text-accent">0.00</span>
+                    </div>
+                    <div class="flex justify-between text-xs border-t border-gray-800 pt-2">
+                        <span class="text-gray-400">Buffer Temporel LSTM (Seq) :</span>
+                        <span id="metric-buffer" class="font-mono text-accent">0 / 10</span>
                     </div>
                 </div>
 
-                <!-- Feature Toggles -->
-                <div class="grid grid-cols-2 gap-2 mt-3">
-                    <button onclick="switchCamera()" class="py-2 px-3 bg-gray-900 hover:bg-gray-800 text-gray-300 text-xs rounded-xl border border-gray-800 flex items-center justify-center space-x-1.5 transition">
-                        <i data-lucide="switch-camera" class="w-3.5 h-3.5 text-accent"></i>
-                        <span>Changer Caméra</span>
-                    </button>
-                    <button onclick="toggleThermalMode()" id="btn-thermal" class="py-2 px-3 bg-gray-900 hover:bg-gray-800 text-gray-300 text-xs rounded-xl border border-gray-800 flex items-center justify-center space-x-1.5 transition">
-                        <i data-lucide="thermometer" class="w-3.5 h-3.5 text-cyan-400"></i>
-                        <span>Mode Infrarouge</span>
-                    </button>
-                </div>
-
-                <!-- Controls -->
-                <div class="mt-3 flex space-x-2">
-                    <button id="btn-start" onclick="startSession()" class="flex-1 py-2.5 bg-accent hover:bg-accenthover text-white text-xs font-semibold rounded-xl transition shadow-lg shadow-accent/25 flex items-center justify-center space-x-2">
-                        <i data-lucide="play" class="w-4 h-4"></i>
-                        <span>Activer le Jumeau Numérique</span>
-                    </button>
-                    <button id="btn-stop" onclick="stopSession()" disabled class="px-4 py-2.5 bg-gray-800 hover:bg-gray-700 text-gray-400 text-xs font-semibold rounded-xl transition border border-gray-700 disabled:opacity-50">
-                        <i data-lucide="square" class="w-4 h-4"></i>
-                    </button>
-                </div>
-            </div>
-
-            <!-- Quantum Biometrics Card (Extended FACS, Poses & Emotion) -->
-            <div class="bg-cardbg rounded-2xl border border-gray-800/80 p-4 shadow-xl flex flex-col space-y-4">
-                <h2 class="text-sm font-semibold flex items-center space-x-2">
-                    <i data-lucide="sliders" class="w-4 h-4 text-accent"></i>
-                    <span>Indicateurs Profonds v7.4 (Émotion & FACS)</span>
-                </h2>
-                <div class="grid grid-cols-2 gap-3">
-                    <div class="bg-gray-900/60 p-3 rounded-xl border border-gray-800/60">
-                        <p class="text-xs text-gray-400">État Émotionnel Dominant</p>
-                        <p class="text-sm font-bold mt-1 text-purple-400 tracking-wide uppercase" id="metric-emotion">En attente</p>
+                <!-- Jauge de Risque / Inférence -->
+                <div class="bg-gray-950 p-4 rounded-xl border border-gray-800">
+                    <div class="flex justify-between items-center mb-2">
+                        <span class="text-xs font-semibold text-gray-300 uppercase tracking-wider">Facteur de Risque (RNN)</span>
+                        <span id="risk-value" class="text-lg font-bold text-accent">0%</span>
                     </div>
-                    <div class="bg-gray-900/60 p-3 rounded-xl border border-gray-800/60">
-                        <p class="text-xs text-gray-400">Risque de Rupture</p>
-                        <p class="text-xl font-bold mt-1 text-amber-400"><span id="metric-risk">0%</span></p>
-                    </div>
-                    <div class="bg-gray-900/60 p-3 rounded-xl border border-gray-800/60">
-                        <p class="text-xs text-gray-400">Clignements / Min</p>
-                        <p class="text-xl font-bold mt-1 text-cyan-400"><span id="metric-blink">0</span></p>
-                    </div>
-                    <div class="bg-gray-900/60 p-3 rounded-xl border border-gray-800/60">
-                        <p class="text-xs text-gray-400">Tension Vocale / Audio</p>
-                        <p class="text-xl font-bold mt-1 text-emerald-400" id="metric-audio">0.0 dB</p>
+                    <div class="w-full bg-gray-800 h-2 rounded-full overflow-hidden">
+                        <div id="risk-bar" class="bg-accent h-full transition-all duration-300" style="width: 0%"></div>
                     </div>
                 </div>
             </div>
         </div>
 
-        <!-- Right Column: Charts & NLP / Semantic Intelligence -->
-        <div class="lg:col-span-2 flex flex-col space-y-6">
-            <!-- Dynamic Chart Card -->
-            <div class="bg-cardbg rounded-2xl border border-gray-800/80 p-4 shadow-xl flex-1 flex flex-col">
-                <div class="flex justify-between items-center mb-4">
-                    <h2 class="text-sm font-semibold flex items-center space-x-2">
-                        <i data-lucide="trending-up" class="w-4 h-4 text-accent"></i>
-                        <span>Modélisation Prédictive & Congruence Globale</span>
-                    </h2>
-                    <div class="flex items-center space-x-3 text-xs">
-                        <span class="flex items-center space-x-1"><span class="w-2.5 h-2.5 rounded-full bg-accent"></span><span>Indice de Charge Cognitive</span></span>
-                        <span class="flex items-center space-x-1"><span class="w-2.5 h-2.5 rounded-full bg-cyan-400"></span><span>Anticipation de Rupture</span></span>
-                    </div>
-                </div>
-                <div class="relative flex-1 w-full min-h-[220px]">
-                    <canvas id="realtime-chart"></canvas>
-                </div>
-            </div>
-
-            <!-- Live Speech & Semantic NLP Box -->
-            <div class="bg-cardbg rounded-2xl border border-gray-800/80 p-4 shadow-xl flex flex-col space-y-3">
-                <h2 class="text-sm font-semibold flex items-center space-x-2">
-                    <i data-lucide="mic" class="w-4 h-4 text-accent"></i>
-                    <span>Transcription & Analyse Sémantique en Direct</span>
-                </h2>
-                <div id="nlp-transcript" class="bg-gray-900/80 p-3 rounded-xl border border-gray-800 text-xs text-gray-300 italic min-h-[45px] flex items-center">
-                    En attente de prise de parole...
-                </div>
-            </div>
-
-            <!-- Predictive Narrative Engine -->
-            <div class="bg-cardbg rounded-2xl border border-gray-800/80 p-4 shadow-xl flex flex-col space-y-3">
-                <h2 class="text-sm font-semibold flex items-center space-x-2">
-                    <i data-lucide="sparkles" class="w-4 h-4 text-accent"></i>
-                    <span>Rapport d'Introspection & Analyse Pré-Cognitive v7.4</span>
-                </h2>
-                <div id="narrative-insights" class="bg-gray-900/60 p-4 rounded-xl border border-gray-800/60 text-xs text-gray-300 leading-relaxed min-h-[90px] flex items-center justify-center text-center text-gray-500">
-                    En attente du flux d'activation du jumeau numérique...
-                </div>
+        <!-- UI Feedback pour Apprentissage Actif -->
+        <div class="mt-4 p-3 bg-gray-900 rounded-xl border border-accent/30">
+            <p class="text-[10px] text-gray-400 mb-2 uppercase tracking-widest">EgoLens - Apprentissage du Jumeau :</p>
+            <div class="flex space-x-2">
+                <button onclick="captureFeedback(0)" class="flex-1 py-1.5 bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded text-xs hover:bg-emerald-500/40 transition-colors">
+                    Neutre/Correct
+                </button>
+                <button onclick="captureFeedback(1)" class="flex-1 py-1.5 bg-red-500/20 text-red-400 border border-red-500/30 rounded text-xs hover:bg-red-500/40 transition-colors">
+                    Anomalie Détectée
+                </button>
             </div>
         </div>
 
-    </main>
+        <!-- Commandes -->
+        <div class="mt-6 flex justify-end space-x-3">
+            <button id="toggle-btn" onclick="toggleSystem()" class="px-6 py-2.5 bg-accent hover:bg-accent/80 text-white font-medium rounded-xl text-xs transition shadow-lg shadow-accent/20">
+                Démarrer EgoLens
+            </button>
+        </div>
+    </div>
 
-    <!-- Script Application Logic v7.4 -->
+    <!-- Script Global Unifié -->
     <script>
-        lucide.createIcons();
+        const videoElement = document.getElementById('webcam');
+        const canvasElement = document.getElementById('output_canvas');
+        const canvasCtx = canvasElement.getContext('2d');
+        const statusEl = document.getElementById('status');
+        const toggleBtn = document.getElementById('toggle-btn');
 
-        let videoElement = document.getElementById('webcam');
-        let canvasElement = document.getElementById('output-canvas');
-        let canvasCtx = canvasElement.getContext('2d');
-
-        let localStream;
         let isRunning = false;
-        let isCalibrating = false;
-        let sessionData = [];
-        let baselineHR = 72;
-
-        let rppgBuffer = [];
-        let currentRealHR = 72;
-        let currentPupilLoad = 50;
+        let rawLandmarks = [];
+        let smoothedLandmarks = [];
+        
+        // Variables Multimodales
+        let au12Score = 0.0;
+        let au4Score = 0.0;
+        let au6Score = 0.0;
+        let pupilDilationIndex = 0.0;
+        let vocalTension = 0.0;
         let riskFactor = 0;
-        let currentMotion = 0;
-        let lastNosePos = { x: 0, y: 0 };
 
-        // Variables FACS & Émotion
-        let blinkCount = 0;
-        let lastEyeOpenState = true;
-        let blinkRatePerMin = 0;
-        let headPoseAngle = 0;
-        let au12Score = 0;
-        let au4Score = 0;
-        let currentEmotionState = "Neutre";
-        let hesitationCount = 0;
-        let liveTranscriptText = "En attente de prise de parole...";
+        // Variables Audio (Web Audio API)
+        let audioCtx, analyser, microphone, javascriptNode;
 
-        let calibrationSamples = [];
-        let baselineEye = 0.08;
-        let baselineLip = 0.25;
-        let baselineBrow = 0.15;
+        // Variables LSTM & Apprentissage Actif
+        let trainingDataset = [];
+        let temporalBuffer = [];
+        const SEQUENCE_LENGTH = 10;
+        let mlModel;
 
-        let audioContext, analyser, microphone;
-        let useFrontCamera = true;
-        let isThermalActive = false;
-        let recognition = null;
+        // --- 1. Initialisation du Modèle LSTM ---
+        async function initLightweightMLModel() {
+            mlModel = tf.sequential();
+            mlModel.add(tf.layers.lstm({
+                units: 16,
+                inputShape: [SEQUENCE_LENGTH, 5], 
+                returnSequences: false
+            }));
+            mlModel.add(tf.layers.dense({ units: 8, activation: 'relu' }));
+            mlModel.add(tf.layers.dense({ units: 1, activation: 'sigmoid' }));
+            mlModel.compile({ optimizer: tf.train.adam(0.01), loss: 'binaryCrossentropy' });
+            console.log("EgoLens RNN/LSTM multimodal actif.");
+        }
 
-        const rppgCanvas = document.createElement('canvas');
-        const rppgCtx = rppgCanvas.getContext('2d', { willReadFrequently: true });
-
-        const ctxChart = document.getElementById('realtime-chart').getContext('2d');
-        const realtimeChart = new Chart(ctxChart, {
-            type: 'line',
-            data: {
-                labels: [],
-                datasets: [
-                    { label: 'Charge Cognitive', data: [], borderColor: '#8b5cf6', backgroundColor: 'rgba(139, 92, 246, 0.1)', borderWidth: 2, tension: 0.4, fill: true },
-                    { label: 'Risque Prédictif', data: [], borderColor: '#22d3ee', borderWidth: 2, tension: 0.4, fill: false }
-                ]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                animation: false,
-                scales: {
-                    x: { grid: { color: 'rgba(255,255,255,0.03)' }, ticks: { color: '#9ca3af', font: { size: 10 } } },
-                    y: { min: 0, max: 100, grid: { color: 'rgba(255,255,255,0.03)' }, ticks: { color: '#9ca3af', font: { size: 10 } } }
-                },
-                plugins: { legend: { display: false } }
-            }
-        });
-
-        let faceMesh;
-
-        async function initMediaPipe() {
+        // --- 2. Initialisation du Pipeline Audio ---
+        async function initAudioPipeline() {
             try {
-                const constraints = {
-                    video: { width: 640, height: 480, facingMode: useFrontCamera ? 'user' : 'environment' },
-                    audio: true
-                };
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                analyser = audioCtx.createAnalyser();
+                microphone = audioCtx.createMediaStreamSource(stream);
+                javascriptNode = audioCtx.createScriptProcessor(2048, 1, 1);
 
-                try {
-                    localStream = await navigator.mediaDevices.getUserMedia(constraints);
-                } catch (err) {
-                    console.warn("Accès audio/vidéo restreint, repli sur vidéo seule.");
-                    localStream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 } });
-                }
+                analyser.smoothingTimeConstant = 0.8;
+                analyser.fftSize = 1024;
 
-                videoElement.srcObject = localStream;
-                setupAudio(localStream);
-                setupSpeechRecognition();
-
-                faceMesh = new FaceMesh({
-                    locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`
-                });
-
-                faceMesh.setOptions({
-                    maxNumFaces: 1,
-                    refineLandmarks: true,
-                    minDetectionConfidence: 0.5,
-                    minTrackingConfidence: 0.5
-                });
-
-                faceMesh.onResults(onFaceMeshResults);
-
-                async function sendCameraFrame() {
-                    if (videoElement.readyState >= 2 && isRunning) {
-                        await faceMesh.send({ image: videoElement });
-                    }
-                    requestAnimationFrame(sendCameraFrame);
-                }
-                sendCameraFrame();
-
-            } catch (err) {
-                console.error("Erreur d'accès multimédia:", err);
-                alert("Accès caméra requis pour initialiser le Jumeau Numérique.");
-            }
-        }
-
-        async function switchCamera() {
-            useFrontCamera = !useFrontCamera;
-            if (localStream) {
-                localStream.getTracks().forEach(track => track.stop());
-            }
-            await initMediaPipe();
-        }
-
-        function toggleThermalMode() {
-            isThermalActive = !isThermalActive;
-            const btn = document.getElementById('btn-thermal');
-            if (isThermalActive) {
-                videoElement.classList.add('thermal-filter');
-                btn.className = "py-2 px-3 bg-cyan-500/20 text-cyan-300 text-xs rounded-xl border border-cyan-500/40 flex items-center justify-center space-x-1.5 transition";
-            } else {
-                videoElement.classList.remove('thermal-filter');
-                btn.className = "py-2 px-3 bg-gray-900 hover:bg-gray-800 text-gray-300 text-xs rounded-xl border border-gray-800 flex items-center justify-center space-x-1.5 transition";
-            }
-        }
-
-        function setupAudio(stream) {
-            if (!stream.getAudioTracks().length) return;
-            try {
-                audioContext = new (window.AudioContext || window.webkitAudioContext)();
-                analyser = audioContext.createAnalyser();
-                analyser.fftSize = 512;
-                microphone = audioContext.createMediaStreamSource(stream);
                 microphone.connect(analyser);
-            } catch (e) {
-                console.warn("Contexte audio non supporté.");
-            }
-        }
+                analyser.connect(javascriptNode);
 
-        function setupSpeechRecognition() {
-            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-            if (!SpeechRecognition) return;
-            try {
-                recognition = new SpeechRecognition();
-                recognition.continuous = true;
-                recognition.interimResults = true;
-                recognition.lang = 'fr-FR';
-
-                recognition.onresult = (event) => {
-                    let final = '';
-                    for (let i = event.resultIndex; i < event.results.length; ++i) {
-                        if (event.results[i].isFinal) {
-                            final += event.results[i][0].transcript;
-                        }
+                javascriptNode.onaudioprocess = function() {
+                    if (!isRunning) return;
+                    const array = new Uint8Array(analyser.frequencyBinCount);
+                    analyser.getByteFrequencyData(array);
+                    
+                    let values = 0;
+                    for (let i = 0; i < array.length; i++) {
+                        values += (array[i] * array[i]);
                     }
-                    if (final) {
-                        liveTranscriptText = final;
-                        let lower = final.toLowerCase();
-                        if (lower.includes('euh') || lower.includes('je sais pas') || lower.includes('peut-être')) {
-                            hesitationCount++;
-                        }
-                        document.getElementById('nlp-transcript').innerText = `"${final}"`;
-                    }
+                    let rms = Math.sqrt(values / array.length);
+                    vocalTension = Math.min(Math.max(rms / 100, 0), 1.0);
                 };
-                recognition.onerror = () => {};
-            } catch(e) {}
-        }
-
-        function getAudioMetrics() {
-            if (!analyser) return { volume: 0 };
-            const buffer = new Uint8Array(analyser.frequencyBinCount);
-            analyser.getByteFrequencyData(buffer);
-            let sum = 0;
-            for (let i = 0; i < buffer.length; i++) { sum += buffer[i]; }
-            let avg = sum / buffer.length;
-            return { volume: +(avg.toFixed(1)) };
-        }
-
-        function onFaceMeshResults(results) {
-            if (!isRunning) return;
-
-            canvasElement.width = videoElement.videoWidth || 640;
-            canvasElement.height = videoElement.videoHeight || 480;
-            canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
-
-            if (!results.multiFaceLandmarks || results.multiFaceLandmarks.length === 0) return;
-
-            const landmarks = results.multiFaceLandmarks[0];
-
-            drawConnectors(canvasCtx, landmarks, FACEMESH_TESSELATION, { color: 'rgba(139, 92, 246, 0.15)', lineWidth: 0.5 });
-            drawConnectors(canvasCtx, landmarks, FACEMESH_RIGHT_EYE, { color: 'rgba(34, 211, 238, 0.8)', lineWidth: 1 });
-            drawConnectors(canvasCtx, landmarks, FACEMESH_LEFT_EYE, { color: 'rgba(34, 211, 238, 0.8)', lineWidth: 1 });
-
-            const leftEyeTop = landmarks[159];
-            const leftEyeBottom = landmarks[145];
-            const eyeOpening = Math.hypot(leftEyeTop.x - leftEyeBottom.x, leftEyeTop.y - leftEyeBottom.y);
-            
-            if (eyeOpening < 0.025 && lastEyeOpenState) {
-                blinkCount++;
-                lastEyeOpenState = false;
-            } else if (eyeOpening >= 0.025) {
-                lastEyeOpenState = true;
-            }
-
-            const noseTip = landmarks[1];
-            const chin = landmarks[152];
-            let headDelta = Math.abs(noseTip.x - chin.x) * 100;
-            headPoseAngle = +headDelta.toFixed(1);
-
-            const leftLip = landmarks[61];
-            const rightLip = landmarks[291];
-            const lipDistance = Math.hypot(leftLip.x - rightLip.x, leftLip.y - rightLip.y);
-            
-            const leftBrow = landmarks[70];
-            const rightBrow = landmarks[300];
-            const browDistance = Math.hypot(leftBrow.x - rightBrow.x, leftBrow.y - rightBrow.y);
-
-            if (isCalibrating) {
-                calibrationSamples.push({ eye: eyeOpening, lip: lipDistance, brow: browDistance });
-            } else if (calibrationSamples.length > 0) {
-                baselineEye = calibrationSamples.reduce((sum, val) => sum + val.eye, 0) / calibrationSamples.length;
-                baselineLip = calibrationSamples.reduce((sum, val) => sum + val.lip, 0) / calibrationSamples.length;
-                baselineBrow = calibrationSamples.reduce((sum, val) => sum + val.brow, 0) / calibrationSamples.length;
-                calibrationSamples = []; 
-            }
-
-            currentPupilLoad = Math.min(100, Math.max(10, Math.round((baselineEye - eyeOpening) * 800 + 40)));
-            au12Score = +((lipDistance - baselineLip) * 10).toFixed(2);
-            if (au12Score < 0) au12Score = 0;
-            
-            au4Score = +((baselineBrow - browDistance) * 15).toFixed(2);
-            if (au4Score < 0) au4Score = 0;
-
-            // Déduction de l'état émotionnel dominant basé sur les FACS et la charge
-            if (au12Score > 0.15) {
-                currentEmotionState = "Positif / Souriant";
-            } else if (au4Score > 0.15 || currentPupilLoad > 75) {
-                currentEmotionState = "Tendu / Concentré";
-            } else if (headPoseAngle > 15 || blinkRatePerMin > 25) {
-                currentEmotionState = "Agité / Alerte";
-            } else {
-                currentEmotionState = "Neutre / Calme";
-            }
-
-            const nose = landmarks[1];
-            if (lastNosePos.x !== 0) {
-                currentMotion = +((Math.hypot(nose.x - lastNosePos.x, nose.y - lastNosePos.y)) * 10).toFixed(2);
-            }
-            lastNosePos = { x: nose.x, y: nose.y };
-
-            extractRPPGFrame();
-        }
-
-        function extractRPPGFrame() {
-            if (!videoElement.videoWidth) return;
-            
-            if (rppgCanvas.width !== videoElement.videoWidth) {
-                rppgCanvas.width = videoElement.videoWidth;
-                rppgCanvas.height = videoElement.videoHeight;
-            }
-            
-            rppgCtx.drawImage(videoElement, 0, 0);
-
-            const x = Math.floor(rppgCanvas.width * 0.4);
-            const y = Math.floor(rppgCanvas.height * 0.2);
-            const w = Math.floor(rppgCanvas.width * 0.2);
-            const h = Math.floor(rppgCanvas.height * 0.1);
-
-            try {
-                const imageData = rppgCtx.getImageData(x, y, w, h);
-                let greenSum = 0;
-                let count = imageData.data.length / 4;
-                for (let i = 1; i < imageData.data.length; i += 4) { greenSum += imageData.data[i]; }
-                let meanGreen = greenSum / count;
-
-                rppgBuffer.push(meanGreen);
-                if (rppgBuffer.length > 150) {
-                    rppgBuffer.shift();
-                    currentRealHR = calculateHeartRate(rppgBuffer);
-                }
-            } catch(e) { }
-        }
-
-        function calculateHeartRate(signal) {
-            if (signal.length < 10) return currentRealHR;
-
-            const windowSize = 5;
-            let smoothed = [];
-            for (let i = 0; i < signal.length; i++) {
-                let start = Math.max(0, i - windowSize);
-                let end = Math.min(signal.length, i + windowSize);
-                let sum = 0;
-                for (let j = start; j < end; j++) sum += signal[j];
-                smoothed.push(sum / (end - start));
-            }
-
-            let mean = smoothed.reduce((a, b) => a + b, 0) / smoothed.length;
-            let peaks = 0;
-            
-            for (let i = 1; i < smoothed.length - 1; i++) {
-                if (smoothed[i] > mean && smoothed[i] > smoothed[i-1] && smoothed[i] > smoothed[i+1]) { 
-                    peaks++; 
-                }
-            }
-
-            let durationSeconds = signal.length / 30;
-            let bpm = Math.round(peaks * (60 / durationSeconds));
-
-            if (bpm >= 50 && bpm <= 140) {
-                return Math.round((currentRealHR * 0.7) + (bpm * 0.3));
-            }
-            return currentRealHR;
-        }
-
-        async function startSession() {
-            if (audioContext && audioContext.state === 'suspended') {
-                await audioContext.resume();
-            }
-
-            if (recognition) {
-                try { recognition.start(); } catch(e) {}
-            }
-
-            isRunning = true;
-            isCalibrating = true;
-            sessionData = [];
-            rppgBuffer = [];
-            calibrationSamples = [];
-            blinkCount = 0;
-            hesitationCount = 0;
-            
-            document.getElementById('btn-start').disabled = true;
-            document.getElementById('btn-stop').disabled = false;
-            document.getElementById('status-badge').className = "px-3 py-1 rounded-full text-xs font-medium bg-amber-500/10 text-amber-400 border border-amber-500/20 flex items-center space-x-1.5";
-            document.getElementById('status-text').innerText = "Calibration Initiale v7.4...";
-            document.getElementById('calibration-overlay').style.opacity = '1';
-
-            setTimeout(() => {
-                isCalibrating = false;
-                if (rppgBuffer.length > 10) baselineHR = currentRealHR;
-                document.getElementById('calibration-overlay').style.opacity = '0';
-                document.getElementById('status-badge').className = "px-3 py-1 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center space-x-1.5";
-                document.getElementById('status-text').innerText = "Jumeau Numérique Actif";
-            }, 8000);
-
-            loopProcessing();
-        }
-
-        function stopSession() {
-            isRunning = false;
-            if (recognition) {
-                try { recognition.stop(); } catch(e) {}
-            }
-            document.getElementById('btn-start').disabled = false;
-            document.getElementById('btn-stop').disabled = true;
-            document.getElementById('btn-export-pdf').classList.remove('hidden');
-            document.getElementById('status-badge').className = "px-3 py-1 rounded-full text-xs font-medium bg-gray-800 text-gray-400 border border-gray-700 flex items-center space-x-1.5";
-            document.getElementById('status-text').innerText = "Session Consolidée";
-            
-            updateReactiveInterface(0);
-            generatePredictiveInsights();
-        }
-
-        function updateReactiveInterface(risk) {
-            let card = document.getElementById('camera-card');
-            card.classList.remove('reactive-glow-normal', 'reactive-glow-tension', 'reactive-glow-danger');
-
-            if (risk > 70) {
-                card.classList.add('reactive-glow-danger');
-            } else if (risk > 40) {
-                card.classList.add('reactive-glow-tension');
-            } else {
-                card.classList.add('reactive-glow-normal');
+            } catch (e) {
+                console.warn("Accès micro refusé ou indisponible :", e);
             }
         }
 
+        // --- 3. Lissage Adaptatif des Landmarks (Anti-Jitter + Réactivité micro-expressions) ---
+        function updateSmoothLandmarks(newLandmarks) {
+            if (!smoothedLandmarks.length) {
+                smoothedLandmarks = JSON.parse(JSON.stringify(newLandmarks));
+                return smoothedLandmarks;
+            }
+            
+            // Mesure du déplacement global rapide sur quelques points clés du visage
+            let delta = 0;
+            for(let i = 0; i < 5; i++) {
+                delta += Math.hypot(newLandmarks[i].x - smoothedLandmarks[i].x, newLandmarks[i].y - smoothedLandmarks[i].y);
+            }
+            
+            // Si mouvement brusque (micro-expression), on lève le frein (facteur 0.8). Sinon, lissage fort (0.4).
+            let currentFactor = delta > 0.03 ? 0.8 : 0.4;
+
+            for (let i = 0; i < newLandmarks.length; i++) {
+                smoothedLandmarks[i].x = smoothedLandmarks[i].x * (1 - currentFactor) + newLandmarks[i].x * currentFactor;
+                smoothedLandmarks[i].y = smoothedLandmarks[i].y * (1 - currentFactor) + newLandmarks[i].y * currentFactor;
+                smoothedLandmarks[i].z = smoothedLandmarks[i].z * (1 - currentFactor) + newLandmarks[i].z * currentFactor;
+            }
+            return smoothedLandmarks;
+        }
+
+        // --- 4. Boucle de Traitement Multimodal ---
         function loopProcessing() {
             if (!isRunning) return;
 
-            let audio = getAudioMetrics();
-            let sessionDurationMin = (sessionData.length + 1) / 60;
-            blinkRatePerMin = sessionDurationMin > 0 ? Math.round(blinkCount / Math.max(sessionDurationMin, 0.05)) : 15;
+            if (rawLandmarks && rawLandmarks.length > 454) {
+                const landmarks = updateSmoothLandmarks(rawLandmarks);
 
-            let cognitiveLoad = Math.min(100, Math.max(10, Math.round((currentPupilLoad * 0.4) + (headPoseAngle * 1.5) + ((currentRealHR - baselineHR) * 1.5))));
-            riskFactor = Math.min(100, Math.max(0, Math.round((cognitiveLoad * 0.5) + (currentMotion * 20) + (hesitationCount * 5))));
+                // Normalisation par la largeur du visage (distance inter-oreilles 234 <-> 454)
+                const faceWidth = Math.hypot(landmarks[234].x - landmarks[454].x, landmarks[234].y - landmarks[454].y);
+                const scale = faceWidth > 0 ? faceWidth : 1.0;
 
-            updateReactiveInterface(riskFactor);
+                // A. Pupillométrie Normalisée
+                const eyeTop = landmarks[159]; 
+                const eyeBottom = landmarks[145];
+                const eyeLeft = landmarks[133]; 
+                const eyeRight = landmarks[243];
+                
+                const vert = Math.hypot(eyeTop.x - eyeBottom.x, eyeTop.y - eyeBottom.y);
+                const horiz = Math.hypot(eyeLeft.x - eyeRight.x, eyeLeft.y - eyeRight.y);
+                pupilDilationIndex = horiz !== 0 ? (vert / horiz) / scale * 10 : 0;
 
-            let alertBadge = document.getElementById('predictive-alert');
-            if (riskFactor > 70) {
-                alertBadge.className = "text-xs text-red-400 bg-red-500/10 px-2 py-0.5 rounded border border-red-500/20 animate-pulse";
-                alertBadge.innerText = "Risque de Rupture Imminent";
-            } else if (riskFactor > 40) {
-                alertBadge.className = "text-xs text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20";
-                alertBadge.innerText = "Tension Cognitive Détectée";
-            } else {
-                alertBadge.className = "text-xs text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20";
-                alertBadge.innerText = "Stabilité Nominale";
+                // B. Micro-expressions (FACS Normalisées)
+                const lipLeft = landmarks[61]; const lipRight = landmarks[291];
+                const mouthWidth = Math.hypot(lipLeft.x - lipRight.x, lipLeft.y - lipRight.y);
+                au12Score = Math.min(Math.max(((mouthWidth / scale) - 0.35) * 3, 0), 1);
+                
+                const browLeft = landmarks[70]; const browRight = landmarks[300];
+                const browDist = Math.hypot(browLeft.x - browRight.x, browLeft.y - browRight.y);
+                au4Score = Math.min(Math.max(1.0 - (browDist / scale) * 2.5, 0), 1);
+                au6Score = au12Score * 0.8;
+
+                // Mise à jour UI
+                document.getElementById('metric-pupil').innerText = pupilDilationIndex.toFixed(3);
+                document.getElementById('metric-au12').innerText = au12Score.toFixed(2);
+                document.getElementById('metric-au4').innerText = au4Score.toFixed(2);
+                document.getElementById('metric-audio').innerText = vocalTension.toFixed(2);
+
+                // C. Vectorisation 5D
+                let features = [au12Score, au4Score, au6Score, pupilDilationIndex, vocalTension];
+                
+                // D. Fenêtre temporelle
+                temporalBuffer.push(features);
+                if (temporalBuffer.length > SEQUENCE_LENGTH) temporalBuffer.shift();
+
+                document.getElementById('metric-buffer').innerText = `${temporalBuffer.length} / ${SEQUENCE_LENGTH}`;
+
+                // E. Inférence LSTM
+                if (temporalBuffer.length === SEQUENCE_LENGTH && mlModel) {
+                    tf.tidy(() => {
+                        const inputTensor = tf.tensor3d([temporalBuffer]);
+                        const prediction = mlModel.predict(inputTensor);
+                        riskFactor = Math.round(prediction.dataSync()[0] * 100);
+                        
+                        document.getElementById('risk-value').innerText = riskFactor + '%';
+                        document.getElementById('risk-bar').style.width = riskFactor + '%';
+                    });
+                }
             }
 
-            document.getElementById('metric-emotion').innerText = currentEmotionState;
-            document.getElementById('metric-risk').innerText = riskFactor + '%';
-            document.getElementById('metric-blink').innerText = blinkRatePerMin;
-            document.getElementById('metric-audio').innerText = audio.volume + ' dB';
-
-            let timestamp = new Date().toLocaleTimeString();
-            sessionData.push({ timestamp, cognitiveLoad, riskFactor, emotion: currentEmotionState, hr: currentRealHR, audioVol: audio.volume });
-
-            if (realtimeChart.data.labels.length > 20) {
-                realtimeChart.data.labels.shift();
-                realtimeChart.data.datasets[0].data.shift();
-                realtimeChart.data.datasets[1].data.shift();
-            }
-            realtimeChart.data.labels.push(timestamp);
-            realtimeChart.data.datasets[0].data.push(cognitiveLoad);
-            realtimeChart.data.datasets[1].data.push(riskFactor);
-            realtimeChart.update('none');
-
-            setTimeout(loopProcessing, 1000);
+            requestAnimationFrame(loopProcessing);
         }
 
-        function generatePredictiveInsights() {
-            if (sessionData.length === 0) return;
-            let avgLoad = Math.round(sessionData.reduce((acc, curr) => acc + curr.cognitiveLoad, 0) / sessionData.length);
-            let maxRisk = Math.max(...sessionData.map(d => d.riskFactor));
-            let avgAudio = (sessionData.reduce((acc, curr) => acc + curr.audioVol, 0) / sessionData.length).toFixed(1);
+        // --- 5. Système d'Apprentissage ---
+        function captureFeedback(label) {
+            if (temporalBuffer.length < SEQUENCE_LENGTH) {
+                console.warn("Buffer temporel insuffisant.");
+                return;
+            }
             
-            // Trouver l'état émotionnel le plus fréquent de la session
-            let emotionCounts = {};
-            sessionData.forEach(d => { emotionCounts[d.emotion] = (emotionCounts[d.emotion] || 0) + 1; });
-            let dominantEmotion = Object.keys(emotionCounts).reduce((a, b) => emotionCounts[a] > emotionCounts[b] ? a : b);
-
-            let html = `
-            <div class="space-y-2 text-left w-full text-gray-200">
-                <p class="font-bold text-accent mb-1">Rapport d'Introspection & Analyse Pré-Cognitive v7.4 :</p>
-                <p>• <strong>État Émotionnel Dominant :</strong> ${dominantEmotion}.</p>
-                <p>• <strong>Indice de Charge Cognitive Moyen :</strong> ${avgLoad} / 100.</p>
-                <p>• <strong>Pic d'Anticipation de Rupture :</strong> ${maxRisk}%. ${maxRisk > 65 ? 'Attention : Instabilité structurelle détectée.' : 'Bonne résilience homéostasique observée.'}</p>
-                <p>• <strong>Comportement & Vocals :</strong> ${blinkRatePerMin} clignements/min, Hésitations textuelles : ${hesitationCount}, Audio moyen : ${avgAudio} dB.</p>
-                <p class="text-gray-400 text-[11px] mt-2 italic">Le jumeau numérique a fusionné l'état émotionnel, la biométrie faciale et les flux sémantiques.</p>
-            </div>`;
-
-            let insightsContainer = document.getElementById('narrative-insights');
-            insightsContainer.innerHTML = html;
-            insightsContainer.classList.remove('justify-center', 'text-center', 'text-gray-500');
+            trainingDataset.push({
+                sequence: [...temporalBuffer],
+                target: label
+            });
+            
+            console.log(`Donnée apprise (Dataset: ${trainingDataset.length})`);
+            
+            if (trainingDataset.length >= 5) {
+                retrainModel();
+            }
         }
 
-        function exportExecutivePDF() {
-            let printWindow = window.open('', '_blank');
-            printWindow.document.write(`
-            <html>
-                <head>
-                    <title>Rapport Jumeau Numérique - EgoLens v7.4</title>
-                    <style>body { font-family: sans-serif; padding: 40px; color: #111; } h1 { color: #8b5cf6; border-bottom: 2px solid #8b5cf6; }</style>
-                </head>
-                <body>
-                    <h1>EgoLens v7.4 - Rapport Jumeau Numérique Psychophysiologique</h1>
-                    <p>Date : ${new Date().toLocaleString()}</p>
-                    <p>Analyse émotionnelle, comportementale et sémantique consolidée avec succès.</p>
-                    <script>window.print();<\/script>
-                </body>
-            </html>
-            `);
-            printWindow.document.close();
+        async function retrainModel() {
+            const xs = tf.tensor3d(trainingDataset.map(d => d.sequence));
+            const ys = tf.tensor2d(trainingDataset.map(d => [d.target]));
+            await mlModel.fit(xs, ys, { epochs: 3 });
+            console.log("Modèle multimodal ajusté.");
         }
 
-        window.onload = initMediaPipe;
+        // --- 6. MediaPipe FaceMesh ---
+        const faceMesh = new FaceMesh({
+            locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`
+        });
+
+        faceMesh.setOptions({
+            maxNumFaces: 1,
+            refineLandmarks: true,
+            minDetectionConfidence: 0.6,
+            minTrackingConfidence: 0.6
+        });
+
+        faceMesh.onResults((results) => {
+            canvasCtx.save();
+            canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+            canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
+            
+            if (results.multiFaceLandmarks && results.multiFaceLandmarks.length > 0) {
+                rawLandmarks = results.multiFaceLandmarks[0];
+            }
+            canvasCtx.restore();
+        });
+
+        // --- 7. Contrôles Globaux ---
+        async function toggleSystem() {
+            if (!isRunning) {
+                await initLightweightMLModel();
+                await initAudioPipeline();
+
+                const camera = new Camera(videoElement, {
+                    onFrame: async () => {
+                        if (isRunning) {
+                            canvasElement.width = videoElement.videoWidth;
+                            canvasElement.height = videoElement.videoHeight;
+                            await faceMesh.send({ image: videoElement });
+                        }
+                    },
+                    width: 640,
+                    height: 480
+                });
+                await camera.start();
+                
+                isRunning = true;
+                statusEl.innerText = "Système Actif (v8.1 Adaptatif)";
+                statusEl.className = "px-3 py-1 bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-full text-xs font-medium";
+                toggleBtn.innerText = "Arrêter EgoLens";
+                toggleBtn.className = "px-6 py-2.5 bg-red-600 hover:bg-red-700 text-white font-medium rounded-xl text-xs transition shadow-lg shadow-red-500/20";
+                
+                loopProcessing();
+            } else {
+                isRunning = false;
+                if (audioCtx && audioCtx.state !== 'closed') {
+                    audioCtx.close();
+                }
+                statusEl.innerText = "Système Arrêté";
+                statusEl.className = "px-3 py-1 bg-red-500/20 text-red-400 border border-red-500/30 rounded-full text-xs font-medium";
+                toggleBtn.innerText = "Démarrer EgoLens";
+                toggleBtn.className = "px-6 py-2.5 bg-accent hover:bg-accent/80 text-white font-medium rounded-xl text-xs transition shadow-lg shadow-accent/20";
+            }
+        }
     </script>
 </body>
 </html>
