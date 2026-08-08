@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>EgoLens Pro – v7.3 Ultimate Horizon (Cognitive Twin)</title>
+    <title>EgoLens Pro – v7.4 Ultimate Horizon (Cognitive Twin)</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
@@ -48,7 +48,7 @@
                     <i data-lucide="cpu" class="w-6 h-6 text-accent animate-pulse"></i>
                 </div>
                 <div>
-                    <h1 class="font-bold text-lg tracking-wide">EgoLens <span class="text-accent text-xs px-2 py-0.5 rounded bg-accent/10 border border-accent/25 ml-1">v7.3 ULTIMATE</span></h1>
+                    <h1 class="font-bold text-lg tracking-wide">EgoLens <span class="text-accent text-xs px-2 py-0.5 rounded bg-accent/10 border border-accent/25 ml-1">v7.4 ULTIMATE</span></h1>
                     <p class="text-xs text-gray-400">Jumeau Numérique Psychophysiologique & Anticipation Pré-Cognitive</p>
                 </div>
             </div>
@@ -118,24 +118,24 @@
                 </div>
             </div>
 
-            <!-- Quantum Biometrics Card (Extended FACS & Head Poses) -->
+            <!-- Quantum Biometrics Card (Extended FACS, Poses & Emotion) -->
             <div class="bg-cardbg rounded-2xl border border-gray-800/80 p-4 shadow-xl flex flex-col space-y-4">
                 <h2 class="text-sm font-semibold flex items-center space-x-2">
                     <i data-lucide="sliders" class="w-4 h-4 text-accent"></i>
-                    <span>Indicateurs Profonds v7.3 (FACS & Poses)</span>
+                    <span>Indicateurs Profonds v7.4 (Émotion & FACS)</span>
                 </h2>
                 <div class="grid grid-cols-2 gap-3">
                     <div class="bg-gray-900/60 p-3 rounded-xl border border-gray-800/60">
-                        <p class="text-xs text-gray-400">Clignements / Min</p>
-                        <p class="text-xl font-bold mt-1 text-cyan-400"><span id="metric-blink">0</span></p>
+                        <p class="text-xs text-gray-400">État Émotionnel Dominant</p>
+                        <p class="text-sm font-bold mt-1 text-purple-400 tracking-wide uppercase" id="metric-emotion">En attente</p>
                     </div>
                     <div class="bg-gray-900/60 p-3 rounded-xl border border-gray-800/60">
                         <p class="text-xs text-gray-400">Risque de Rupture</p>
                         <p class="text-xl font-bold mt-1 text-amber-400"><span id="metric-risk">0%</span></p>
                     </div>
                     <div class="bg-gray-900/60 p-3 rounded-xl border border-gray-800/60">
-                        <p class="text-xs text-gray-400">Tension Tête (Yaw/Pitch)</p>
-                        <p class="text-xl font-bold mt-1 text-purple-400" id="metric-pose">0.0°</p>
+                        <p class="text-xs text-gray-400">Clignements / Min</p>
+                        <p class="text-xl font-bold mt-1 text-cyan-400"><span id="metric-blink">0</span></p>
                     </div>
                     <div class="bg-gray-900/60 p-3 rounded-xl border border-gray-800/60">
                         <p class="text-xs text-gray-400">Tension Vocale / Audio</p>
@@ -179,7 +179,7 @@
             <div class="bg-cardbg rounded-2xl border border-gray-800/80 p-4 shadow-xl flex flex-col space-y-3">
                 <h2 class="text-sm font-semibold flex items-center space-x-2">
                     <i data-lucide="sparkles" class="w-4 h-4 text-accent"></i>
-                    <span>Rapport d'Introspection & Analyse Pré-Cognitive v7.3</span>
+                    <span>Rapport d'Introspection & Analyse Pré-Cognitive v7.4</span>
                 </h2>
                 <div id="narrative-insights" class="bg-gray-900/60 p-4 rounded-xl border border-gray-800/60 text-xs text-gray-300 leading-relaxed min-h-[90px] flex items-center justify-center text-center text-gray-500">
                     En attente du flux d'activation du jumeau numérique...
@@ -189,7 +189,7 @@
 
     </main>
 
-    <!-- Script Application Logic v7.3 -->
+    <!-- Script Application Logic v7.4 -->
     <script>
         lucide.createIcons();
 
@@ -210,11 +210,14 @@
         let currentMotion = 0;
         let lastNosePos = { x: 0, y: 0 };
 
-        // Nouveautés v7.3 (FACS & Poses)
+        // Variables FACS & Émotion
         let blinkCount = 0;
         let lastEyeOpenState = true;
         let blinkRatePerMin = 0;
         let headPoseAngle = 0;
+        let au12Score = 0;
+        let au4Score = 0;
+        let currentEmotionState = "Neutre";
         let hesitationCount = 0;
         let liveTranscriptText = "En attente de prise de parole...";
 
@@ -343,20 +346,16 @@
                 recognition.lang = 'fr-FR';
 
                 recognition.onresult = (event) => {
-                    let interim = '';
                     let final = '';
                     for (let i = event.resultIndex; i < event.results.length; ++i) {
                         if (event.results[i].isFinal) {
                             final += event.results[i][0].transcript;
-                        } else {
-                            interim += event.results[i][0].transcript;
                         }
                     }
                     if (final) {
                         liveTranscriptText = final;
-                        // Analyse sémantique d'hésitation
                         let lower = final.toLowerCase();
-                        if (lower.includes('euh') || lower.includes('je sais pas') || lower.includes('peut-être') || lower.includes('euh...')) {
+                        if (lower.includes('euh') || lower.includes('je sais pas') || lower.includes('peut-être')) {
                             hesitationCount++;
                         }
                         document.getElementById('nlp-transcript').innerText = `"${final}"`;
@@ -395,7 +394,6 @@
             const leftEyeBottom = landmarks[145];
             const eyeOpening = Math.hypot(leftEyeTop.x - leftEyeBottom.x, leftEyeTop.y - leftEyeBottom.y);
             
-            // Détection clignement (Blink Rate)
             if (eyeOpening < 0.025 && lastEyeOpenState) {
                 blinkCount++;
                 lastEyeOpenState = false;
@@ -403,7 +401,6 @@
                 lastEyeOpenState = true;
             }
 
-            // Calcul Head Pose (Tangage / Lacet approximatif via repères nez et menton)
             const noseTip = landmarks[1];
             const chin = landmarks[152];
             let headDelta = Math.abs(noseTip.x - chin.x) * 100;
@@ -427,7 +424,23 @@
             }
 
             currentPupilLoad = Math.min(100, Math.max(10, Math.round((baselineEye - eyeOpening) * 800 + 40)));
+            au12Score = +((lipDistance - baselineLip) * 10).toFixed(2);
+            if (au12Score < 0) au12Score = 0;
             
+            au4Score = +((baselineBrow - browDistance) * 15).toFixed(2);
+            if (au4Score < 0) au4Score = 0;
+
+            // Déduction de l'état émotionnel dominant basé sur les FACS et la charge
+            if (au12Score > 0.15) {
+                currentEmotionState = "Positif / Souriant";
+            } else if (au4Score > 0.15 || currentPupilLoad > 75) {
+                currentEmotionState = "Tendu / Concentré";
+            } else if (headPoseAngle > 15 || blinkRatePerMin > 25) {
+                currentEmotionState = "Agité / Alerte";
+            } else {
+                currentEmotionState = "Neutre / Calme";
+            }
+
             const nose = landmarks[1];
             if (lastNosePos.x !== 0) {
                 currentMotion = +((Math.hypot(nose.x - lastNosePos.x, nose.y - lastNosePos.y)) * 10).toFixed(2);
@@ -518,7 +531,7 @@
             document.getElementById('btn-start').disabled = true;
             document.getElementById('btn-stop').disabled = false;
             document.getElementById('status-badge').className = "px-3 py-1 rounded-full text-xs font-medium bg-amber-500/10 text-amber-400 border border-amber-500/20 flex items-center space-x-1.5";
-            document.getElementById('status-text').innerText = "Calibration Initiale v7.3...";
+            document.getElementById('status-text').innerText = "Calibration Initiale v7.4...";
             document.getElementById('calibration-overlay').style.opacity = '1';
 
             setTimeout(() => {
@@ -543,15 +556,12 @@
             document.getElementById('status-badge').className = "px-3 py-1 rounded-full text-xs font-medium bg-gray-800 text-gray-400 border border-gray-700 flex items-center space-x-1.5";
             document.getElementById('status-text').innerText = "Session Consolidée";
             
-            // Remise à zero des lueurs réactives interface
             updateReactiveInterface(0);
             generatePredictiveInsights();
         }
 
         function updateReactiveInterface(risk) {
             let card = document.getElementById('camera-card');
-            let body = document.getElementById('app-body');
-
             card.classList.remove('reactive-glow-normal', 'reactive-glow-tension', 'reactive-glow-danger');
 
             if (risk > 70) {
@@ -570,7 +580,6 @@
             let sessionDurationMin = (sessionData.length + 1) / 60;
             blinkRatePerMin = sessionDurationMin > 0 ? Math.round(blinkCount / Math.max(sessionDurationMin, 0.05)) : 15;
 
-            // Calcul du risque croisé (Pupille + Tête + Audio + Hésitations Sémantiques)
             let cognitiveLoad = Math.min(100, Math.max(10, Math.round((currentPupilLoad * 0.4) + (headPoseAngle * 1.5) + ((currentRealHR - baselineHR) * 1.5))));
             riskFactor = Math.min(100, Math.max(0, Math.round((cognitiveLoad * 0.5) + (currentMotion * 20) + (hesitationCount * 5))));
 
@@ -588,13 +597,13 @@
                 alertBadge.innerText = "Stabilité Nominale";
             }
 
-            document.getElementById('metric-blink').innerText = blinkRatePerMin;
+            document.getElementById('metric-emotion').innerText = currentEmotionState;
             document.getElementById('metric-risk').innerText = riskFactor + '%';
-            document.getElementById('metric-pose').innerText = headPoseAngle + '°';
+            document.getElementById('metric-blink').innerText = blinkRatePerMin;
             document.getElementById('metric-audio').innerText = audio.volume + ' dB';
 
             let timestamp = new Date().toLocaleTimeString();
-            sessionData.push({ timestamp, cognitiveLoad, riskFactor, hr: currentRealHR, audioVol: audio.volume, blinks: blinkRatePerMin });
+            sessionData.push({ timestamp, cognitiveLoad, riskFactor, emotion: currentEmotionState, hr: currentRealHR, audioVol: audio.volume });
 
             if (realtimeChart.data.labels.length > 20) {
                 realtimeChart.data.labels.shift();
@@ -614,15 +623,20 @@
             let avgLoad = Math.round(sessionData.reduce((acc, curr) => acc + curr.cognitiveLoad, 0) / sessionData.length);
             let maxRisk = Math.max(...sessionData.map(d => d.riskFactor));
             let avgAudio = (sessionData.reduce((acc, curr) => acc + curr.audioVol, 0) / sessionData.length).toFixed(1);
+            
+            // Trouver l'état émotionnel le plus fréquent de la session
+            let emotionCounts = {};
+            sessionData.forEach(d => { emotionCounts[d.emotion] = (emotionCounts[d.emotion] || 0) + 1; });
+            let dominantEmotion = Object.keys(emotionCounts).reduce((a, b) => emotionCounts[a] > emotionCounts[b] ? a : b);
 
             let html = `
             <div class="space-y-2 text-left w-full text-gray-200">
-                <p class="font-bold text-accent mb-1">Rapport d'Introspection & Analyse Pré-Cognitive v7.3 :</p>
+                <p class="font-bold text-accent mb-1">Rapport d'Introspection & Analyse Pré-Cognitive v7.4 :</p>
+                <p>• <strong>État Émotionnel Dominant :</strong> ${dominantEmotion}.</p>
                 <p>• <strong>Indice de Charge Cognitive Moyen :</strong> ${avgLoad} / 100.</p>
                 <p>• <strong>Pic d'Anticipation de Rupture :</strong> ${maxRisk}%. ${maxRisk > 65 ? 'Attention : Instabilité structurelle détectée.' : 'Bonne résilience homéostasique observée.'}</p>
-                <p>• <strong>Analyse Comportementale FACS & Poses :</strong> ${blinkRatePerMin} clignements/min observés. Hésitations sémantiques relevées : ${hesitationCount}.</p>
-                <p>• <strong>Modulation Vocale & Audio :</strong> Niveau moyen capté de ${avgAudio} dB.</p>
-                <p class="text-gray-400 text-[11px] mt-2 italic">Le jumeau numérique a croisé l'ensemble des flux biométriques, posturaux et sémantiques.</p>
+                <p>• <strong>Comportement & Vocals :</strong> ${blinkRatePerMin} clignements/min, Hésitations textuelles : ${hesitationCount}, Audio moyen : ${avgAudio} dB.</p>
+                <p class="text-gray-400 text-[11px] mt-2 italic">Le jumeau numérique a fusionné l'état émotionnel, la biométrie faciale et les flux sémantiques.</p>
             </div>`;
 
             let insightsContainer = document.getElementById('narrative-insights');
@@ -635,13 +649,13 @@
             printWindow.document.write(`
             <html>
                 <head>
-                    <title>Rapport Jumeau Numérique - EgoLens v7.3</title>
+                    <title>Rapport Jumeau Numérique - EgoLens v7.4</title>
                     <style>body { font-family: sans-serif; padding: 40px; color: #111; } h1 { color: #8b5cf6; border-bottom: 2px solid #8b5cf6; }</style>
                 </head>
                 <body>
-                    <h1>EgoLens v7.3 - Rapport Jumeau Numérique Psychophysiologique</h1>
+                    <h1>EgoLens v7.4 - Rapport Jumeau Numérique Psychophysiologique</h1>
                     <p>Date : ${new Date().toLocaleString()}</p>
-                    <p>Analyse croisée (Biométrie, Poses, FACS & NLP) consolidée avec succès.</p>
+                    <p>Analyse émotionnelle, comportementale et sémantique consolidée avec succès.</p>
                     <script>window.print();<\/script>
                 </body>
             </html>
