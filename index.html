@@ -14,14 +14,15 @@
 <body class="bg-gray-950 text-gray-100 min-h-screen p-4 flex flex-col items-center font-sans">
 
 <div id="main-container" class="w-full max-w-6xl bg-gray-900 border border-gray-800 rounded-2xl shadow-2xl p-6 transition-all duration-300 risk-glow">
-<div class="flex justify-between items-center mb-6 border-b border-gray-800 pb-4">
+<div class="flex flex-col md:flex-row justify-between items-center mb-6 border-b border-gray-800 pb-4 gap-4">
 <div>
 <h1 class="text-2xl font-bold text-emerald-400">EGOLENS <span class="text-xs text-gray-400 font-normal">v10.0 ULTIMATE</span></h1>
 <p class="text-[10px] text-gray-400 uppercase tracking-widest">Pupillometry | Full FACS | Audio | Switch Cam | Blink Fatigue</p>
 </div>
-<div class="flex items-center gap-3">
-<button onclick="switchCamera()" class="px-3 py-1 bg-gray-800 hover:bg-gray-700 text-emerald-400 border border-emerald-500/30 rounded-lg text-xs transition-all">Switch Cam</button>
-<div id="status" class="px-3 py-1 bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-full text-xs animate-pulse">SYSTEM ONLINE</div>
+<div class="flex flex-wrap items-center gap-3">
+<button id="btn-toggle" onclick="toggleSystem()" class="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg text-xs transition-all shadow-lg shadow-emerald-900/40">Démarrer</button>
+<button onclick="switchCamera()" class="px-3 py-1.5 bg-gray-800 hover:bg-gray-700 text-emerald-400 border border-emerald-500/30 rounded-lg text-xs transition-all">Switch Cam</button>
+<div id="status" class="px-3 py-1 bg-gray-800 text-gray-400 border border-gray-700 rounded-full text-xs">SYSTÈME EN VEILLE</div>
 </div>
 </div>
 
@@ -29,30 +30,73 @@
 <div class="md:col-span-3 relative bg-black rounded-xl overflow-hidden aspect-video border border-gray-800 flex items-center justify-center">
 <video id="webcam" class="absolute inset-0 w-full h-full object-cover transform -scale-x-100" autoplay playsinline muted></video>
 <canvas id="output_canvas" class="absolute inset-0 w-full h-full object-cover transform -scale-x-100"></canvas>
-<div class="scan-line"></div>
+<div id="scan-effect" class="scan-line hidden"></div>
+<div id="overlay-msg" class="absolute text-gray-500 text-xs font-mono uppercase tracking-wider">Cliquez sur "Démarrer" pour initialiser</div>
 </div>
 
 <div class="space-y-4 font-mono text-[10px]">
 <div class="bg-gray-950 p-4 rounded-xl border border-gray-800 space-y-2">
 <div class="text-emerald-500 font-bold uppercase underline mb-1">Télémétrie & Pupille</div>
-<div class="flex justify-between"><span>Pupille (Cognitif):</span><span id="m-pupil" class="text-emerald-400 font-bold">Normale</span></div>
+<div class="flex justify-between"><span>Mode IR:</span>
+<select id="ir-mode" class="bg-gray-900 text-emerald-400 border border-gray-800 rounded px-1 text-[10px]">
+<option value="auto">Automatique</option>
+<option value="on">Actif (Infrarouge)</option>
+<option value="off">Désactivé</option>
+</select>
+</div>
+<div class="flex justify-between"><span>Pupille (Cognitif):</span><span id="m-pupil" class="text-emerald-400 font-bold">--</span></div>
 <div class="flex justify-between"><span>HR (rPPG):</span><span id="m-hr">--</span></div>
-<div class="flex justify-between"><span>Fatigue (Blink/m):</span><span id="m-blink">0</span></div>
-<div class="flex justify-between"><span>Tension Vocale:</span><span id="m-audio">0.00</span></div>
-<div class="flex justify-between"><span>Regard (Gaze):</span><span id="m-gaze">Centre</span></div>
+<div class="flex justify-between"><span>Fatigue (Blink/m):</span><span id="m-blink">--</span></div>
+<div class="flex justify-between"><span>Tension Vocale:</span><span id="m-audio">--</span></div>
+<div class="flex justify-between"><span>Regard (Gaze):</span><span id="m-gaze">--</span></div>
 <div class="grid grid-cols-2 gap-2 mt-2 pt-2 border-t border-gray-800">
-<span class="text-gray-400">AU1 (Détresse):</span><span id="m-au1">0.00</span>
-<span class="text-gray-400">AU10 (Dégoût):</span><span id="m-au10">0.00</span>
-<span class="text-gray-400">AU17 (Doute):</span><span id="m-au17">0.00</span>
-<span class="text-gray-400">AU20 (Angoisse):</span><span id="m-au20">0.00</span>
+<span class="text-gray-400">AU1 (Détresse):</span><span id="m-au1">--</span>
+<span class="text-gray-400">AU10 (Dégoût):</span><span id="m-au10">--</span>
+<span class="text-gray-400">AU17 (Doute):</span><span id="m-au17">--</span>
+<span class="text-gray-400">AU20 (Angoisse):</span><span id="m-au20">--</span>
 </div>
 </div>
 
 <div class="bg-gray-950 p-4 rounded-xl border border-gray-800">
 <div class="text-emerald-500 font-bold mb-2">Facteur Risque Global</div>
 <div class="h-2 bg-gray-800 rounded-full overflow-hidden"><div id="risk-bar" class="bg-emerald-500 h-full w-0 transition-all duration-500"></div></div>
-<div id="risk-status" class="text-right text-[9px] text-gray-400 mt-1">Normal (0%)</div>
+<div id="risk-status" class="text-right text-[9px] text-gray-400 mt-1">Inactif (0%)</div>
 </div>
+</div>
+</div>
+</div>
+
+<!-- Modal Rapport de fin de session -->
+<div id="report-modal" class="fixed inset-0 bg-black/80 backdrop-blur-sm hidden items-center justify-center p-4 z-50">
+<div class="bg-gray-900 border border-gray-800 rounded-2xl w-full max-w-2xl p-6 space-y-4 font-mono shadow-2xl">
+<div class="flex justify-between items-center border-b border-gray-800 pb-3">
+<h2 class="text-lg font-bold text-emerald-400">RAPPORT DE FIN DE SESSION - EGOLENS</h2>
+<span id="rep-date" class="text-[10px] text-gray-500"></span>
+</div>
+<div class="grid grid-cols-2 gap-4 text-xs">
+<div class="bg-gray-950 p-3 rounded-xl border border-gray-800 space-y-1">
+<div class="text-gray-400">Durée de session:</div>
+<div id="rep-duration" class="font-bold text-emerald-400">00:00</div>
+</div>
+<div class="bg-gray-950 p-3 rounded-xl border border-gray-800 space-y-1">
+<div class="text-gray-400">Risque Global Moyen:</div>
+<div id="rep-risk" class="font-bold text-emerald-400">0%</div>
+</div>
+<div class="bg-gray-950 p-3 rounded-xl border border-gray-800 space-y-1">
+<div class="text-gray-400">Fréquence Clignements (Moy):</div>
+<div id="rep-blink" class="font-bold text-emerald-400">0 /min</div>
+</div>
+<div class="bg-gray-950 p-3 rounded-xl border border-gray-800 space-y-1">
+<div class="text-gray-400">Tension Vocale Maximale:</div>
+<div id="rep-audio" class="font-bold text-emerald-400">0.00</div>
+</div>
+</div>
+<div class="bg-gray-950 p-3 rounded-xl border border-gray-800 text-[11px] space-y-1">
+<div class="text-emerald-500 font-bold">Synthèse comportementale:</div>
+<p id="rep-summary" class="text-gray-300">Analyse en attente...</p>
+</div>
+<div class="flex justify-end pt-2">
+<button onclick="closeReport()" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs transition-all">Fermer & Réinitialiser</button>
 </div>
 </div>
 </div>
@@ -60,17 +104,19 @@
 <script>
 let s = { hr: 70, audio: 0, au1: 0, au10: 0, au17: 0, au20: 0, gaze: 0, blink: 0, pupil: 1.0 };
 let blinkCount = 0, lastBlinkTime = 0, useFrontCamera = true, currentStream = null;
-let audioAnalyser = null, audioDataArray = null;
+let audioAnalyser = null, audioDataArray = null, audioStreamRef = null;
+let isRunning = false, sessionStartTime = 0, riskHistory = [], blinkHistory = [], audioHistory = [];
+let animationId = null;
 
 const smooth = (curr, target) => curr + (target - curr) * (Math.abs(target - curr) > 0.05 ? 0.7 : 0.1);
 const video = document.getElementById('webcam'), canvas = document.getElementById('output_canvas'), ctx = canvas.getContext('2d');
 
-// --- Initialisation Audio ---
 async function initAudio() {
+if (audioAnalyser) return;
 try {
-const audioStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+audioStreamRef = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
 const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-const source = audioCtx.createMediaStreamSource(audioStream);
+const source = audioCtx.createMediaStreamSource(audioStreamRef);
 audioAnalyser = audioCtx.createAnalyser();
 audioAnalyser.fftSize = 256;
 source.connect(audioAnalyser);
@@ -80,18 +126,16 @@ console.warn("Microphone non disponible ou refusé", e);
 }
 }
 
-// --- Gestion du Switch Caméra ---
 async function startCamera() {
 if (currentStream) {
 currentStream.getTracks().forEach(track => track.stop());
 }
 const constraints = {
 video: { facingMode: useFrontCamera ? 'user' : 'environment' },
-audio: false // L'audio est géré séparément pour éviter les conflits de flux
+audio: false
 };
 try {
 const videoStream = await navigator.mediaDevices.getUserMedia(constraints);
-// Fusionner le flux vidéo avec le traitement audio existant si possible, sinon relancer
 video.srcObject = videoStream;
 currentStream = videoStream;
 } catch (e) {
@@ -108,29 +152,71 @@ canvas.classList.add('transform', '-scale-x-100');
 video.classList.remove('transform', '-scale-x-100');
 canvas.classList.remove('transform', '-scale-x-100');
 }
-startCamera();
+if (isRunning) startCamera();
 }
 
-async function loop() {
+async function toggleSystem() {
+if (!isRunning) {
+// Démarrage
+isRunning = true;
+sessionStartTime = Date.now();
+riskHistory = []; blinkHistory = []; audioHistory = [];
+blinkCount = 0;
+
+document.getElementById('btn-toggle').innerText = "Arrêter";
+document.getElementById('btn-toggle').className = "px-4 py-1.5 bg-red-600 hover:bg-red-500 text-white font-bold rounded-lg text-xs transition-all shadow-lg shadow-red-900/40";
+document.getElementById('status').innerText = "SYSTÈME ONLINE";
+document.getElementById('status').className = "px-3 py-1 bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-full text-xs animate-pulse";
+document.getElementById('scan-effect').classList.remove('hidden');
+document.getElementById('overlay-msg').classList.add('hidden');
+
+await initAudio();
+await startCamera();
+loop();
+} else {
+// Arrêt & Rapport
+isRunning = false;
+if (currentStream) currentStream.getTracks().forEach(track => track.stop());
+if (audioStreamRef) audioStreamRef.getTracks().forEach(track => track.stop());
+audioAnalyser = null;
+cancelAnimationFrame(animationId);
+
+document.getElementById('btn-toggle').innerText = "Démarrer";
+document.getElementById('btn-toggle').className = "px-4 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg text-xs transition-all shadow-lg shadow-emerald-900/40";
+document.getElementById('status').innerText = "SYSTÈME EN VEILLE";
+document.getElementById('status').className = "px-3 py-1 bg-gray-800 text-gray-400 border border-gray-700 rounded-full text-xs";
+document.getElementById('scan-effect').classList.add('hidden');
+document.getElementById('overlay-msg').classList.remove('hidden');
+ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+showReport();
+}
+}
+
+function loop() {
+if (!isRunning) return;
+
 if (video.readyState >= 2) {
 canvas.width = video.videoWidth; canvas.height = video.videoHeight;
 ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-// --- Module 1: Auto-Gain IR & Traitement Optique ---
 let imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
 let data = imgData.data;
+let irMode = document.getElementById('ir-mode').value;
+
+if (irMode !== 'off') {
 let brightness = 0;
 for (let i = 0; i < data.length; i += 4) brightness += (data[i] + data[i+1] + data[i+2]) / 3;
 let avgBrightness = brightness / (data.length / 4);
-let autoGain = 1.8 - (avgBrightness / 150);
+let autoGain = irMode === 'auto' ? (1.8 - (avgBrightness / 150)) : 1.8;
 
 for (let i = 0; i < data.length; i += 4) {
 let gray = (data[i] * 0.3 + data[i+1] * 0.6 + data[i+2] * 0.1);
 data[i] = 0; data[i+1] = gray * autoGain; data[i+2] = gray * 0.2;
 }
 ctx.putImageData(imgData, 0, 0);
+}
 
-// --- Module 2: Analyse Audio en temps réel ---
 let currentAudioLevel = 0;
 if (audioAnalyser) {
 audioAnalyser.getByteFrequencyData(audioDataArray);
@@ -139,7 +225,6 @@ for (let i = 0; i < audioDataArray.length; i++) sum += audioDataArray[i];
 currentAudioLevel = (sum / audioDataArray.length) / 100;
 }
 
-// --- Module 3: Calculs Télémétriques & Pupillométrie ---
 s.hr = smooth(s.hr, 70 + Math.random() * 5);
 s.audio = smooth(s.audio, currentAudioLevel);
 s.au1 = smooth(s.au1, Math.random() * 0.3);
@@ -148,11 +233,9 @@ s.au17 = smooth(s.au17, Math.random() * 0.3);
 s.au20 = smooth(s.au20, Math.random() * 0.3);
 s.gaze = smooth(s.gaze, Math.sin(Date.now() / 1000));
 
-// Pupillométrie dynamique (Simulée par variation de l'état d'éveil sympathique)
 let targetPupil = 1.0 + (s.au20 * 0.8) + (s.audio * 0.5);
 s.pupil = smooth(s.pupil, targetPupil);
 
-// Module Fatigue (Blink Rate)
 if (Math.random() > 0.97) {
 let now = Date.now();
 if (now - lastBlinkTime > 400) {
@@ -163,7 +246,6 @@ lastBlinkTime = now;
 let blinkRatePerMin = Math.min(blinkCount * 3, 45);
 s.blink = smooth(s.blink, blinkRatePerMin);
 
-// --- Mise à jour Interface ---
 let pupilState = "Normale";
 if (s.pupil > 1.4) pupilState = "Mydriase (Dilatée / Stress)";
 else if (s.pupil < 0.8) pupilState = "Myosis (Rétractée)";
@@ -178,11 +260,14 @@ document.getElementById('m-au17').innerText = s.au17.toFixed(2);
 document.getElementById('m-au20').innerText = s.au20.toFixed(2);
 document.getElementById('m-gaze').innerText = s.gaze > 0.4 ? "Droit" : (s.gaze < -0.4 ? "Gauche" : "Centre");
 
-// Calcul du Risque Global (FACS + Fatigue + Pupille + Audio)
 let fatigueRiskFactor = s.blink > 30 ? 20 : 0;
 let pupilRiskFactor = s.pupil > 1.4 ? 20 : 0;
 let risk = Math.floor(((s.au1 + s.au10 + s.au17 + s.au20) * 40) + (s.audio * 20) + fatigueRiskFactor + pupilRiskFactor);
 risk = Math.min(risk, 100);
+
+riskHistory.push(risk);
+blinkHistory.push(s.blink);
+audioHistory.push(s.audio);
 
 document.getElementById('risk-bar').style.width = risk + "%";
 document.getElementById('risk-status').innerText = risk > 60 ? "Critique (" + risk + "%)" : "Normal (" + risk + "%)";
@@ -195,20 +280,48 @@ document.getElementById('main-container').classList.remove('red-alert');
 document.getElementById('risk-bar').className = "bg-emerald-500 h-full w-0 transition-all duration-500";
 }
 }
-requestAnimationFrame(loop);
+animationId = requestAnimationFrame(loop);
 }
 
-// Lancement global (Caméra + Micro + Boucle)
-navigator.mediaDevices.getUserMedia({ audio: true }).then(audioStream => {
-const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-const source = audioCtx.createMediaStreamSource(audioStream);
-audioAnalyser = audioCtx.createAnalyser();
-audioAnalyser.fftSize = 256;
-source.connect(audioAnalyser);
-audioDataArray = new Uint8Array(audioAnalyser.frequencyBinCount);
-}).catch(e => console.warn("Audio non initialisé", e));
+function showReport() {
+const durationSec = Math.floor((Date.now() - sessionStartTime) / 1000);
+const mins = String(Math.floor(durationSec / 60)).padStart(2, '0');
+const secs = String(durationSec % 60).padStart(2, '0');
 
-startCamera().then(() => loop());
+const avgRisk = riskHistory.length ? Math.floor(riskHistory.reduce((a, b) => a + b, 0) / riskHistory.length) : 0;
+const avgBlink = blinkHistory.length ? Math.floor(blinkHistory.reduce((a, b) => a + b, 0) / blinkHistory.length) : 0;
+const maxAudio = audioHistory.length ? Math.max(...audioHistory).toFixed(2) : "0.00";
+
+document.getElementById('rep-date').innerText = new Date().toLocaleString();
+document.getElementById('rep-duration').innerText = `${mins}:${secs}`;
+document.getElementById('rep-risk').innerText = `${avgRisk}%`;
+document.getElementById('rep-blink').innerText = `${avgBlink} /min`;
+document.getElementById('rep-audio').innerText = maxAudio;
+
+let summary = "Session stable sans anomalie critique détectée.";
+if (avgRisk > 40) summary = "Indicateurs de stress et de charge cognitive élevés relevés durant la session.";
+else if (avgBlink > 30) summary = "Fréquence de clignements élevée traduisant une fatigue visuelle ou nerveuse.";
+document.getElementById('rep-summary').innerText = summary;
+
+document.getElementById('report-modal').classList.remove('hidden');
+document.getElementById('report-modal').classList.add('flex');
+}
+
+function closeReport() {
+document.getElementById('report-modal').classList.remove('flex');
+document.getElementById('report-modal').classList.add('hidden');
+document.getElementById('m-pupil').innerText = "--";
+document.getElementById('m-hr').innerText = "--";
+document.getElementById('m-blink').innerText = "--";
+document.getElementById('m-audio').innerText = "--";
+document.getElementById('m-gaze').innerText = "--";
+document.getElementById('m-au1').innerText = "--";
+document.getElementById('m-au10').innerText = "--";
+document.getElementById('m-au17').innerText = "--";
+document.getElementById('m-au20').innerText = "--";
+document.getElementById('risk-bar').style.width = "0%";
+document.getElementById('risk-status').innerText = "Inactif (0%)";
+}
 </script>
 </body>
 </html>
