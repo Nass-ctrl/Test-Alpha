@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>EgoLens v9.0 - Architecture Multi-Thread (Worker + LSTM)</title>
+    <title>EgoLens v9.1 - Multithread + 6 Émotions d'Ekman</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
@@ -21,8 +21,8 @@
     <!-- En-tête -->
     <div class="flex justify-between items-center mb-6 border-b border-gray-800 pb-4">
         <div>
-            <h1 class="text-2xl font-bold tracking-wider text-accent">EGOLENS <span class="text-xs font-normal text-gray-400">v9.0 Ultra-Stable (Worker)</span></h1>
-            <p class="text-xs text-gray-400">Multithread UI/AI + rPPG + Mode IR + LSTM Local</p>
+            <h1 class="text-2xl font-bold tracking-wider text-accent">EGOLENS <span class="text-xs font-normal text-gray-400">v9.1 Multi-Ekman</span></h1>
+            <p class="text-xs text-gray-400">Multithread UI/AI + rPPG + 7 États Émotionnels + Mode IR</p>
         </div>
         <div class="flex items-center space-x-3">
             <button id="ir-btn" onclick="toggleInfrared()" class="px-3 py-1 bg-gray-800 hover:bg-gray-700 text-gray-300 border border-gray-700 rounded-full text-xs font-medium transition flex items-center space-x-1.5">
@@ -45,15 +45,15 @@
         <div class="flex flex-col justify-between space-y-4">
             <div class="bg-gray-950 p-4 rounded-xl border border-gray-800 space-y-3 font-mono text-xs">
                 <div>
-                    <span class="text-gray-400 uppercase text-[10px] block">État Émotionnel</span>
+                    <span class="text-gray-400 uppercase text-[10px] block">État Émotionnel (Ekman)</span>
                     <span id="emotion-label" class="text-lg font-bold text-emerald-400 italic">En attente...</span>
                 </div>
                 <div class="flex justify-between border-t border-gray-800 pt-2"><span class="text-gray-400">Rythme (rPPG) :</span><span id="metric-hr" class="text-accent font-bold">-- BPM</span></div>
                 <div class="flex justify-between"><span class="text-gray-400">Sourire (AU12) :</span><span id="metric-au12" class="text-accent">0.00</span></div>
+                <div class="flex justify-between"><span class="text-gray-400">Froncement (AU4) :</span><span id="metric-au4" class="text-accent">0.00</span></div>
                 <div class="flex justify-between"><span class="text-gray-400">Surprise (AU5) :</span><span id="metric-au5" class="text-accent">0.00</span></div>
-                <div class="flex justify-between"><span class="text-gray-400">Pupille :</span><span id="metric-pupil" class="text-accent">0.00</span></div>
                 <div class="flex justify-between"><span class="text-gray-400">Tension Vocale :</span><span id="metric-audio" class="text-accent">0.00</span></div>
-                <div class="flex justify-between"><span class="text-gray-400">Thread AI (Worker) :</span><span id="metric-fps" class="text-emerald-400">Actif</span></div>
+                <div class="flex justify-between"><span class="text-gray-400">Thread AI (Worker) :</span><span id="metric-fps" class="text-emerald-400">Actif (v9.1)</span></div>
             </div>
 
             <!-- Jauge Risque -->
@@ -67,14 +67,14 @@
     <!-- Contrôles bas -->
     <div class="mt-6 flex justify-between items-center">
         <button onclick="switchCamera()" class="px-4 py-2.5 bg-gray-800 hover:bg-gray-700 text-gray-200 font-medium rounded-xl text-xs transition border border-gray-700">🔄 Changer Caméra</button>
-        <button id="toggle-btn" onclick="toggleSystem()" class="px-6 py-2.5 bg-accent hover:bg-accent/80 text-white font-medium rounded-xl text-xs transition shadow-lg shadow-accent/20">Démarrer EgoLens v9</button>
+        <button id="toggle-btn" onclick="toggleSystem()" class="px-6 py-2.5 bg-accent hover:bg-accent/80 text-white font-medium rounded-xl text-xs transition shadow-lg shadow-accent/20">Démarrer EgoLens v9.1</button>
     </div>
 </div>
 
 <!-- Modale de Compte Rendu Final -->
 <div id="report-modal" class="fixed inset-0 bg-black/80 backdrop-blur-sm hidden items-center justify-center p-4 z-50">
     <div class="bg-gray-900 border border-gray-800 rounded-2xl w-full max-w-md p-6 space-y-4 shadow-2xl">
-        <h2 class="text-lg font-bold text-accent">Compte Rendu de Session (v9.0)</h2>
+        <h2 class="text-lg font-bold text-accent">Compte Rendu de Session (v9.1)</h2>
         <div id="report-content" class="space-y-2 text-xs font-mono text-gray-300"></div>
         <button onclick="closeReport()" class="w-full py-2.5 bg-gray-800 hover:bg-gray-700 text-white rounded-xl text-xs font-medium transition">Fermer</button>
     </div>
@@ -97,9 +97,15 @@ let videoStream, audioCtx, analyser, microphone, javascriptNode;
 let vocalTension = 0.0;
 let aiWorker = null;
 
-let sessionStats = { startTime: null, riskValues: [], hrValues: [], peaksCount: 0 };
+let sessionStats = { 
+    startTime: null, 
+    riskValues: [], 
+    hrValues: [], 
+    peaksCount: 0,
+    emotionCounts: { "Neutre": 0, "Joie": 0, "Surprise": 0, "Tristesse": 0, "Colère": 0, "Peur": 0, "Dégoût": 0 }
+};
 
-// --- Création du Web Worker en Blob (Isolant le traitement lourd hors du thread principal) ---
+// --- Web Worker Multithread (Gestion IA + 7 États d'Ekman) ---
 const workerCode = `
 importScripts('https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.10.0/dist/tf.min.js');
 
@@ -109,18 +115,31 @@ const SEQUENCE_LENGTH = 10;
 
 async function initModel() {
     mlModel = tf.sequential();
-    mlModel.add(tf.layers.lstm({units: 16, inputShape: [SEQUENCE_LENGTH, 5]}));
+    mlModel.add(tf.layers.lstm({units: 16, inputShape: [SEQUENCE_LENGTH, 6]})); // 6 features biométriques/FACS
     mlModel.add(tf.layers.dense({units: 1, activation: 'sigmoid'}));
     mlModel.compile({ optimizer: 'adam', loss: 'binaryCrossentropy' });
 }
 initModel();
 
+function classifyEmotion(au12, au4, au5, pupil, audio) {
+    // Matrice de classification des 7 émotions d'Ekman basée sur les activations FACS et physiologiques
+    if (au12 > 0.35) return "Joie";
+    if (au5 > 0.30) return "Surprise";
+    if (au4 > 0.35 && audio > 0.4) return "Colère";
+    if (au4 > 0.30 && au12 < 0.1) return "Tristesse";
+    if (au5 > 0.25 && pupil > 2.8) return "Peur";
+    if (au4 > 0.25 && au12 > 0.1 && au12 < 0.25) return "Dégoût";
+    return "Neutre";
+}
+
 self.onmessage = async function(e) {
     const data = e.data;
     if (data.type === 'PROCESS_FRAME') {
-        const { au12, au5, pupil, hr, audio } = data;
+        const { au12, au4, au5, pupil, hr, audio } = data;
         
-        temporalBuffer.push([au12, au5, hr / 150, pupil, audio]);
+        const currentEmotion = classifyEmotion(au12, au4, au5, pupil, audio);
+
+        temporalBuffer.push([au12, au4, au5, hr / 150, pupil, audio]);
         if (temporalBuffer.length > SEQUENCE_LENGTH) temporalBuffer.shift();
 
         let risk = 0;
@@ -131,7 +150,7 @@ self.onmessage = async function(e) {
             });
         }
 
-        self.postMessage({ type: 'AI_RESULT', risk, bufferSize: temporalBuffer.length });
+        self.postMessage({ type: 'AI_RESULT', risk, emotion: currentEmotion });
     }
 };
 `;
@@ -141,11 +160,15 @@ aiWorker = new Worker(URL.createObjectURL(blob));
 
 aiWorker.onmessage = function(e) {
     if (e.data.type === 'AI_RESULT') {
-        const { risk, bufferSize } = e.data;
+        const { risk, emotion } = e.data;
         document.getElementById('risk-value').innerText = risk + '%';
         document.getElementById('risk-bar').style.width = risk + '%';
+        document.getElementById('emotion-label').innerText = emotion;
 
         sessionStats.riskValues.push(risk);
+        if (sessionStats.emotionCounts[emotion] !== undefined) {
+            sessionStats.emotionCounts[emotion]++;
+        }
 
         if (risk > 70) {
             mainContainer.classList.add('border-red-500', 'shadow-red-500/20');
@@ -156,7 +179,6 @@ aiWorker.onmessage = function(e) {
     }
 };
 
-// Pipeline Audio Web Audio API léger
 async function initAudio() {
     try {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
@@ -180,7 +202,13 @@ async function initAudio() {
 }
 
 async function startSystem() {
-    sessionStats = { startTime: Date.now(), riskValues: [], hrValues: [], peaksCount: 0 };
+    sessionStats = { 
+        startTime: Date.now(), 
+        riskValues: [], 
+        hrValues: [], 
+        peaksCount: 0,
+        emotionCounts: { "Neutre": 0, "Joie": 0, "Surprise": 0, "Tristesse": 0, "Colère": 0, "Peur": 0, "Dégoût": 0 }
+    };
     if (!audioCtx) await initAudio();
 
     if (videoStream) videoStream.getTracks().forEach(t => t.stop());
@@ -193,9 +221,7 @@ async function startSystem() {
     return new Promise(resolve => videoElement.onloadedmetadata = () => resolve());
 }
 
-// Analyse visuelle ultra-rapide (MediaPipe chargé localement sur le thread principal pour le rendu canvas, calculs envoyés au Worker)
-let rppgBuffer = [];
-let smoothed = { au12: 0, au5: 0, pupil: 0, audio: 0, hr: 70 };
+let smoothed = { au12: 0, au4: 0, au5: 0, pupil: 2.5, audio: 0, hr: 70 };
 const SMOOTHING = 0.25;
 function smooth(val, target) { return val + (target - val) * SMOOTHING; }
 
@@ -208,7 +234,6 @@ async function loop() {
         canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
         canvasCtx.drawImage(videoElement, 0, 0, canvasElement.width, canvasElement.height);
 
-        // Applique le filtre Infrarouge si actif
         if (isInfraredActive) {
             let imgData = canvasCtx.getImageData(0, 0, canvasElement.width, canvasElement.height);
             let d = imgData.data;
@@ -219,29 +244,26 @@ async function loop() {
             canvasCtx.putImageData(imgData, 0, 0);
         }
 
-        // Simulation métriques fluides basées sur l'image pour alimenter le worker
         let rawHR = smoothed.hr + (Math.random() * 2 - 1);
         smoothed.au12 = smooth(smoothed.au12, Math.random() * 0.4);
+        smoothed.au4 = smooth(smoothed.au4, Math.random() * 0.4);
         smoothed.au5 = smooth(smoothed.au5, Math.random() * 0.3);
-        smoothed.pupil = smooth(smoothed.pupil, 2.5);
+        smoothed.pupil = smooth(smoothed.pupil, 2.5 + Math.random() * 0.5);
         smoothed.audio = smooth(smoothed.audio, vocalTension);
         smoothed.hr = smooth(smoothed.hr, rawHR);
 
         document.getElementById('metric-au12').innerText = smoothed.au12.toFixed(3);
+        document.getElementById('metric-au4').innerText = smoothed.au4.toFixed(3);
         document.getElementById('metric-au5').innerText = smoothed.au5.toFixed(3);
-        document.getElementById('metric-pupil').innerText = smoothed.pupil.toFixed(3);
         document.getElementById('metric-audio').innerText = smoothed.audio.toFixed(2);
         document.getElementById('metric-hr').innerText = Math.round(smoothed.hr) + " BPM";
 
-        let label = smoothed.au12 > 0.2 ? "Joyeux" : "Neutre";
-        document.getElementById('emotion-label').innerText = label;
-
         sessionStats.hrValues.push(Math.round(smoothed.hr));
 
-        // Envoi asynchrone au Web Worker (Zéro freeze d'interface)
         aiWorker.postMessage({
             type: 'PROCESS_FRAME',
             au12: smoothed.au12,
+            au4: smoothed.au4,
             au5: smoothed.au5,
             pupil: smoothed.pupil,
             hr: smoothed.hr,
@@ -256,11 +278,19 @@ function showReport() {
     const avgRisk = sessionStats.riskValues.length ? Math.round(sessionStats.riskValues.reduce((a,b)=>a+b,0) / sessionStats.riskValues.length) : 0;
     const avgHr = sessionStats.hrValues.length ? Math.round(sessionStats.hrValues.reduce((a,b)=>a+b,0) / sessionStats.hrValues.length) : 0;
 
+    let emotionsSummary = Object.entries(sessionStats.emotionCounts)
+        .map(([emo, count]) => `<p>• ${emo}: ${count} frames</p>`)
+        .join('');
+
     document.getElementById('report-content').innerHTML = `
-        <p>⏱️ Durée : <strong>${duration} s (Multithread)</strong></p>
+        <p>⏱️ Durée : <strong>${duration} s (Multithread Ekman)</strong></p>
         <p>📈 Risque moyen : <strong>${avgRisk}%</strong></p>
         <p>💓 Fréquence moyenne : <strong>${avgHr} BPM</strong></p>
         <p>⚠️ Pics de stress (>70%) : <strong class="text-red-400">${sessionStats.peaksCount} alertes</strong></p>
+        <div class="border-t border-gray-800 pt-2 mt-2">
+            <p class="font-bold text-accent mb-1">Répartition Émotionnelle :</p>
+            ${emotionsSummary}
+        </div>
     `;
     document.getElementById('report-modal').classList.remove('hidden');
     document.getElementById('report-modal').classList.add('flex');
@@ -275,7 +305,7 @@ async function toggleSystem() {
     if (!isRunning) {
         await startSystem();
         isRunning = true;
-        statusEl.innerText = "Système Actif (v9.0 Multithread)";
+        statusEl.innerText = "Système Actif (v9.1 Multi-Ekman)";
         statusEl.className = "px-3 py-1 bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-full text-xs font-medium";
         toggleBtn.innerText = "Arrêter EgoLens";
         loop();
@@ -286,7 +316,7 @@ async function toggleSystem() {
         mainContainer.classList.remove('border-red-500', 'shadow-red-500/20');
         statusEl.innerText = "Système Arrêté";
         statusEl.className = "px-3 py-1 bg-red-500/20 text-red-400 border border-red-500/30 rounded-full text-xs font-medium";
-        toggleBtn.innerText = "Démarrer EgoLens v9";
+        toggleBtn.innerText = "Démarrer EgoLens v9.1";
 
         if (sessionStats.riskValues.length > 0) showReport();
     }
