@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>EgoLens v10.11 - Ultimate Pupillometric Suite (AI Powered)</title>
+<title>EgoLens v10.12 - Ultimate Pupillometric Suite (AI Powered)</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <style>
 .scan-line { position: absolute; width: 100%; height: 2px; background: #10b981; opacity: 0.3; animation: scan 2s linear infinite; }
@@ -18,7 +18,7 @@ canvas { pointer-events: none; }
 <div id="main-container" class="w-full max-w-6xl bg-gray-900 border border-gray-800 rounded-2xl shadow-2xl p-6 transition-all duration-300 risk-glow">
 <div class="flex flex-col md:flex-row justify-between items-center mb-6 border-b border-gray-800 pb-4 gap-4">
 <div>
-<h1 class="text-2xl font-bold text-emerald-400">EGOLENS <span class="text-xs text-gray-400 font-normal">v10.11 AI-POWERED</span></h1>
+<h1 class="text-2xl font-bold text-emerald-400">EGOLENS <span class="text-xs text-gray-400 font-normal">v10.12 AI-POWERED</span></h1>
 <p class="text-[10px] text-gray-400 uppercase tracking-widest">Pupillometry | MediaPipe Face Mesh & Blendshapes | rPPG Optique | Audio</p>
 </div>
 <div class="flex flex-wrap items-center gap-3">
@@ -128,10 +128,10 @@ let lastTimestamp = -1;
 
 const fastSmooth = (curr, target) => {
   if (target > curr) return target;
-  return curr + (target - curr) * 0.15;
+  return curr + (target - curr) * 0.25;
 };
 
-const standardSmooth = (curr, target, factor = 0.15) => curr + (target - curr) * factor;
+const standardSmooth = (curr, target, factor = 0.25) => curr + (target - curr) * factor;
 
 const video = document.getElementById('webcam');
 const canvas = document.getElementById('output_canvas');
@@ -431,8 +431,8 @@ function loop() {
           const smileScore = ((bMap['mouthSmileLeft'] || 0) + (bMap['mouthSmileRight'] || 0)) / 2;
           const eyeCrinkleScore = ((bMap['eyeSquintLeft'] || 0) + (bMap['eyeSquintRight'] || 0)) / 2;
           
-          if (smileScore > 0.35) {
-            s.smileState = eyeCrinkleScore > 0.15 ? "Vrai Sourire (Duchenne)" : "Faux Sourire (Social)";
+          if (smileScore > 0.25) {
+            s.smileState = eyeCrinkleScore > 0.10 ? "Vrai Sourire (Duchenne)" : "Faux Sourire (Social)";
           } else {
             s.smileState = "Neutre";
           }
@@ -455,10 +455,11 @@ function loop() {
           let targetAu17 = bMap['jawRaise'] || bMap['chinLowerRaise'] || 0;
           let targetAu20 = ((bMap['mouthStretchLeft'] || 0) + (bMap['mouthStretchRight'] || 0)) / 2;
 
-          s.au1 = fastSmooth(s.au1, targetAu1 * 2.0);
-          s.au10 = fastSmooth(s.au10, targetAu10 * 2.0);
-          s.au17 = fastSmooth(s.au17, targetAu17 * 2.0);
-          s.au20 = fastSmooth(s.au20, targetAu20 * 2.0);
+          // AMPLIFICATION ACCRUE DES ACTION UNITS (x4.0) POUR MEILLEURE RÉACTIVITÉ VISUELLE
+          s.au1 = fastSmooth(s.au1, targetAu1 * 4.0);
+          s.au10 = fastSmooth(s.au10, targetAu10 * 4.0);
+          s.au17 = fastSmooth(s.au17, targetAu17 * 4.0);
+          s.au20 = fastSmooth(s.au20, targetAu20 * 4.0);
 
           const lightFactor = 1.0 - Math.min(Math.max((avgBrightness - 50) / 150, -0.3), 0.3);
           let targetPupil = (irisDiameterRatio + (s.au20 * 0.4) + (s.audio * 0.2)) * lightFactor;
@@ -507,16 +508,15 @@ function loop() {
     document.getElementById('m-au20').innerText = s.au20.toFixed(2);
     document.getElementById('m-gaze').innerText = s.gaze > 0.15 ? "Droite" : (s.gaze < -0.15 ? "Gauche" : "Centre");
 
-    // --- DEADZONE DE TOLÉRANCE (IGNORE LES RÉSIDUS DE REPOS SOUS SEUIL) ---
-    const cleanAu1 = s.au1 > 0.08 ? s.au1 : 0;
-    const cleanAu10 = s.au10 > 0.08 ? s.au10 : 0;
-    const cleanAu17 = s.au17 > 0.08 ? s.au17 : 0;
-    const cleanAu20 = s.au20 > 0.08 ? s.au20 : 0;
-    const cleanAudio = s.audio > 0.1 ? s.audio : 0;
+    // DEADZONE AJUSTÉE (SEUIL PLUS FIN À 0.04) POUR LAISSER PASSER LES MICRO-MOUVEMENTS
+    const cleanAu1 = s.au1 > 0.04 ? s.au1 : 0;
+    const cleanAu10 = s.au10 > 0.04 ? s.au10 : 0;
+    const cleanAu17 = s.au17 > 0.04 ? s.au17 : 0;
+    const cleanAu20 = s.au20 > 0.04 ? s.au20 : 0;
+    const cleanAudio = s.audio > 0.08 ? s.audio : 0;
 
-    const riskFactor = Math.floor(((cleanAu1 + cleanAu10 + cleanAu17 + cleanAu20) * 30) + (cleanAudio * 15) + (s.blink > 32 ? 25 : 0) + (s.pupil > 1.3 ? 25 : 0));
+    const riskFactor = Math.floor(((cleanAu1 + cleanAu10 + cleanAu17 + cleanAu20) * 25) + (cleanAudio * 15) + (s.blink > 32 ? 25 : 0) + (s.pupil > 1.3 ? 25 : 0));
     const risk = Math.min(Math.max(riskFactor, 0), 100);
-    // ---------------------------------------------------------------------
 
     riskHistory.push(risk);
     hrHistory.push(s.hr);
