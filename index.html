@@ -64,7 +64,7 @@ canvas { pointer-events: none; }
 <div class="bg-gray-950 p-4 rounded-xl border border-gray-800">
 <div class="text-emerald-500 font-bold mb-2">Facteur Risque Global</div>
 <div class="h-2 bg-gray-800 rounded-full overflow-hidden">
-<div id="risk-bar" class="bg-emerald-500 h-full w-0 transition-all duration-500"></div>
+<div id="risk-bar" class="bg-emerald-500 h-full w-0 transition-all duration-300"></div>
 </div>
 <div id="risk-status" class="text-right text-[9px] text-gray-400 mt-1">Inactif (0%)</div>
 </div>
@@ -126,7 +126,9 @@ let faceLandmarker = null;
 let lastVideoTime = -1;
 let lastTimestamp = -1;
 
-const smooth = (curr, target) => curr + (target - curr) * (Math.abs(target - curr) > 0.05 ? 0.7 : 0.1);
+// Fonction de lissage paramétrable (facteur personnalisable selon la variable)
+const smooth = (curr, target, factor = 0.15) => curr + (target - curr) * factor;
+
 const video = document.getElementById('webcam');
 const canvas = document.getElementById('output_canvas');
 const ctx = canvas.getContext('2d');
@@ -376,7 +378,8 @@ const durationSec = (greenSignalBuffer[greenSignalBuffer.length - 1].time - gree
 if (durationSec > 0) {
 const calculatedBpm = Math.round((cycles / durationSec) * 60);
 if (calculatedBpm >= 55 && calculatedBpm <= 140) {
-s.hr = smooth(s.hr, calculatedBpm);
+// Lissage fort pour la fréquence cardiaque (physiologie stable)
+s.hr = smooth(s.hr, calculatedBpm, 0.1);
 }
 }
 }
@@ -441,7 +444,9 @@ function loop() {
 
           const noseX = landmarks[1].x;
           const centerX = (landmarks[234].x + landmarks[454].x) / 2;
-          s.gaze = smooth(s.gaze, (noseX - centerX) * 5);
+          
+          // Gaze un peu plus réactif (facteur 0.25)
+          s.gaze = smooth(s.gaze, (noseX - centerX) * 5, 0.25);
 
           extractrPPG(landmarks, canvas.width, canvas.height, avgBrightness);
 
@@ -452,13 +457,18 @@ function loop() {
             irisDiameterRatio = 0.8 + (((lIrisSize + rIrisSize) / 2) * 15.0);
           }
 
-          s.au1 = smooth(s.au1, Math.min(Math.abs(ear - 0.025) * 10, 1.0));
-          s.au10 = smooth(s.au10, Math.random() * 0.2);
-          s.au17 = smooth(s.au17, Math.random() * 0.2);
-          s.au20 = smooth(s.au20, ear < 0.015 ? 0.8 : 0.1);
+          // Action Units rendues beaucoup plus nerveuses et réactives (facteur 0.35)
+          let targetAu1 = Math.min(Math.abs(ear - 0.025) * 10, 1.0);
+          let targetAu20 = ear < 0.015 ? 0.8 : 0.1;
+
+          if (Math.abs(targetAu1 - s.au1) > 0.01) s.au1 = smooth(s.au1, targetAu1, 0.35);
+          s.au10 = smooth(s.au10, Math.random() * 0.2, 0.2);
+          s.au17 = smooth(s.au17, Math.random() * 0.2, 0.2);
+          if (Math.abs(targetAu20 - s.au20) > 0.01) s.au20 = smooth(s.au20, targetAu20, 0.4);
 
           const lightFactor = 1.0 - Math.min(Math.max((avgBrightness - 50) / 150, -0.3), 0.3);
-          s.pupil = smooth(s.pupil, (irisDiameterRatio + (s.au20 * 0.4) + (s.audio * 0.2)) * lightFactor);
+          let targetPupil = (irisDiameterRatio + (s.au20 * 0.4) + (s.audio * 0.2)) * lightFactor;
+          s.pupil = smooth(s.pupil, targetPupil, 0.25);
 
           drawMesh(landmarks, canvas.width, canvas.height);
         }
@@ -475,7 +485,7 @@ function loop() {
       currentAudioLevel = (sum / audioDataArray.length) / 100;
     }
 
-    s.audio = smooth(s.audio, currentAudioLevel);
+    s.audio = smooth(s.audio, currentAudioLevel, 0.3);
 
     const nowMs = Date.now();
     blinkTimestamps = blinkTimestamps.filter(t => (nowMs - t) <= 60000);
@@ -483,7 +493,7 @@ function loop() {
     const sessionLengthMs = nowMs - sessionStartTime;
     if (sessionLengthMs > 1000) {
       const timeWindowMins = Math.min(sessionLengthMs, 60000) / 60000;
-      s.blink = smooth(s.blink, blinkTimestamps.length / timeWindowMins);
+      s.blink = smooth(s.blink, blinkTimestamps.length / timeWindowMins, 0.2);
     } else {
       s.blink = 0;
     }
@@ -514,10 +524,10 @@ function loop() {
 
     if (risk > 60) {
       document.getElementById('main-container').classList.add('red-alert');
-      document.getElementById('risk-bar').className = "bg-red-500 h-full w-0 transition-all duration-500";
+      document.getElementById('risk-bar').className = "bg-red-500 h-full w-0 transition-all duration-300";
     } else {
       document.getElementById('main-container').classList.remove('red-alert');
-      document.getElementById('risk-bar').className = "bg-emerald-500 h-full w-0 transition-all duration-500";
+      document.getElementById('risk-bar').className = "bg-emerald-500 h-full w-0 transition-all duration-300";
     }
   }
   
