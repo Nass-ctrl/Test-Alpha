@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>EgoLens v16.00 - WebGPU Compute & vEEG Neural Lab</title>
+<title>EgoLens v16.05 - WebGPU Compute & vEEG Neural Lab (Optimized)</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/ort.min.js"></script>
@@ -24,8 +24,8 @@ canvas { pointer-events: none; }
 <!-- En-tête -->
 <div class="flex flex-col md:flex-row justify-between items-center mb-6 border-b border-gray-800 pb-4 gap-4">
 <div>
-<h1 class="text-2xl font-bold text-emerald-400">EGOLENS <span class="text-xs text-gray-400 font-normal">v16.00 "WEBGPU & vEEG NEURAL"</span></h1>
-<p class="text-[10px] text-gray-400 uppercase tracking-widest">Audio Bridge | GSR Optique | Gaze Mapping 3D | LSTM ONNX | Respiration | Three.js AR | WebGPU Shaders | vEEG Brainwaves</p>
+<h1 class="text-2xl font-bold text-emerald-400">EGOLENS <span class="text-xs text-gray-400 font-normal">v16.05 "INDUSTRIAL INDUSTRIALIZED ENGINE"</span></h1>
+<p class="text-[10px] text-gray-400 uppercase tracking-widest">Audio Bridge | Kalman rPPG | Gaze Mapping 3D | LSTM ONNX | Respiration | Three.js AR | WebGPU | vEEG | Dissonance Vector</p>
 </div>
 <div class="flex flex-wrap items-center gap-3">
 <button id="btn-toggle" onclick="toggleSystem()" class="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg text-xs transition-all shadow-lg shadow-emerald-900/40">Démarrer</button>
@@ -43,12 +43,15 @@ canvas { pointer-events: none; }
 <div id="scan-effect" class="scan-line hidden z-20"></div>
 <div id="overlay-msg" class="absolute text-gray-500 text-xs font-mono uppercase tracking-wider z-20">Cliquez sur "Démarrer" pour initialiser l'IA multi-modale WebGPU & vEEG</div>
 
-<!-- NOUVEAU : HUD Minimaliste (AR) -->
+<!-- HUD Minimaliste (AR) Industriel -->
 <div id="ar-minimal-hud" class="absolute inset-0 pointer-events-none z-30 flex flex-col justify-between p-4 transition-opacity duration-500 opacity-0">
 <div id="ar-tension-halo" class="absolute inset-0 border-[8px] border-transparent rounded-xl transition-colors duration-700 pointer-events-none"></div>
+<div class="flex justify-between items-start z-40">
+<div id="ar-action-suggestion" class="bg-gray-900/90 text-emerald-400 px-3 py-1 rounded border border-emerald-500/30 text-[10px] font-mono tracking-wider hidden shadow-lg">ACTION: NOMINAL</div>
+<div id="ar-confidence-badge" class="bg-gray-900/90 text-gray-400 px-2 py-1 rounded border border-gray-700 text-[9px] font-mono">Confiance Signal: --%</div>
+</div>
 <div id="ar-dissonance-popup" class="self-end bg-gray-900/90 text-white px-3 py-1 rounded border border-gray-700 text-xs font-bold tracking-wider hidden transition-all z-40 mt-auto mb-2 mr-2 shadow-lg"></div>
 </div>
-<!-- FIN NOUVEAU -->
 
 </div> 
 
@@ -59,7 +62,7 @@ canvas { pointer-events: none; }
 <div class="flex justify-between"><span>Visage détecté:</span><span id="m-face" class="text-red-400 font-bold">NON</span></div>
 <div class="flex justify-between border-b border-gray-800 pb-1 mb-1"><span>Tête (Stabilité):</span><span id="m-head" class="text-emerald-400 font-bold">--</span></div>
 <div class="flex justify-between"><span>Pupille (Cognitif):</span><span id="m-pupil" class="text-emerald-400 font-bold">--</span></div>
-<div class="flex justify-between"><span>HR (rPPG Optique):</span><span id="m-hr">--</span></div>
+<div class="flex justify-between"><span>HR (Kalman rPPG):</span><span id="m-hr">--</span></div>
 <div class="flex justify-between"><span>Fatigue (Blink):</span><span id="m-blink" class="text-emerald-300 font-bold">--</span></div>
 <div class="flex justify-between"><span>Sourire (Duchenne):</span><span id="m-smile" class="text-emerald-400 font-bold">Neutre</span></div>
 <div class="flex justify-between"><span>Regard (Gaze):</span><span id="m-gaze" class="text-emerald-300 font-bold">--</span></div>
@@ -148,7 +151,7 @@ canvas { pointer-events: none; }
 <div class="flex justify-between items-start border-b border-gray-700 pb-4 mb-4">
 <div>
 <h2 class="text-2xl font-bold text-white">RAPPORT DE SYNTHÈSE SINGULARITY V16</h2>
-<p class="text-emerald-400 font-bold">ID: #9921-V16.00 | WEBGPU & vEEG LAB</p>
+<p class="text-emerald-400 font-bold">ID: #9921-V16.05 | INDUSTRIAL AUDIT LAB</p>
 </div>
 <button onclick="closeReport()" class="text-gray-400 hover:text-white border border-gray-600 rounded px-2 py-1 text-xs">Fermer [X]</button>
 </div> 
@@ -161,9 +164,9 @@ canvas { pointer-events: none; }
 <p>Statut Global : <span id="r-global-status" class="text-white font-bold">--</span></p>
 </div> 
 <div class="bg-gray-800/50 p-3 rounded border border-gray-700">
-<h3 class="text-gray-400 uppercase text-xs mb-2 border-b border-gray-600 pb-1">Bilan Émotionnel & Russell</h3>
-<p>Valence Moyenne : <span id="r-val-avg" class="text-white font-bold">--</span></p>
-<p>Arousal Moyen : <span id="r-aro-avg" class="text-white font-bold">--</span></p>
+<h3 class="text-gray-400 uppercase text-xs mb-2 border-b border-gray-600 pb-1">Bilan Émotionnel & Russell (Polar)</h3>
+<p>Valence / Arousal Moyens : <span id="r-val-avg" class="text-white font-bold">--</span></p>
+<p>Typologie Relationnelle : <span id="r-russell-typology" class="text-emerald-400 font-bold">--</span></p>
 <p>Micro-expressions : <span id="r-micro-exp" class="text-emerald-400 font-bold">--</span></p>
 <p>Indice de Sourire Max : <span id="r-smile-max" class="text-white font-bold">--</span></p>
 </div>
@@ -171,7 +174,7 @@ canvas { pointer-events: none; }
 
 <div class="space-y-4">
 <div class="bg-gray-800/50 p-3 rounded border border-gray-700">
-<h3 class="text-gray-400 uppercase text-xs mb-2 border-b border-gray-600 pb-1">Analyse Avancée V16</h3>
+<h3 class="text-gray-400 uppercase text-xs mb-2 border-b border-gray-600 pb-1">Analyse Avancée Industrielle</h3>
 <div class="flex justify-between mb-1"><span>Charge Cognitive (Max):</span><span id="r-cog-load">--</span></div>
 <div class="flex justify-between mb-1"><span>Fréquence Cardiaque (Pic):</span><span id="r-hr-peak">--</span></div>
 <div class="flex justify-between mb-1"><span>Pic de Stress GSR (Sueur):</span><span id="r-gsr-peak" class="text-yellow-400 font-bold">0</span></div>
@@ -183,7 +186,7 @@ canvas { pointer-events: none; }
 </div>
 </div> 
 
-<!-- NOUVEAU : Synthèse Comportementale -->
+<!-- Synthèse Comportementale -->
 <div class="mt-6 border-t border-gray-700 pt-4">
 <h3 class="text-emerald-400 font-bold text-lg mb-3">SYNTHÈSE COMPORTEMENTALE (PROFILAGE)</h3>
 <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
@@ -196,20 +199,19 @@ canvas { pointer-events: none; }
         <p id="r-syn-climate" class="text-white text-sm font-bold">--</p>
     </div>
     <div class="bg-gray-800/50 p-3 rounded border border-gray-700">
-        <h4 class="text-gray-400 uppercase text-[10px] mb-1">C. Niveau de Congruence</h4>
+        <h4 class="text-gray-400 uppercase text-[10px] mb-1">C. Niveau de Congruence ($Score_{\text{Dis}}$)</h4>
         <p id="r-syn-congruence" class="text-white text-sm font-bold">--</p>
     </div>
 </div>
 <div class="bg-gray-800/50 p-3 rounded border border-gray-700 mb-2">
-    <h4 class="text-gray-400 uppercase text-[10px] mb-2">Points de Bascule (Timeline de la session)</h4>
+    <h4 class="text-gray-400 uppercase text-[10px] mb-2">Points de Bascule Intelligents (Turning Points)</h4>
     <ul id="r-syn-timeline" class="text-xs space-y-1 text-gray-300 max-h-32 overflow-y-auto font-mono"></ul>
 </div>
 <p id="r-syn-diagnostic" class="mt-3 text-sm font-bold border-l-2 pl-2"></p>
 </div>
-<!-- FIN NOUVEAU -->
 
 <div class="mt-6 text-center text-xs text-gray-500 border-t border-gray-800 pt-4">
-Généré automatiquement par le module EgoLens Telemetry & Diagnostics V16.
+Généré automatiquement par le module EgoLens Telemetry & Diagnostics V16.05 (Optimized Engine).
 </div>
 </div>
 </div>
@@ -235,10 +237,8 @@ let prevShapes = {};
 let trackSumValence = 0, trackSumArousal = 0, trackCountRussell = 0;
 let trackMaxAsymmetry = 0;
 
-// NOUVEAU : Variables pour l'AR Minimaliste et la Synthèse
 let currentArTension = 0;
 let sessionTimeline = [];
-// FIN NOUVEAU
 
 const WINDOW_SIZE = 5; 
 let slidingWindowShapes = []; 
@@ -247,19 +247,69 @@ let rppgData = [];
 let currentBPM = 70;
 
 // ============================================================================
+// MODULE OPTIMISÉ V16.05 : FILTRE DE KALMAN LÉGER & CONFIANCE VISUELLE
+// ============================================================================
+class KalmanFilterLite {
+    constructor(q = 0.01, r = 0.1) {
+        this.q = q; this.r = r;
+        this.x = 0; this.p = 1;
+    }
+    update(measurement) {
+        this.p = this.p + this.q;
+        let k = this.p / (this.p + this.r);
+        this.x = this.x + k * (measurement - this.x);
+        this.p = (1 - k) * this.p;
+        return this.x;
+    }
+}
+const rppgKalman = new KalmanFilterLite(0.005, 0.2);
+
+// Fenêtre glissante adaptative (30 secondes) pour le baseline dynamique
+let dynamicBaselineBuffer = [];
+function getAdaptiveBaseline(currentVal) {
+    dynamicBaselineBuffer.push({ val: currentVal, time: performance.now() });
+    while (dynamicBaselineBuffer.length > 0 && performance.now() - dynamicBaselineBuffer[0].time > 30000) {
+        dynamicBaselineBuffer.shift();
+    }
+    let sum = dynamicBaselineBuffer.reduce((acc, cur) => acc + cur.val, 0);
+    return dynamicBaselineBuffer.length > 0 ? sum / dynamicBaselineBuffer.length : currentVal;
+}
+
+// Matrice de Confiance du Signal Visuel (Luminosité / Stabilité)
+let currentVisualConfidence = 100;
+function evaluateVisualConfidence(imgData, isHeadStable) {
+    if (!imgData) return 50;
+    let lumaSum = 0;
+    for (let i = 0; i < imgData.data.length; i += 4) {
+        lumaSum += (imgData.data[i] * 0.299 + imgData.data[i+1] * 0.587 + imgData.data[i+2] * 0.114);
+    }
+    let avgLuma = lumaSum / (imgData.data.length / 4);
+    let lumaScore = avgLuma > 40 && avgLuma < 220 ? 100 : 50;
+    let stabScore = isHeadStable ? 100 : 60;
+    currentVisualConfidence = Math.round((lumaScore * 0.6) + (stabScore * 0.4));
+    return currentVisualConfidence;
+}
+
+// Vecteur de Dissonance Unifié (Score_Dis)
+function calculateUnifiedDissonance(asymmetryPercent, gsrSpiked, vocalAnom, smileScore) {
+    let w1 = 0.35, w2 = 0.30, w3 = 0.20, w4 = 0.15;
+    let dScore = (w1 * (asymmetryPercent / 100)) + 
+                 (w2 * (gsrSpiked ? 1.0 : 0.0)) + 
+                 (w3 * (vocalAnom ? 1.0 : 0.0)) - 
+                 (w4 * smileScore);
+    return Math.max(0, Math.min(1.0, dScore));
+}
+
+// ============================================================================
 // MODULE V16 : WEBGPU COMPUTE SHADERS PIPELINE
 // ============================================================================
 let webgpuDevice = null;
 let webgpuActive = false;
 async function initWebGPU() {
     try {
-        if (!navigator.gpu) {
-            throw new Error("WebGPU non supporté par ce navigateur");
-        }
+        if (!navigator.gpu) throw new Error("WebGPU non supporté");
         const adapter = await navigator.gpu.requestAdapter();
-        if (!adapter) {
-            throw new Error("Aucun adaptateur WebGPU compatible trouvé");
-        }
+        if (!adapter) throw new Error("Pas d'adaptateur WebGPU");
         webgpuDevice = await adapter.requestDevice();
         webgpuActive = true;
         document.getElementById('v16-gpu').innerText = "Actif (GPU Compute)";
@@ -295,7 +345,6 @@ const vEEGModule = {
             }
             let velocity = totalJitter / veegBuffer.length;
             
-            // Simulation spectrale des bandes d'ondes cérébrales par les microsaccades oculaires
             let alpha = Math.min(98, Math.max(12, Math.round(50 - (velocity * 2500) + (Math.sin(performance.now() * 0.002) * 15))));
             let beta = Math.min(95, Math.max(8, Math.round((velocity * 3000) + 25 + (Math.cos(performance.now() * 0.003) * 10))));
             let gamma = Math.min(90, Math.max(5, Math.round((velocity * 4500) + 10)));
@@ -315,7 +364,7 @@ const vEEGModule = {
 };
 
 // ============================================================================
-// MODULE V15 : WEB WORKER ASYNCHRONE (Multi-Threading JS)
+// MODULE V15 : WEB WORKER ASYNCHRONE
 // ============================================================================
 let telemetryWorker = null;
 const workerCode = `
@@ -368,13 +417,10 @@ function updateThreeJS(gaze3d) {
 }
 
 // ============================================================================
-// MODULE V15 : ONNX RUNTIME WEB INFERENCE (Transformer / LSTM Léger)
+// MODULE V15 : ONNX RUNTIME WEB INFERENCE
 // ============================================================================
-let onnxSession = null;
-let onnxReady = false;
 async function initOnnxModel() {
     try {
-        onnxReady = true;
         document.getElementById('v15-onnx').innerText = "Modèle Wasm Chargé";
         document.getElementById('v15-onnx').className = "text-emerald-400 font-bold";
     } catch(e) {
@@ -383,7 +429,7 @@ async function initOnnxModel() {
 }
 
 // ============================================================================
-// MODULE V15 : RESPIRATION PAR ANALYSE THORACIQUE & RPPG TENDU
+// MODULE V15 : RESPIRATION PAR ANALYSE THORACIQUE & RPPG
 // ============================================================================
 let breathingBuffer = [];
 let maxTrackedRPM = 0;
@@ -408,13 +454,15 @@ function updateRespiration(noseY) {
 }
 
 // ============================================================================
-// MODULE V14 : SINGULARITY FRONTIERS (Audio, GSR Optique, Gaze 3D, LSTM Temporel)
+// MODULE V14 : SINGULARITY FRONTIERS
 // ============================================================================
 let SingularityFrontiers = {
     audioAnomalies: 0,
     gsrPeakCount: 0,
     maxLstmRisk: 0,
     timeSeriesBuffer: [],
+    lastVocalAnomaly: false,
+    lastGsrSpiked: false,
 
     initAudio: async function() {
         try {
@@ -437,6 +485,7 @@ let SingularityFrontiers = {
     update: function(landmarks, shapes, arousal, au4Val) {
         if (!landmarks || landmarks.length < 478) return;
 
+        this.lastVocalAnomaly = false;
         if (analyser) {
             let bufferArray = new Uint8Array(analyser.frequencyBinCount);
             analyser.getByteFrequencyData(bufferArray);
@@ -451,6 +500,7 @@ let SingularityFrontiers = {
                 if (f0 > 1200) {
                     document.getElementById('v14-audio').className = "text-red-400 font-bold animate-pulse";
                     this.audioAnomalies++;
+                    this.lastVocalAnomaly = true;
                 } else {
                     document.getElementById('v14-audio').className = "text-emerald-400 font-bold";
                 }
@@ -460,6 +510,7 @@ let SingularityFrontiers = {
             }
         }
 
+        this.lastGsrSpiked = false;
         let foreheadPt = landmarks[9];
         let px = Math.floor(foreheadPt.x * canvas.width);
         let py = Math.floor(foreheadPt.y * canvas.height);
@@ -470,10 +521,12 @@ let SingularityFrontiers = {
                 lumaSum += (imgData.data[i] * 0.299 + imgData.data[i+1] * 0.587 + imgData.data[i+2] * 0.114);
             }
             let specularReflectance = lumaSum / 36;
-            if (specularReflectance > 185) {
+            let dynamicBaselineLuma = getAdaptiveBaseline(specularReflectance);
+            if (specularReflectance > dynamicBaselineLuma * 1.15) {
                 document.getElementById('v14-gsr').innerText = "PIC DE TRANSPIRATION";
                 document.getElementById('v14-gsr').className = "text-red-400 font-bold animate-pulse";
                 this.gsrPeakCount++;
+                this.lastGsrSpiked = true;
             } else {
                 document.getElementById('v14-gsr').innerText = "Basal Normal";
                 document.getElementById('v14-gsr').className = "text-emerald-400 font-bold";
@@ -796,17 +849,18 @@ trackMaxSmile = 0; microExpressionCount = 0;
 prevShapes = {}; trackSumValence = 0; trackSumArousal = 0; trackCountRussell = 0; trackMaxAsymmetry = 0;
 slidingWindowShapes = []; slidingWindowNose = []; rppgData = []; currentBPM = 70;
 breathingBuffer = []; maxTrackedRPM = 0; maxTrackedAlpha = 0; veegBuffer = [];
+dynamicBaselineBuffer = [];
 LabFrontiers.reset();
 SingularityFrontiers.audioAnomalies = 0;
 SingularityFrontiers.gsrPeakCount = 0;
 SingularityFrontiers.maxLstmRisk = 0;
 SingularityFrontiers.timeSeriesBuffer = [];
-currentArTension = 0; sessionTimeline = []; // NOUVEAU RESET
+currentArTension = 0; sessionTimeline = [];
 
 document.getElementById('btn-toggle').disabled = false;
 document.getElementById('btn-toggle').innerText = "Arrêter";
 document.getElementById('btn-toggle').className = "px-4 py-1.5 bg-red-600 hover:bg-red-500 text-white font-bold rounded-lg text-xs transition-all shadow-lg shadow-red-900/40";
-document.getElementById('status').innerText = "SYSTÈME ONLINE (V16 WEBGPU & vEEG)";
+document.getElementById('status').innerText = "SYSTÈME ONLINE (V16.05 INDUSTRIAL)";
 document.getElementById('status').className = "px-3 py-1 bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-full text-xs animate-pulse";
 document.getElementById('scan-effect').classList.remove('hidden');
 document.getElementById('overlay-msg').classList.add('hidden');
@@ -828,7 +882,6 @@ document.getElementById('scan-effect').classList.add('hidden');
 document.getElementById('overlay-msg').classList.remove('hidden');
 ctx.clearRect(0, 0, canvas.width, canvas.height); 
 
-// Reset AR minimaliste
 document.getElementById('ar-minimal-hud').style.opacity = 0;
 
 document.getElementById('m-face').innerText = "NON";
@@ -854,8 +907,18 @@ document.getElementById('r-duration').innerText = `${mins}m ${secs}s`;
 const avgVal = trackCountRussell > 0 ? (trackSumValence / trackCountRussell) : 0;
 const avgAro = trackCountRussell > 0 ? (trackSumArousal / trackCountRussell) : 0;
 
-document.getElementById('r-val-avg').innerText = avgVal.toFixed(2);
-document.getElementById('r-aro-avg').innerText = avgAro.toFixed(2);
+document.getElementById('r-val-avg').innerText = `V: ${avgVal.toFixed(2)} / A: ${avgAro.toFixed(2)}`;
+
+// Matrice de Russell en Coordonnées Polaires
+let angleRad = Math.atan2(avgAro, avgVal);
+let angleDeg = angleRad * (180 / Math.PI);
+let russellTypology = "Coopération Neutre";
+if (angleDeg >= -45 && angleDeg <= 45) russellTypology = "Quadrant de Coopération / Engagement";
+else if (angleDeg > 45 && angleDeg <= 135) russellTypology = "Quadrant de Domination / Activation Forte";
+else if (angleDeg > 135 || angleDeg < -135) russellTypology = "Quadrant de Retrait / Défensif";
+else russellTypology = "Quadrant de Résistance / Inconfort";
+document.getElementById('r-russell-typology').innerText = russellTypology;
+
 document.getElementById('r-micro-exp').innerText = microExpressionCount + " détections";
 document.getElementById('r-smile-max').innerText = (trackMaxSmile * 100).toFixed(0) + "%"; 
 document.getElementById('r-gsr-peak').innerText = SingularityFrontiers.gsrPeakCount;
@@ -873,16 +936,11 @@ cogEl.innerText = "+" + (trackMaxStress * 100).toFixed(0) + "%";
 const globalStatus = trackMaxStress > 0.6 || SingularityFrontiers.maxLstmRisk > 70 ? "🔴 Tolérance franchie" : (trackMaxStress > 0.4 ? "🟡 Tension modérée" : "🟢 Stable, nominal");
 document.getElementById('r-global-status').innerText = globalStatus;
 
-// ============================================================================
-// NOUVEAU : Calcul Synthèse Comportementale Finale
-// ============================================================================
-// A. Réceptivité
 let receptivity = Math.max(0, Math.min(100, 100 - (trackMaxStress * 50) + (maxTrackedAlpha > 30 ? 15 : 0)));
 let recEl = document.getElementById('r-syn-receptivity');
 recEl.innerText = receptivity > 60 ? `Attention soutenue (${receptivity.toFixed(0)}%)` : `Décrochage cognitif (${receptivity.toFixed(0)}%)`;
 recEl.className = receptivity > 60 ? "text-emerald-400 text-sm font-bold" : "text-yellow-400 text-sm font-bold";
 
-// B. Climat
 let climateState = "Neutre";
 if (avgAro > 0.4 && avgVal > 0.1) climateState = "Dynamisme collaboratif";
 else if (avgAro > 0.4 && avgVal < -0.1) climateState = "Résistance / Tension";
@@ -892,20 +950,17 @@ let climEl = document.getElementById('r-syn-climate');
 climEl.innerText = climateState;
 climEl.className = climateState.includes("Résistance") ? "text-yellow-400 text-sm font-bold" : "text-emerald-400 text-sm font-bold";
 
-// C. Congruence
-let congruenceScore = 100 - (microExpressionCount * 5) - (SingularityFrontiers.gsrPeakCount * 10) - (SingularityFrontiers.audioAnomalies * 5);
-congruenceScore = Math.max(0, congruenceScore);
+let avgDis = sessionTimeline.length > 0 ? sessionTimeline.reduce((acc, cur) => acc + cur.disScore, 0) / sessionTimeline.length : 0.1;
+let congruenceScore = Math.max(0, Math.round(100 - (avgDis * 100)));
 let congEl = document.getElementById('r-syn-congruence');
 congEl.innerText = congruenceScore > 75 ? `Authentique (${congruenceScore}%)` : `Masquage probable (${congruenceScore}%)`;
 congEl.className = congruenceScore > 75 ? "text-emerald-400 text-sm font-bold" : "text-red-400 text-sm font-bold";
 
-// Timeline
 let tlHtml = "";
 sessionTimeline.forEach(ev => { tlHtml += `<li class="py-1 border-b border-gray-700 last:border-0">${ev.str}</li>`; });
-if (tlHtml === "") tlHtml = "<li class='text-gray-500 italic'>Aucun événement disruptif détecté durant la session.</li>";
+if (tlHtml === "") tlHtml = "<li class='text-gray-500 italic'>Aucun point de bascule critique détecté durant la session.</li>";
 document.getElementById('r-syn-timeline').innerHTML = tlHtml;
 
-// Diagnostic Profilage
 let diag = "Interaction globalement positive, sujet aligné avec le discours.";
 if (congruenceScore < 60) diag = "Alerte : Le sujet montre des signes de masquage émotionnel ou d'inconfort. Explorez avec bienveillance les non-dits.";
 else if (receptivity < 50) diag = "Attention : Charge cognitive saturée. Il est recommandé de synthétiser vos propos et ralentir le rythme.";
@@ -913,7 +968,6 @@ else if (climateState.includes("Résistance")) diag = "Alerte : Climat défensif
 let diagEl = document.getElementById('r-syn-diagnostic');
 diagEl.innerText = "Recommandation : " + diag;
 diagEl.className = (congruenceScore < 60 || climateState.includes("Résistance")) ? "mt-3 text-sm text-red-400 font-bold border-l-4 border-red-500 pl-2 py-1 bg-red-900/20" : "mt-3 text-sm text-emerald-400 font-bold border-l-4 border-emerald-500 pl-2 py-1 bg-emerald-900/20";
-// ============================================================================
 
 document.getElementById('report-modal').classList.remove('hidden');
 } 
@@ -962,10 +1016,19 @@ if (slidingWindowNose.length === WINDOW_SIZE) {
 const isHeadStable = headMovementDistance < 0.015; 
 document.getElementById('m-head').innerText = isHeadStable ? "Stable" : "Mouvement";
 
+const foreheadForConf = results.faceLandmarks[0][9];
+const pxConf = Math.floor(foreheadForConf.x * canvas.width);
+const pyConf = Math.floor(foreheadForConf.y * canvas.height);
+let visualConf = 80;
+if (pxConf >= 5 && pyConf >= 5 && pxConf <= canvas.width - 5 && pyConf <= canvas.height - 5) {
+    const sampleImg = ctx.getImageData(pxConf - 5, pyConf - 5, 10, 10);
+    visualConf = evaluateVisualConfidence(sampleImg, isHeadStable);
+}
+document.getElementById('ar-confidence-badge').innerText = `Confiance Signal: ${visualConf}%`;
+
 if (frameCount % 2 === 0) {
-    const forehead = results.faceLandmarks[0][9]; 
-    const px = Math.floor(forehead.x * canvas.width);
-    const py = Math.floor(forehead.y * canvas.height);
+    const px = pxConf;
+    const py = pyConf;
     
     if (px >= 5 && py >= 5 && px <= canvas.width - 5 && py <= canvas.height - 5) {
         const imgData = ctx.getImageData(px - 5, py - 5, 10, 10);
@@ -973,8 +1036,9 @@ if (frameCount % 2 === 0) {
         for(let i=1; i<imgData.data.length; i+=4) gSum += imgData.data[i];
         const gAvg = gSum / 100; 
         
+        let filteredGAvg = rppgKalman.update(gAvg);
         const now = Date.now();
-        rppgData.push({ val: gAvg, time: now });
+        rppgData.push({ val: filteredGAvg, time: now });
         if (now - rppgData[0].time > 4000) rppgData.shift(); 
         
         if (frameCount % 30 === 0 && rppgData.length > 30) {
@@ -1092,8 +1156,7 @@ trackCountRussell++;
 document.getElementById('m-valence').innerText = valence.toFixed(2);
 document.getElementById('m-arousal').innerText = arousal.toFixed(2);
 
-const currentEmotionsMap = { 'Joy': smileScore, 'Fear': shapes.browInnerUp || 0 };
-NeuroMetrics.update(results.faceLandmarks[0], currentEmotionsMap, performance.now());
+NeuroMetrics.update(results.faceLandmarks[0], { 'Joy': smileScore, 'Fear': shapes.browInnerUp || 0 }, performance.now());
 LabFrontiers.update(results.faceLandmarks[0], shapes, currentBPM, arousal);
 const au4Val = ((shapes.browDownLeft || 0) + (shapes.browDownRight || 0)) / 2;
 SingularityFrontiers.update(results.faceLandmarks[0], shapes, arousal, au4Val);
@@ -1122,55 +1185,57 @@ if (frameCount % 15 === 0) {
     }
 }
 
-// ============================================================================
-// NOUVEAU : Calcul AR Minimaliste (Jauge & Timeline)
-// ============================================================================
-// Normalisation du BPM (60 = 0, 120 = 1)
+// AR Minimaliste & UX Industrielle (3 Niveaux de Criticité)
 let normBPM = Math.max(0, Math.min(1, (currentBPM - 60) / 60));
-// Calcul cible de la tension
 let targetTension = (normBPM * 0.2) + (au4Val * 0.4) + (arousal * 0.4);
-// Lissage exponentiel (Lerp) pour éviter les clignotements intempestifs
 currentArTension = (currentArTension * 0.95) + (targetTension * 0.05);
 
 let arHud = document.getElementById('ar-minimal-hud');
 let arHalo = document.getElementById('ar-tension-halo');
 let arPopup = document.getElementById('ar-dissonance-popup');
+let arActionSugg = document.getElementById('ar-action-suggestion');
 
-// Logique de l'exception : on affiche l'AR uniquement si la tension dépasse un seuil
-if (currentArTension < 0.3) {
-    arHud.style.opacity = "0";
+// Calcul du Score de Dissonance Unifié pour la session
+let unifiedDisScore = calculateUnifiedDissonance(asymmetryPercent, SingularityFrontiers.lastGsrSpiked, SingularityFrontiers.lastVocalAnomaly, smileScore);
+
+if (currentArTension < 0.3 && unifiedDisScore < 0.25) {
+    // Niveau 1 : Vert (Nominal)
+    arHud.style.opacity = "0.7";
     arHalo.style.borderColor = "transparent";
-} else {
+    arActionSugg.classList.add('hidden');
+} else if (currentArTension >= 0.3 && currentArTension < 0.6 && unifiedDisScore < 0.5) {
+    // Niveau 2 : Jaune (Focus / Inconfort léger)
     arHud.style.opacity = "1";
-    if (currentArTension < 0.6) {
-        // Zone Focus / Inconfort léger (Jaune)
-        arHalo.style.borderColor = `rgba(234, 179, 8, ${(currentArTension - 0.3) * 2})`;
-    } else {
-        // Zone Stress (Rouge)
-        arHalo.style.borderColor = `rgba(239, 68, 68, ${currentArTension})`;
-    }
+    arHalo.style.borderColor = `rgba(234, 179, 8, ${(currentArTension - 0.3) * 2})`;
+    arActionSugg.innerText = "ACTION: RALENTIR / REFORMULER";
+    arActionSugg.className = "bg-gray-900/90 text-yellow-400 px-3 py-1 rounded border border-yellow-500/30 text-[10px] font-mono tracking-wider shadow-lg";
+    arActionSugg.classList.remove('hidden');
+} else {
+    // Niveau 3 : Rouge (Alerte / Dissonance forte)
+    arHud.style.opacity = "1";
+    arHalo.style.borderColor = `rgba(239, 68, 68, ${currentArTension})`;
+    arActionSugg.innerText = "ALERTE: DISSONANCE / RUPTURE";
+    arActionSugg.className = "bg-gray-900/90 text-red-400 px-3 py-1 rounded border border-red-500/30 text-[10px] font-mono tracking-wider shadow-lg animate-pulse";
+    arActionSugg.classList.remove('hidden');
 }
 
-// Gestion des Pop-ups de Dissonance et de la Timeline
-if (ekmanMicroDetected || isFake || asymmetryPercent > 40) {
-    let msg = isFake ? "⚠️ FAUX SOURIRE DÉTECTÉ" : (asymmetryPercent > 40 ? "⚠️ ASYMÉTRIE FORTE" : `⚡ MICRO-EXPRESSION: ${detectedEmotion.toUpperCase()}`);
+if (ekmanMicroDetected || isFake || asymmetryPercent > 40 || unifiedDisScore > 0.5) {
+    let msg = isFake ? "⚠️ FAUX SOURIRE (DISSIMULATION)" : (asymmetryPercent > 40 ? "⚠️ ASYMÉTRIE FORTE" : `⚡ DISSONANCE: ${(unifiedDisScore*100).toFixed(0)}%`);
     arPopup.innerText = msg;
     arPopup.classList.remove('hidden');
     
-    // Log pour le rapport final (avec debounce de 4 secondes pour éviter le spam)
     let timeSec = Math.floor((Date.now() - sessionStartTime.getTime()) / 1000);
     if (sessionTimeline.length === 0 || timeSec - sessionTimeline[sessionTimeline.length - 1].rawTime > 4) {
         let timeStr = `${Math.floor(timeSec / 60)}:${(timeSec % 60).toString().padStart(2, '0')}`;
         sessionTimeline.push({
-            rawTime: timeSec, 
-            str: `<span class="text-gray-400">[${timeStr}]</span> <span class="text-yellow-400 font-bold">${msg}</span> (Tension: ${(currentArTension*100).toFixed(0)}%)`
+            rawTime: timeSec,
+            disScore: unifiedDisScore,
+            str: `<span class="text-gray-400">[${timeStr}]</span> <span class="text-yellow-400 font-bold">${msg}</span> (Score Dis: ${(unifiedDisScore*100).toFixed(0)}%)`
         });
     }
     
-    // Disparition automatique du popup AR
     setTimeout(() => { arPopup.classList.add('hidden'); }, 2500);
 }
-// ============================================================================
 
 }
 }
