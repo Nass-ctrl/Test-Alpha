@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>EgoLens v10.18 - Ultimate Suite & Diagnostic Intégré</title>
+<title>EgoLens v10.19 - Ultimate Suite & Diagnostic Intégré</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <style>
 .scan-line { position: absolute; width: 100%; height: 2px; background: #10b981; opacity: 0.3; animation: scan 2s linear infinite; }
@@ -18,7 +18,7 @@ canvas { pointer-events: none; }
 <div id="main-container" class="w-full max-w-6xl bg-gray-900 border border-gray-800 rounded-2xl shadow-2xl p-6 transition-all duration-300 risk-glow">
 <div class="flex flex-col md:flex-row justify-between items-center mb-6 border-b border-gray-800 pb-4 gap-4">
 <div>
-<h1 class="text-2xl font-bold text-emerald-400">EGOLENS <span class="text-xs text-gray-400 font-normal">v10.18 ULTIMATE + DIAG</span></h1>
+<h1 class="text-2xl font-bold text-emerald-400">EGOLENS <span class="text-xs text-gray-400 font-normal">v10.19 ULTIMATE + DIAG</span></h1>
 <p class="text-[10px] text-gray-400 uppercase tracking-widest">Pupillometry | MediaPipe Face Mesh | rPPG Optique | Gaze Tracking</p>
 </div>
 <div class="flex flex-wrap items-center gap-3">
@@ -108,13 +108,8 @@ let animationId = null;
 
 let blinkTimestamps = [];
 let isEyeClosed = false;
-let greenSignalBuffer = [];
-let lastBpmCalculationTime = 0;
 
 let faceLandmarker = null;
-let lastVideoTime = -1;
-let lastTimestamp = 0;
-
 let frameCount = 0, lastFpsUpdate = Date.now();
 
 const standardSmooth = (curr, target, factor = 0.25) => curr + (target - curr) * factor;
@@ -132,12 +127,13 @@ async function initMediaPipe() {
     "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3/wasm"
   );
 
+  // Passage en mode IMAGE : plus stable pour éviter les blocages de timestamps
   faceLandmarker = await FaceLandmarker.createFromOptions(filesetResolver, {
     baseOptions: {
       modelAssetPath: "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task",
       delegate: "GPU"
     },
-    runningMode: "VIDEO",
+    runningMode: "IMAGE",
     numFaces: 1,
     outputFaceBlendshapes: true,
     outputFacialTransformationMatrixes: false
@@ -206,7 +202,6 @@ async function toggleSystem() {
     isRunning = true;
     sessionStartTime = Date.now();
     riskHistory = []; hrHistory = [];
-    greenSignalBuffer = [];
     blinkTimestamps = [];
 
     document.getElementById('btn-toggle').disabled = false;
@@ -238,10 +233,18 @@ async function toggleSystem() {
 }
 
 function drawMesh(landmarks, width, height) {
-  ctx.strokeStyle = 'rgba(16, 185, 129, 0.5)';
+  ctx.strokeStyle = 'rgba(16, 185, 129, 0.7)';
   ctx.lineWidth = 1;
   ctx.beginPath();
   [33, 160, 158, 133, 153, 144, 33].forEach((pt, i) => {
+    const x = landmarks[pt].x * width;
+    const y = landmarks[pt].y * height;
+    if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+  });
+  ctx.stroke();
+
+  ctx.beginPath();
+  [362, 385, 387, 263, 373, 380, 362].forEach((pt, i) => {
     const x = landmarks[pt].x * width;
     const y = landmarks[pt].y * height;
     if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
@@ -269,26 +272,27 @@ function loop() {
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
     if (faceLandmarker) {
-      // Correction critique de l'horodatage pour MediaPipe Video Mode
-      const currentVideoTime = video.currentTime;
-      if (currentVideoTime !== lastVideoTime) {
-        lastVideoTime = currentVideoTime;
-        lastTimestamp += 16; // Incrément temporel stable simulé à ~60fps
+      try {
+        // Envoi direct de l'élément canvas ou vidéo en mode IMAGE (détection immédiate)
+        const results = faceLandmarker.detect(canvas);
 
-        try {
-          const results = faceLandmarker.detectForVideo(video, lastTimestamp);
+        if (results.faceLandmarks && results.faceLandmarks.length > 0) {
+          document.getElementById('m-face').innerText = "OUI";
+          document.getElementById('m-face').className = "text-emerald-400 font-bold";
+          drawMesh(results.faceLandmarks[0], canvas.width, canvas.height);
 
-          if (results.faceLandmarks && results.faceLandmarks.length > 0) {
-            document.getElementById('m-face').innerText = "OUI";
-            document.getElementById('m-face').className = "text-emerald-400 font-bold";
-            drawMesh(results.faceLandmarks[0], canvas.width, canvas.height);
-          } else {
-            document.getElementById('m-face').innerText = "NON";
-            document.getElementById('m-face').className = "text-red-400 font-bold";
+          if (results.faceBlendshapes && results.faceBlendshapes.length > 0) {
+            let bMap = {};
+            results.faceBlendshapes[0].categories.forEach(cat => { bMap[cat.categoryName] = cat.score; });
+            s.au1 = bMap['browInnerUp'] || 0;
+            document.getElementById('m-au1').innerText = s.au1.toFixed(3);
           }
-        } catch (err) {
-          console.warn("Erreur de détection :", err);
+        } else {
+          document.getElementById('m-face').innerText = "NON";
+          document.getElementById('m-face').className = "text-red-400 font-bold";
         }
+      } catch (err) {
+        console.warn("Erreur de détection IMAGE :", err);
       }
     }
   }
