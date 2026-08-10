@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>EgoLens v10.7 - Ultimate Pupillometric Suite (AI Powered)</title>
+<title>EgoLens v10.8 - Ultimate Pupillometric Suite (AI Powered)</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <style>
 .scan-line { position: absolute; width: 100%; height: 2px; background: #10b981; opacity: 0.3; animation: scan 2s linear infinite; }
@@ -18,8 +18,8 @@ canvas { pointer-events: none; }
 <div id="main-container" class="w-full max-w-6xl bg-gray-900 border border-gray-800 rounded-2xl shadow-2xl p-6 transition-all duration-300 risk-glow">
 <div class="flex flex-col md:flex-row justify-between items-center mb-6 border-b border-gray-800 pb-4 gap-4">
 <div>
-<h1 class="text-2xl font-bold text-emerald-400">EGOLENS <span class="text-xs text-gray-400 font-normal">v10.7 AI-POWERED</span></h1>
-<p class="text-[10px] text-gray-400 uppercase tracking-widest">Pupillometry | MediaPipe Face Mesh | rPPG Optique | Audio</p>
+<h1 class="text-2xl font-bold text-emerald-400">EGOLENS <span class="text-xs text-gray-400 font-normal">v10.8 AI-POWERED</span></h1>
+<p class="text-[10px] text-gray-400 uppercase tracking-widest">Pupillometry | MediaPipe Face Mesh & Blendshapes | rPPG Optique | Audio</p>
 </div>
 <div class="flex flex-wrap items-center gap-3">
 <button id="btn-toggle" onclick="toggleSystem()" class="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg text-xs transition-all shadow-lg shadow-emerald-900/40">Démarrer</button>
@@ -98,7 +98,7 @@ canvas { pointer-events: none; }
 </div>
 </div>
 <div class="bg-gray-950 p-3 rounded-xl border border-gray-800 text-[11px] space-y-1">
-<div class="text-emerald-500 font-bold">Synthèse comportementale (MediaPipe):</div>
+<div class="text-emerald-500 font-bold">Synthèse comportementale (MediaPipe Blendshapes):</div>
 <p id="rep-summary" class="text-gray-300">Analyse en attente...</p>
 </div>
 <div class="flex justify-end pt-2">
@@ -126,8 +126,15 @@ let faceLandmarker = null;
 let lastVideoTime = -1;
 let lastTimestamp = -1;
 
-// Fonction de lissage paramétrable (facteur personnalisable selon la variable)
-const smooth = (curr, target, factor = 0.15) => curr + (target - curr) * factor;
+// Lissage dissymétrique : montée instantanée (réactivité maximale aux micro-expressions), descente douce
+const fastSmooth = (curr, target) => {
+  if (target > curr) {
+    return target; // Capture immédiate du pic micro-expressif
+  }
+  return curr + (target - curr) * 0.15; // Descente amortie
+};
+
+const standardSmooth = (curr, target, factor = 0.15) => curr + (target - curr) * factor;
 
 const video = document.getElementById('webcam');
 const canvas = document.getElementById('output_canvas');
@@ -151,11 +158,11 @@ delegate: "GPU"
 },
 runningMode: "VIDEO",
 numFaces: 1,
-outputFaceBlendshapes: false,
+outputFaceBlendshapes: true, // Activé pour récupérer les scores FACS officiels
 outputFacialTransformationMatrixes: false
 });
 } catch (err) {
-throw new Error("Échec du chargement MediaPipe (Modules ES / WASM bloqués ou hors ligne) : " + err.message);
+throw new Error("Échec du chargement MediaPipe : " + err.message);
 }
 }
 
@@ -273,28 +280,6 @@ if (!upper || !lower) return 0.3;
 return Math.abs(upper.y - lower.y);
 }
 
-function analyzeSmile(landmarks) {
-const leftCorner = landmarks[61];
-const rightCorner = landmarks[291];
-const upperLip = landmarks[13];
-const lowerLip = landmarks[14];
-
-if (!leftCorner || !rightCorner || !upperLip || !lowerLip) return "Neutre";
-
-const mouthWidth = Math.abs(rightCorner.x - leftCorner.x);
-const lipCenterY = (upperLip.y + lowerLip.y) / 2;
-const cornerLift = lipCenterY - ((leftCorner.y + rightCorner.y) / 2);
-
-const isSmilingMouth = (cornerLift > 0.012 || mouthWidth > 0.28);
-if (!isSmilingMouth) return "Neutre";
-
-const leftEyeWidth = Math.abs(landmarks[33].x - landmarks[133].x);
-const rightEyeWidth = Math.abs(landmarks[362].x - landmarks[263].x);
-const hasEyeCrinkle = ((leftEyeWidth + rightEyeWidth) / 2 < 0.075);
-
-return hasEyeCrinkle ? "Vrai Sourire (Duchenne)" : "Faux Sourire (Social)";
-}
-
 function drawMesh(landmarks, width, height) {
 ctx.strokeStyle = 'rgba(16, 185, 129, 0.5)';
 ctx.lineWidth = 1;
@@ -325,7 +310,7 @@ ctx.fill();
 });
 }
 
-function extractrPPG(landmarks, width, height, avgBrightness) {
+function extractrPPG(landmarks, width, height) {
 if (!landmarks || landmarks.length < 10) return;
 
 const fx = Math.floor(landmarks[9].x * width);
@@ -378,8 +363,7 @@ const durationSec = (greenSignalBuffer[greenSignalBuffer.length - 1].time - gree
 if (durationSec > 0) {
 const calculatedBpm = Math.round((cycles / durationSec) * 60);
 if (calculatedBpm >= 55 && calculatedBpm <= 140) {
-// Lissage fort pour la fréquence cardiaque (physiologie stable)
-s.hr = smooth(s.hr, calculatedBpm, 0.1);
+s.hr = standardSmooth(s.hr, calculatedBpm, 0.1);
 }
 }
 }
@@ -440,15 +424,29 @@ function loop() {
             isEyeClosed = false;
           }
 
-          s.smileState = analyzeSmile(landmarks);
+          // Extraction et mapping des Blendshapes officiels MediaPipe (FACS)
+          let bMap = {};
+          if (results.faceBlendshapes && results.faceBlendshapes.length > 0) {
+            results.faceBlendshapes[0].categories.forEach(cat => {
+              bMap[cat.categoryName] = cat.score;
+            });
+          }
+
+          // Analyse du sourire via blendshapes officiels (mouthSmileLeft / right + eyeSquint)
+          const smileScore = ((bMap['mouthSmileLeft'] || 0) + (bMap['mouthSmileRight'] || 0)) / 2;
+          const eyeCrinkleScore = ((bMap['eyeSquintLeft'] || 0) + (bMap['eyeSquintRight'] || 0)) / 2;
+          
+          if (smileScore > 0.45) {
+            s.smileState = eyeCrinkleScore > 0.25 ? "Vrai Sourire (Duchenne)" : "Faux Sourire (Social)";
+          } else {
+            s.smileState = "Neutre";
+          }
 
           const noseX = landmarks[1].x;
           const centerX = (landmarks[234].x + landmarks[454].x) / 2;
-          
-          // Gaze un peu plus réactif (facteur 0.25)
-          s.gaze = smooth(s.gaze, (noseX - centerX) * 5, 0.25);
+          s.gaze = standardSmooth(s.gaze, (noseX - centerX) * 5, 0.25);
 
-          extractrPPG(landmarks, canvas.width, canvas.height, avgBrightness);
+          extractrPPG(landmarks, canvas.width, canvas.height);
 
           let irisDiameterRatio = 1.0;
           if (landmarks.length > 473) {
@@ -457,23 +455,25 @@ function loop() {
             irisDiameterRatio = 0.8 + (((lIrisSize + rIrisSize) / 2) * 15.0);
           }
 
-          // Action Units rendues beaucoup plus nerveuses et réactives (facteur 0.35)
-          let targetAu1 = Math.min(Math.abs(ear - 0.025) * 10, 1.0);
-          let targetAu20 = ear < 0.015 ? 0.8 : 0.1;
+          // Mapping direct des Action Units via les vrais scores neuronaux Blendshapes (avec lissage dissymétrique)
+          let targetAu1 = bMap['browInnerUp'] || 0;
+          let targetAu10 = bMap['mouthUpperUpLeft'] || 0;
+          let targetAu17 = bMap['chinLowerRaise'] || 0;
+          let targetAu20 = bMap['mouthStretchLeft'] || 0;
 
-          if (Math.abs(targetAu1 - s.au1) > 0.01) s.au1 = smooth(s.au1, targetAu1, 0.35);
-          s.au10 = smooth(s.au10, Math.random() * 0.2, 0.2);
-          s.au17 = smooth(s.au17, Math.random() * 0.2, 0.2);
-          if (Math.abs(targetAu20 - s.au20) > 0.01) s.au20 = smooth(s.au20, targetAu20, 0.4);
+          s.au1 = fastSmooth(s.au1, targetAu1);
+          s.au10 = fastSmooth(s.au10, targetAu10);
+          s.au17 = fastSmooth(s.au17, targetAu17);
+          s.au20 = fastSmooth(s.au20, targetAu20);
 
           const lightFactor = 1.0 - Math.min(Math.max((avgBrightness - 50) / 150, -0.3), 0.3);
           let targetPupil = (irisDiameterRatio + (s.au20 * 0.4) + (s.audio * 0.2)) * lightFactor;
-          s.pupil = smooth(s.pupil, targetPupil, 0.25);
+          s.pupil = standardSmooth(s.pupil, targetPupil, 0.25);
 
           drawMesh(landmarks, canvas.width, canvas.height);
         }
       } catch (err) {
-        console.warn("Erreur de détection frame ignorée pour éviter le crash :", err);
+        console.warn("Erreur de détection frame ignorée :", err);
       }
     }
 
@@ -485,7 +485,7 @@ function loop() {
       currentAudioLevel = (sum / audioDataArray.length) / 100;
     }
 
-    s.audio = smooth(s.audio, currentAudioLevel, 0.3);
+    s.audio = standardSmooth(s.audio, currentAudioLevel, 0.3);
 
     const nowMs = Date.now();
     blinkTimestamps = blinkTimestamps.filter(t => (nowMs - t) <= 60000);
@@ -493,7 +493,7 @@ function loop() {
     const sessionLengthMs = nowMs - sessionStartTime;
     if (sessionLengthMs > 1000) {
       const timeWindowMins = Math.min(sessionLengthMs, 60000) / 60000;
-      s.blink = smooth(s.blink, blinkTimestamps.length / timeWindowMins, 0.2);
+      s.blink = standardSmooth(s.blink, blinkTimestamps.length / timeWindowMins, 0.2);
     } else {
       s.blink = 0;
     }
@@ -513,7 +513,7 @@ function loop() {
     document.getElementById('m-au20').innerText = s.au20.toFixed(2);
     document.getElementById('m-gaze').innerText = s.gaze > 0.15 ? "Droite" : (s.gaze < -0.15 ? "Gauche" : "Centre");
 
-    const riskFactor = Math.floor(((s.au1 + s.au10 + s.au17 + s.au20) * 30) + (s.audio * 20) + (s.blink > 28 ? 25 : 0) + (s.pupil > 1.25 ? 25 : 0));
+    const riskFactor = Math.floor(((s.au1 + s.au10 + s.au17 + s.au20) * 40) + (s.audio * 20) + (s.blink > 28 ? 25 : 0) + (s.pupil > 1.25 ? 25 : 0));
     const risk = Math.min(riskFactor, 100);
 
     riskHistory.push(risk);
@@ -551,9 +551,9 @@ document.getElementById('rep-risk').innerText = `${avgRisk}%`;
 document.getElementById('rep-blink').innerText = `${avgBlink} /min`;
 document.getElementById('rep-hr').innerText = `${avgHr} BPM`;
 
-let summary = "Session stable sans anomalie critique détectée par le mesh facial.";
-if (avgRisk > 40) summary = "Indicateurs de tension cognitive et de fatigue visuelle relevés par l'analyse faciale.";
-else if (avgBlink > 28) summary = "Fréquence de clignements anormale détectée, suggérant un début de fatigue.";
+let summary = "Session stable sans micro-expression critique détectée par les Blendshapes.";
+if (avgRisk > 40) summary = "Indicateurs de tension comportementale et micro-expressions d'alerte relevés.";
+else if (avgBlink > 28) summary = "Fréquence de clignements anormale détectée, suggérant de la fatigue.";
 document.getElementById('rep-summary').innerText = summary;
 
 document.getElementById('report-modal').classList.remove('hidden');
