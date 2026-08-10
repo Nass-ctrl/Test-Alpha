@@ -124,6 +124,7 @@ let lastBpmCalculationTime = 0;
 
 let faceLandmarker = null;
 let lastVideoTime = -1;
+let lastTimestamp = -1;
 
 const smooth = (curr, target) => curr + (target - curr) * (Math.abs(target - curr) > 0.05 ? 0.7 : 0.1);
 const video = document.getElementById('webcam');
@@ -382,133 +383,147 @@ s.hr = smooth(s.hr, calculatedBpm);
 }
 
 function loop() {
-if (!isRunning) return;
+  if (!isRunning) return;
 
-if (video.readyState >= 2 && video.videoWidth > 0) {
-if (canvas.width !== video.videoWidth) {
-canvas.width = video.videoWidth;
-canvas.height = video.videoHeight;
-}
+  if (video.readyState >= 2 && video.videoWidth > 0) {
+    if (canvas.width !== video.videoWidth) {
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+    }
 
-ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-const irMode = document.getElementById('ir-mode').value;
-let avgBrightness = 100;
+    const irMode = document.getElementById('ir-mode').value;
+    let avgBrightness = 100;
 
-if (irMode !== 'off') {
-const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-const data = imgData.data;
-let brightness = 0;
-for (let i = 0; i < data.length; i += 4) brightness += (data[i] + data[i+1] + data[i+2]) / 3;
-avgBrightness = brightness / (data.length / 4);
-const autoGain = irMode === 'auto' ? (1.8 - (avgBrightness / 150)) : 1.8;
+    if (irMode !== 'off') {
+      const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const data = imgData.data;
+      let brightness = 0;
+      for (let i = 0; i < data.length; i += 4) brightness += (data[i] + data[i+1] + data[i+2]) / 3;
+      avgBrightness = brightness / (data.length / 4);
+      const autoGain = irMode === 'auto' ? (1.8 - (avgBrightness / 150)) : 1.8;
 
-for (let i = 0; i < data.length; i += 4) {
-const gray = (data[i] * 0.3 + data[i+1] * 0.6 + data[i+2] * 0.1);
-data[i] = 0; data[i+1] = gray * autoGain; data[i+2] = gray * 0.2;
-}
-ctx.putImageData(imgData, 0, 0);
-}
+      for (let i = 0; i < data.length; i += 4) {
+        const gray = (data[i] * 0.3 + data[i+1] * 0.6 + data[i+2] * 0.1);
+        data[i] = 0; data[i+1] = gray * autoGain; data[i+2] = gray * 0.2;
+      }
+      ctx.putImageData(imgData, 0, 0);
+    }
 
-if (faceLandmarker && video.currentTime !== lastVideoTime) {
-lastVideoTime = video.currentTime;
-const results = faceLandmarker.detectForVideo(video, performance.now());
+    if (faceLandmarker && video.currentTime !== lastVideoTime) {
+      lastVideoTime = video.currentTime;
+      
+      let currentTimestamp = performance.now();
+      if (currentTimestamp <= lastTimestamp) {
+        currentTimestamp = lastTimestamp + 1;
+      }
+      lastTimestamp = currentTimestamp;
 
-if (results.faceLandmarks && results.faceLandmarks.length > 0) {
-const landmarks = results.faceLandmarks[0];
-const ear = calculateEyeAspectRatio(landmarks);
-const now = Date.now();
+      try {
+        const results = faceLandmarker.detectForVideo(video, currentTimestamp);
 
-if (ear < 0.018) {
-if (!isEyeClosed) {
-isEyeClosed = true;
-blinkTimestamps.push(now);
-}
-} else {
-isEyeClosed = false;
-}
+        if (results.faceLandmarks && results.faceLandmarks.length > 0) {
+          const landmarks = results.faceLandmarks[0];
+          const ear = calculateEyeAspectRatio(landmarks);
+          const now = Date.now();
 
-s.smileState = analyzeSmile(landmarks);
+          if (ear < 0.018) {
+            if (!isEyeClosed) {
+              isEyeClosed = true;
+              blinkTimestamps.push(now);
+            }
+          } else {
+            isEyeClosed = false;
+          }
 
-const noseX = landmarks[1].x;
-const centerX = (landmarks[234].x + landmarks[454].x) / 2;
-s.gaze = smooth(s.gaze, (noseX - centerX) * 5);
+          s.smileState = analyzeSmile(landmarks);
 
-extractrPPG(landmarks, canvas.width, canvas.height, avgBrightness);
+          const noseX = landmarks[1].x;
+          const centerX = (landmarks[234].x + landmarks[454].x) / 2;
+          s.gaze = smooth(s.gaze, (noseX - centerX) * 5);
 
-let irisDiameterRatio = 1.0;
-if (landmarks.length > 473) {
-const lIrisSize = Math.abs(landmarks[471].x - landmarks[469].x);
-const rIrisSize = Math.abs(landmarks[476].x - landmarks[474].x);
-irisDiameterRatio = 0.8 + (((lIrisSize + rIrisSize) / 2) * 15.0);
-}
+          extractrPPG(landmarks, canvas.width, canvas.height, avgBrightness);
 
-s.au1 = smooth(s.au1, Math.min(Math.abs(ear - 0.025) * 10, 1.0));
-s.au10 = smooth(s.au10, Math.random() * 0.2);
-s.au17 = smooth(s.au17, Math.random() * 0.2);
-s.au20 = smooth(s.au20, ear < 0.015 ? 0.8 : 0.1);
+          let irisDiameterRatio = 1.0;
+          if (landmarks.length > 473) {
+            const lIrisSize = Math.abs(landmarks[471].x - landmarks[469].x);
+            const rIrisSize = Math.abs(landmarks[476].x - landmarks[474].x);
+            irisDiameterRatio = 0.8 + (((lIrisSize + rIrisSize) / 2) * 15.0);
+          }
 
-const lightFactor = 1.0 - Math.min(Math.max((avgBrightness - 50) / 150, -0.3), 0.3);
-s.pupil = smooth(s.pupil, (irisDiameterRatio + (s.au20 * 0.4) + (s.audio * 0.2)) * lightFactor);
+          s.au1 = smooth(s.au1, Math.min(Math.abs(ear - 0.025) * 10, 1.0));
+          s.au10 = smooth(s.au10, Math.random() * 0.2);
+          s.au17 = smooth(s.au17, Math.random() * 0.2);
+          s.au20 = smooth(s.au20, ear < 0.015 ? 0.8 : 0.1);
 
-drawMesh(landmarks, canvas.width, canvas.height);
-}
-}
+          const lightFactor = 1.0 - Math.min(Math.max((avgBrightness - 50) / 150, -0.3), 0.3);
+          s.pupil = smooth(s.pupil, (irisDiameterRatio + (s.au20 * 0.4) + (s.audio * 0.2)) * lightFactor);
 
-let currentAudioLevel = 0;
-if (audioAnalyser) {
-audioAnalyser.getByteFrequencyData(audioDataArray);
-let sum = 0;
-for (let i = 0; i < audioDataArray.length; i++) sum += audioDataArray[i];
-currentAudioLevel = (sum / audioDataArray.length) / 100;
-}
+          drawMesh(landmarks, canvas.width, canvas.height);
+        }
+      } catch (err) {
+        console.warn("Erreur de détection frame ignorée pour éviter le crash :", err);
+      }
+    }
 
-s.audio = smooth(s.audio, currentAudioLevel);
+    let currentAudioLevel = 0;
+    if (audioAnalyser) {
+      audioAnalyser.getByteFrequencyData(audioDataArray);
+      let sum = 0;
+      for (let i = 0; i < audioDataArray.length; i++) sum += audioDataArray[i];
+      currentAudioLevel = (sum / audioDataArray.length) / 100;
+    }
 
-const nowMs = Date.now();
-blinkTimestamps = blinkTimestamps.filter(t => (nowMs - t) <= 60000);
+    s.audio = smooth(s.audio, currentAudioLevel);
 
-const sessionLengthMs = nowMs - sessionStartTime;
-if (sessionLengthMs > 1000) {
-const timeWindowMins = Math.min(sessionLengthMs, 60000) / 60000;
-s.blink = smooth(s.blink, blinkTimestamps.length / timeWindowMins);
-} else {
-s.blink = 0;
-}
+    const nowMs = Date.now();
+    blinkTimestamps = blinkTimestamps.filter(t => (nowMs - t) <= 60000);
 
-let pupilState = "Normale";
-if (s.pupil > 1.25) pupilState = "Mydriase (Dilatée / Stress)";
-else if (s.pupil < 0.85) pupilState = "Myosis (Rétractée)";
+    const sessionLengthMs = nowMs - sessionStartTime;
+    if (sessionLengthMs > 1000) {
+      const timeWindowMins = Math.min(sessionLengthMs, 60000) / 60000;
+      s.blink = smooth(s.blink, blinkTimestamps.length / timeWindowMins);
+    } else {
+      s.blink = 0;
+    }
 
-document.getElementById('m-pupil').innerText = pupilState;
-document.getElementById('m-hr').innerText = isNaN(s.hr) ? "--" : Math.floor(s.hr) + " BPM";
-document.getElementById('m-blink').innerText = isNaN(s.blink) ? "--" : Math.floor(s.blink) + " /min";
-document.getElementById('m-smile').innerText = s.smileState;
-document.getElementById('m-audio').innerText = s.audio.toFixed(2);
-document.getElementById('m-au1').innerText = s.au1.toFixed(2);
-document.getElementById('m-au10').innerText = s.au10.toFixed(2);
-document.getElementById('m-au17').innerText = s.au17.toFixed(2);
-document.getElementById('m-au20').innerText = s.au20.toFixed(2);
-document.getElementById('m-gaze').innerText = s.gaze > 0.15 ? "Droite" : (s.gaze < -0.15 ? "Gauche" : "Centre");
+    let pupilState = "Normale";
+    if (s.pupil > 1.25) pupilState = "Mydriase (Dilatée / Stress)";
+    else if (s.pupil < 0.85) pupilState = "Myosis (Rétractée)";
 
-const riskFactor = Math.floor(((s.au1 + s.au10 + s.au17 + s.au20) * 30) + (s.audio * 20) + (s.blink > 28 ? 25 : 0) + (s.pupil > 1.25 ? 25 : 0));
-const risk = Math.min(riskFactor, 100);
+    document.getElementById('m-pupil').innerText = pupilState;
+    document.getElementById('m-hr').innerText = isNaN(s.hr) ? "--" : Math.floor(s.hr) + " BPM";
+    document.getElementById('m-blink').innerText = isNaN(s.blink) ? "--" : Math.floor(s.blink) + " /min";
+    document.getElementById('m-smile').innerText = s.smileState;
+    document.getElementById('m-audio').innerText = s.audio.toFixed(2);
+    document.getElementById('m-au1').innerText = s.au1.toFixed(2);
+    document.getElementById('m-au10').innerText = s.au10.toFixed(2);
+    document.getElementById('m-au17').innerText = s.au17.toFixed(2);
+    document.getElementById('m-au20').innerText = s.au20.toFixed(2);
+    document.getElementById('m-gaze').innerText = s.gaze > 0.15 ? "Droite" : (s.gaze < -0.15 ? "Gauche" : "Centre");
 
-riskHistory.push(risk);
-hrHistory.push(s.hr);
+    const riskFactor = Math.floor(((s.au1 + s.au10 + s.au17 + s.au20) * 30) + (s.audio * 20) + (s.blink > 28 ? 25 : 0) + (s.pupil > 1.25 ? 25 : 0));
+    const risk = Math.min(riskFactor, 100);
 
-document.getElementById('risk-bar').style.width = risk + "%";
-document.getElementById('risk-status').innerText = risk > 60 ? "Critique (" + risk + "%)" : "Normal (" + risk + "%)";
+    riskHistory.push(risk);
+    hrHistory.push(s.hr);
 
-if (risk > 60) {
-document.getElementById('main-container').classList.add('red-alert');
-document.getElementById('risk-bar').className = "bg-red-500 h-full w-0 transition-all duration-500";
-} else {
-document.getElementById('main-container').classList.remove('red-alert');
-document.getElementById('risk-bar').className = "bg-emerald-500 h-full w-0 transition-all duration-500";
-}
-}
-animationId = requestAnimationFrame(loop);
+    document.getElementById('risk-bar').style.width = risk + "%";
+    document.getElementById('risk-status').innerText = risk > 60 ? "Critique (" + risk + "%)" : "Normal (" + risk + "%)";
+
+    if (risk > 60) {
+      document.getElementById('main-container').classList.add('red-alert');
+      document.getElementById('risk-bar').className = "bg-red-500 h-full w-0 transition-all duration-500";
+    } else {
+      document.getElementById('main-container').classList.remove('red-alert');
+      document.getElementById('risk-bar').className = "bg-emerald-500 h-full w-0 transition-all duration-500";
+    }
+  }
+  
+  if (isRunning) {
+    animationId = requestAnimationFrame(loop);
+  }
 }
 
 function showReport() {
