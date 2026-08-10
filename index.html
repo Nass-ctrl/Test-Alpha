@@ -125,7 +125,8 @@ async function initMediaPipe() {
   faceLandmarker = await FaceLandmarker.createFromOptions(filesetResolver, {
     baseOptions: {
       modelAssetPath: "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task",
-      delegate: "GPU"
+      // Passage en CPU pour garantir 100% de compatibilité sans erreur GPU
+      delegate: "CPU" 
     },
     runningMode: "IMAGE",
     numFaces: 1,
@@ -201,13 +202,16 @@ async function toggleSystem() {
     document.getElementById('scan-effect').classList.add('hidden');
     document.getElementById('overlay-msg').classList.remove('hidden');
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+    document.getElementById('m-face').innerText = "NON";
+    document.getElementById('m-face').className = "text-red-400 font-bold";
   }
 }
 
 function drawMesh(landmarks, width, height) {
-  ctx.strokeStyle = 'rgba(16, 185, 129, 0.8)';
+  ctx.strokeStyle = 'rgba(16, 185, 129, 0.8)'; // Vert émeraude semi-transparent
   ctx.lineWidth = 1.5;
   ctx.beginPath();
+  // Dessin d'un masque très basique autour des yeux et du nez
   [33, 160, 158, 133, 153, 144, 33].forEach((pt, i) => {
     const x = landmarks[pt].x * width;
     const y = landmarks[pt].y * height;
@@ -233,17 +237,19 @@ function loop() {
       canvas.height = video.videoHeight;
     }
 
-    // Dessine la vidéo sur le canvas pour que l'IA l'analyse
+    // 1. On "photographie" la vidéo sur le canvas
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
     if (faceLandmarker) {
       try {
-        // Envoi direct de l'élément vidéo source à MediaPipe en mode IMAGE
-        const results = faceLandmarker.detect(video);
+        // 2. CORRECTION : On analyse le canvas (image figée) et non la vidéo
+        const results = faceLandmarker.detect(canvas);
 
         if (results && results.faceLandmarks && results.faceLandmarks.length > 0) {
           document.getElementById('m-face').innerText = "OUI";
           document.getElementById('m-face').className = "text-emerald-400 font-bold";
+          
+          // Dessine le mesh par-dessus le canvas
           drawMesh(results.faceLandmarks[0], canvas.width, canvas.height);
         } else {
           document.getElementById('m-face').innerText = "NON";
