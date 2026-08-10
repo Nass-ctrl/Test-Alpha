@@ -1,4 +1,4 @@
-!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="fr" class="dark">
 <head>
 <meta charset="UTF-8">
@@ -212,9 +212,11 @@ await initMediaPipe();
 await initAudio();
 await startCamera();
 } catch (error) {
-console.error("Erreur d'initialisation :", error);
-document.getElementById('status').innerText = "ERREUR D'INITIALISATION";
+console.error("Erreur d'initialisation détaillée :", error);
+document.getElementById('status').innerText = "ERREUR : " + (error.message || error);
+document.getElementById('status').className = "px-3 py-1 bg-red-500/20 text-red-400 border border-red-500/30 rounded-full text-xs";
 document.getElementById('btn-toggle').disabled = false;
+document.getElementById('btn-toggle').innerText = "Démarrer";
 return;
 }
 
