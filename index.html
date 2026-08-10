@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>EgoLens v10.8 - Ultimate Pupillometric Suite (AI Powered)</title>
+<title>EgoLens v10.9 - Ultimate Pupillometric Suite (AI Powered)</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <style>
 .scan-line { position: absolute; width: 100%; height: 2px; background: #10b981; opacity: 0.3; animation: scan 2s linear infinite; }
@@ -18,7 +18,7 @@ canvas { pointer-events: none; }
 <div id="main-container" class="w-full max-w-6xl bg-gray-900 border border-gray-800 rounded-2xl shadow-2xl p-6 transition-all duration-300 risk-glow">
 <div class="flex flex-col md:flex-row justify-between items-center mb-6 border-b border-gray-800 pb-4 gap-4">
 <div>
-<h1 class="text-2xl font-bold text-emerald-400">EGOLENS <span class="text-xs text-gray-400 font-normal">v10.8 AI-POWERED</span></h1>
+<h1 class="text-2xl font-bold text-emerald-400">EGOLENS <span class="text-xs text-gray-400 font-normal">v10.9 AI-POWERED</span></h1>
 <p class="text-[10px] text-gray-400 uppercase tracking-widest">Pupillometry | MediaPipe Face Mesh & Blendshapes | rPPG Optique | Audio</p>
 </div>
 <div class="flex flex-wrap items-center gap-3">
@@ -158,7 +158,7 @@ delegate: "GPU"
 },
 runningMode: "VIDEO",
 numFaces: 1,
-outputFaceBlendshapes: true, // Activé pour récupérer les scores FACS officiels
+outputFaceBlendshapes: true,
 outputFacialTransformationMatrixes: false
 });
 } catch (err) {
@@ -415,7 +415,8 @@ function loop() {
           const ear = calculateEyeAspectRatio(landmarks);
           const now = Date.now();
 
-          if (ear < 0.018) {
+          // Seuil élargi à 0.025 pour une détection optimale des clignements
+          if (ear < 0.025) {
             if (!isEyeClosed) {
               isEyeClosed = true;
               blinkTimestamps.push(now);
@@ -424,7 +425,6 @@ function loop() {
             isEyeClosed = false;
           }
 
-          // Extraction et mapping des Blendshapes officiels MediaPipe (FACS)
           let bMap = {};
           if (results.faceBlendshapes && results.faceBlendshapes.length > 0) {
             results.faceBlendshapes[0].categories.forEach(cat => {
@@ -432,7 +432,6 @@ function loop() {
             });
           }
 
-          // Analyse du sourire via blendshapes officiels (mouthSmileLeft / right + eyeSquint)
           const smileScore = ((bMap['mouthSmileLeft'] || 0) + (bMap['mouthSmileRight'] || 0)) / 2;
           const eyeCrinkleScore = ((bMap['eyeSquintLeft'] || 0) + (bMap['eyeSquintRight'] || 0)) / 2;
           
@@ -455,16 +454,18 @@ function loop() {
             irisDiameterRatio = 0.8 + (((lIrisSize + rIrisSize) / 2) * 15.0);
           }
 
-          // Mapping direct des Action Units via les vrais scores neuronaux Blendshapes (avec lissage dissymétrique)
+          // --- CORRECTION DES CLEFS ET AMPLIFICATION DES ACTION UNITS ---
           let targetAu1 = bMap['browInnerUp'] || 0;
-          let targetAu10 = bMap['mouthUpperUpLeft'] || 0;
-          let targetAu17 = bMap['chinLowerRaise'] || 0;
-          let targetAu20 = bMap['mouthStretchLeft'] || 0;
+          let targetAu10 = ((bMap['mouthUpperUpLeft'] || 0) + (bMap['mouthUpperUpRight'] || 0)) / 2;
+          let targetAu17 = ((bMap['chinLowerRaiseLeft'] || 0) + (bMap['chinLowerRaiseRight'] || 0)) / 2 || bMap['chinLowerRaise'] || 0;
+          let targetAu20 = ((bMap['mouthStretchLeft'] || 0) + (bMap['mouthStretchRight'] || 0)) / 2;
 
-          s.au1 = fastSmooth(s.au1, targetAu1);
-          s.au10 = fastSmooth(s.au10, targetAu10);
-          s.au17 = fastSmooth(s.au17, targetAu17);
-          s.au20 = fastSmooth(s.au20, targetAu20);
+          // Facteur x1.5 pour rendre les micro-mouvements bien perceptibles à l'écran
+          s.au1 = fastSmooth(s.au1, targetAu1 * 1.5);
+          s.au10 = fastSmooth(s.au10, targetAu10 * 1.5);
+          s.au17 = fastSmooth(s.au17, targetAu17 * 1.5);
+          s.au20 = fastSmooth(s.au20, targetAu20 * 1.5);
+          // -------------------------------------------------------------
 
           const lightFactor = 1.0 - Math.min(Math.max((avgBrightness - 50) / 150, -0.3), 0.3);
           let targetPupil = (irisDiameterRatio + (s.au20 * 0.4) + (s.audio * 0.2)) * lightFactor;
