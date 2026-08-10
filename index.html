@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>EgoLens v10.15 - Ultimate Suite & Gaze Tracking</title>
+<title>EgoLens v10.17 - Ultimate Suite & Diagnostic Intégré</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <style>
 .scan-line { position: absolute; width: 100%; height: 2px; background: #10b981; opacity: 0.3; animation: scan 2s linear infinite; }
@@ -18,7 +18,7 @@ canvas { pointer-events: none; }
 <div id="main-container" class="w-full max-w-6xl bg-gray-900 border border-gray-800 rounded-2xl shadow-2xl p-6 transition-all duration-300 risk-glow">
 <div class="flex flex-col md:flex-row justify-between items-center mb-6 border-b border-gray-800 pb-4 gap-4">
 <div>
-<h1 class="text-2xl font-bold text-emerald-400">EGOLENS <span class="text-xs text-gray-400 font-normal">v10.15 ULTIMATE</span></h1>
+<h1 class="text-2xl font-bold text-emerald-400">EGOLENS <span class="text-xs text-gray-400 font-normal">v10.17 ULTIMATE + DIAG</span></h1>
 <p class="text-[10px] text-gray-400 uppercase tracking-widest">Pupillometry | MediaPipe Face Mesh | rPPG Optique | Gaze Tracking</p>
 </div>
 <div class="flex flex-wrap items-center gap-3">
@@ -38,7 +38,9 @@ canvas { pointer-events: none; }
 
 <div class="space-y-4 font-mono text-[10px]">
 <div class="bg-gray-950 p-4 rounded-xl border border-gray-800 space-y-2">
-<div class="text-emerald-500 font-bold uppercase underline mb-1">Télémétrie & Regard (IA)</div>
+<div class="text-emerald-500 font-bold uppercase underline mb-1">Télémétrie & Diagnostic</div>
+<div class="flex justify-between"><span>État Boucle (FPS):</span><span id="m-fps" class="text-yellow-400 font-bold">0</span></div>
+<div class="flex justify-between"><span>Visage détecté:</span><span id="m-face" class="text-red-400 font-bold">NON</span></div>
 <div class="flex justify-between">
 <span>Mode IR:</span>
 <select id="ir-mode" class="bg-gray-900 text-emerald-400 border border-gray-800 rounded px-1 text-[10px]">
@@ -125,6 +127,8 @@ let lastBpmCalculationTime = 0;
 let faceLandmarker = null;
 let lastVideoTime = -1;
 let lastTimestamp = -1;
+
+let frameCount = 0, lastFpsUpdate = Date.now();
 
 const standardSmooth = (curr, target, factor = 0.25) => curr + (target - curr) * factor;
 
@@ -357,6 +361,14 @@ s.hr = standardSmooth(s.hr, calculatedBpm, 0.1);
 function loop() {
   if (!isRunning) return;
 
+  frameCount++;
+  const nowFps = Date.now();
+  if (nowFps - lastFpsUpdate >= 1000) {
+    document.getElementById('m-fps').innerText = frameCount;
+    frameCount = 0;
+    lastFpsUpdate = nowFps;
+  }
+
   if (video.readyState >= 2 && video.videoWidth > 0) {
     if (canvas.width !== video.videoWidth) {
       canvas.width = video.videoWidth;
@@ -396,6 +408,9 @@ function loop() {
         const results = faceLandmarker.detectForVideo(video, currentTimestamp);
 
         if (results.faceLandmarks && results.faceLandmarks.length > 0) {
+          document.getElementById('m-face').innerText = "OUI";
+          document.getElementById('m-face').className = "text-emerald-400 font-bold";
+
           const landmarks = results.faceLandmarks[0];
           const ear = Math.abs(landmarks[159].y - landmarks[145].y);
           const now = Date.now();
@@ -462,6 +477,9 @@ function loop() {
           s.pupil = standardSmooth(s.pupil, targetPupil, 0.25);
 
           drawMesh(landmarks, canvas.width, canvas.height);
+        } else {
+          document.getElementById('m-face').innerText = "NON";
+          document.getElementById('m-face').className = "text-red-400 font-bold";
         }
       } catch (err) {
         console.warn("Erreur de détection frame ignorée :", err);
@@ -556,6 +574,8 @@ document.getElementById('report-modal').classList.add('flex');
 function closeReport() {
 document.getElementById('report-modal').classList.remove('flex');
 document.getElementById('report-modal').classList.add('hidden');
+document.getElementById('m-fps').innerText = "0";
+document.getElementById('m-face').innerText = "NON";
 document.getElementById('m-pupil').innerText = "--";
 document.getElementById('m-hr').innerText = "--";
 document.getElementById('m-blink').innerText = "--";
