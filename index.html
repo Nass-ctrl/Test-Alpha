@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>EgoLens v17.00 - WebGPU Compute, vEEG & WebNN SLM Co-Pilot</title>
+<title>EgoLens v16.00 - WebGPU Compute & vEEG Neural Lab</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/ort.min.js"></script>
@@ -24,8 +24,8 @@ canvas { pointer-events: none; }
 <!-- En-tête -->
 <div class="flex flex-col md:flex-row justify-between items-center mb-6 border-b border-gray-800 pb-4 gap-4">
 <div>
-<h1 class="text-2xl font-bold text-emerald-400">EGOLENS <span class="text-xs text-gray-400 font-normal">v17.00 "WEBNNN SLM NEURAL CO-PILOT"</span></h1>
-<p class="text-[10px] text-gray-400 uppercase tracking-widest">Audio Bridge | GSR Optique | Gaze Mapping 3D | LSTM ONNX | Respiration | Three.js AR | WebGPU Shaders | vEEG Brainwaves | WebNN SLM</p>
+<h1 class="text-2xl font-bold text-emerald-400">EGOLENS <span class="text-xs text-gray-400 font-normal">v16.00 "WEBGPU & vEEG NEURAL"</span></h1>
+<p class="text-[10px] text-gray-400 uppercase tracking-widest">Audio Bridge | GSR Optique | Gaze Mapping 3D | LSTM ONNX | Respiration | Three.js AR | WebGPU Shaders | vEEG Brainwaves</p>
 </div>
 <div class="flex flex-wrap items-center gap-3">
 <button id="btn-toggle" onclick="toggleSystem()" class="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg text-xs transition-all shadow-lg shadow-emerald-900/40">Démarrer</button>
@@ -36,20 +36,12 @@ canvas { pointer-events: none; }
 
 <!-- Écrans et Télémétrie -->
 <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
-<div class="md:col-span-3 relative bg-black rounded-xl overflow-hidden aspect-video border border-gray-800 flex flex-col items-center justify-center">
+<div class="md:col-span-3 relative bg-black rounded-xl overflow-hidden aspect-video border border-gray-800 flex items-center justify-center">
 <video id="webcam" class="absolute inset-0 w-full h-full object-cover transform -scale-x-100" autoplay playsinline muted></video>
 <canvas id="output_canvas" class="absolute inset-0 w-full h-full object-cover transform -scale-x-100 z-0"></canvas>
 <div id="three-container"></div>
 <div id="scan-effect" class="scan-line hidden z-20"></div>
-<div id="overlay-msg" class="absolute text-gray-500 text-xs font-mono uppercase tracking-wider z-20">Cliquez sur "Démarrer" pour initialiser l'IA multi-modale WebGPU & WebNN SLM</div>
-<!-- MODULE V17 : HUD CO-PILOT STREAM TEXTUEL -->
-<div id="slm-hud-banner" class="absolute bottom-3 left-3 right-3 bg-gray-950/80 backdrop-blur-md border border-emerald-500/40 rounded-xl p-3 z-30 font-mono text-xs text-emerald-300 hidden">
-<div class="flex items-center justify-between mb-1 border-b border-emerald-500/20 pb-1">
-<span class="font-bold uppercase text-[10px] text-emerald-400">🤖 WebNN SLM Neural Co-Pilot (Live)</span>
-<span id="slm-latency" class="text-[9px] text-gray-400">Inférence: 0ms</span>
-</div>
-<div id="slm-stream-text" class="text-white italic tracking-wide">En attente de flux biométrique stable...</div>
-</div>
+<div id="overlay-msg" class="absolute text-gray-500 text-xs font-mono uppercase tracking-wider z-20">Cliquez sur "Démarrer" pour initialiser l'IA multi-modale WebGPU & vEEG</div>
 </div> 
 
 <div class="space-y-4 font-mono text-[10px] max-h-[500px] overflow-y-auto pr-1">
@@ -132,14 +124,6 @@ canvas { pointer-events: none; }
 <div class="flex justify-between"><span>État Cortical:</span><span id="v16-state" class="text-emerald-300 font-bold">Normal / Repos</span></div>
 </div>
 
-<!-- MODULE V17 : WEBNN SLM CO-PILOT -->
-<div class="bg-gray-950 p-4 rounded-xl border border-gray-800 space-y-2">
-<div class="text-emerald-500 font-bold uppercase underline mb-1">/// WebNN SLM V17</div>
-<div class="flex justify-between"><span>Moteur SLM Local:</span><span id="v17-slm-status" class="text-emerald-400 font-bold">Actif (WebNN)</span></div>
-<div class="flex justify-between"><span>Quantization:</span><span class="text-gray-300 font-bold">4-bit Llama/Phi</span></div>
-<div class="flex justify-between"><span>Génération Vocale:</span><span id="v17-gen-state" class="text-emerald-300 font-bold">En écoute</span></div>
-</div>
-
 <div class="bg-gray-950 p-4 rounded-xl border border-gray-800">
 <div class="text-emerald-500 font-bold mb-2">Facteur Risque Global</div>
 <div class="h-2 bg-gray-800 rounded-full overflow-hidden">
@@ -155,8 +139,8 @@ canvas { pointer-events: none; }
 <div class="bg-gray-900 border border-emerald-500/50 rounded-xl shadow-2xl p-6 w-full max-w-3xl font-mono text-sm max-h-full overflow-y-auto">
 <div class="flex justify-between items-start border-b border-gray-700 pb-4 mb-4">
 <div>
-<h2 class="text-2xl font-bold text-white">RAPPORT DE SYNTHÈSE SINGULARITY V17</h2>
-<p class="text-emerald-400 font-bold">ID: #9921-V17.00 | WEBNN SLM CO-PILOT LAB</p>
+<h2 class="text-2xl font-bold text-white">RAPPORT DE SYNTHÈSE SINGULARITY V16</h2>
+<p class="text-emerald-400 font-bold">ID: #9921-V16.00 | WEBGPU & vEEG LAB</p>
 </div>
 <button onclick="closeReport()" class="text-gray-400 hover:text-white border border-gray-600 rounded px-2 py-1 text-xs">Fermer [X]</button>
 </div> 
@@ -179,7 +163,7 @@ canvas { pointer-events: none; }
 
 <div class="space-y-4">
 <div class="bg-gray-800/50 p-3 rounded border border-gray-700">
-<h3 class="text-gray-400 uppercase text-xs mb-2 border-b border-gray-600 pb-1">Analyse Avancée V17</h3>
+<h3 class="text-gray-400 uppercase text-xs mb-2 border-b border-gray-600 pb-1">Analyse Avancée V16</h3>
 <div class="flex justify-between mb-1"><span>Charge Cognitive (Max):</span><span id="r-cog-load">--</span></div>
 <div class="flex justify-between mb-1"><span>Fréquence Cardiaque (Pic):</span><span id="r-hr-peak">--</span></div>
 <div class="flex justify-between mb-1"><span>Pic de Stress GSR (Sueur):</span><span id="r-gsr-peak" class="text-yellow-400 font-bold">0</span></div>
@@ -191,7 +175,7 @@ canvas { pointer-events: none; }
 </div>
 </div> 
 <div class="mt-6 text-center text-xs text-gray-500 border-t border-gray-800 pt-4">
-Généré automatiquement par le module EgoLens Telemetry & Diagnostics V17.
+Généré automatiquement par le module EgoLens Telemetry & Diagnostics V16.
 </div>
 </div>
 </div>
@@ -224,52 +208,6 @@ let rppgData = [];
 let currentBPM = 70;
 
 // ============================================================================
-// MODULE V17 : WEBNN SLM NEURAL CO-PILOT
-// ============================================================================
-let webnnSlmActive = false;
-let lastSlmQueryTime = 0;
-async function initWebNNModel() {
-    try {
-        if (!navigator.ml && !window.puter && !navigator.gpu) {
-            // Fallback webnn context simulation
-        }
-        webnnSlmActive = true;
-        document.getElementById('v17-slm-status').innerText = "Actif (WebNN Context)";
-        document.getElementById('v17-slm-status').className = "text-emerald-400 font-bold";
-        document.getElementById('slm-hud-banner').classList.remove('hidden');
-    } catch(e) {
-        webnnSlmActive = false;
-        document.getElementById('v17-slm-status').innerText = "Actif (Heuristique SLM)";
-        document.getElementById('slm-hud-banner').classList.remove('hidden');
-    }
-}
-
-function updateSLMCoPilot(telemetry) {
-    const now = Date.now();
-    if (now - lastSlmQueryTime < 4000) return; // Génération toutes les 4 secondes pour fluidité
-    lastSlmQueryTime = now;
-
-    const tStart = performance.now();
-    let thoughts = "";
-
-    if (telemetry.risk > 50) {
-        thoughts = `Alerte cortex : Surcharge cognitive détectée (${Math.round(telemetry.risk)}%). Activité Beta et AU4 élevées. Recommandation : pause respiratoire immédiate.`;
-    } else if (telemetry.alpha > 65) {
-        thoughts = `État cortical stable : Ondes Alpha dominantes (${Math.round(telemetry.alpha)}%). Focalisation optimale et relaxation profonde confirmées par vEEG.`;
-    } else if (telemetry.micro) {
-        thoughts = `Détection micro-expressive : Asymétrie faciale relevée. Analyse des micro-saccades en cours pour évaluer la valence émotionnelle.`;
-    } else {
-        thoughts = `Télémétrie nominale. Flux rPPG stable à ${Math.round(telemetry.hr)} BPM. Respiration à ${telemetry.rpm} RPM. Aucune anomalie cortico-vasculaire.`;
-    }
-
-    const tEnd = performance.now();
-    const latency = Math.round(tEnd - tStart + 12); // Latence simulée WebNN ultra-rapide
-
-    document.getElementById('slm-stream-text').innerText = `"${thoughts}"`;
-    document.getElementById('slm-latency').innerText = `Inférence WebNN: ${latency}ms`;
-}
-
-// ============================================================================
 // MODULE V16 : WEBGPU COMPUTE SHADERS PIPELINE
 // ============================================================================
 let webgpuDevice = null;
@@ -299,7 +237,6 @@ async function initWebGPU() {
 // ============================================================================
 let veegBuffer = [];
 let maxTrackedAlpha = 0;
-let currentAlphaValue = 50;
 const vEEGModule = {
     update: function(landmarks) {
         if (!landmarks || landmarks.length < 478) return;
@@ -319,11 +256,11 @@ const vEEGModule = {
             }
             let velocity = totalJitter / veegBuffer.length;
             
+            // Simulation spectrale des bandes d'ondes cérébrales par les microsaccades oculaires
             let alpha = Math.min(98, Math.max(12, Math.round(50 - (velocity * 2500) + (Math.sin(performance.now() * 0.002) * 15))));
             let beta = Math.min(95, Math.max(8, Math.round((velocity * 3000) + 25 + (Math.cos(performance.now() * 0.003) * 10))));
             let gamma = Math.min(90, Math.max(5, Math.round((velocity * 4500) + 10)));
             
-            currentAlphaValue = alpha;
             if (alpha > maxTrackedAlpha) maxTrackedAlpha = alpha;
 
             document.getElementById('v16-alpha').innerText = alpha + " %";
@@ -411,7 +348,6 @@ async function initOnnxModel() {
 // ============================================================================
 let breathingBuffer = [];
 let maxTrackedRPM = 0;
-let currentRPMValue = 14;
 function updateRespiration(noseY) {
     breathingBuffer.push({y: noseY, time: Date.now()});
     if (breathingBuffer.length > 150) breathingBuffer.shift();
@@ -427,7 +363,6 @@ function updateRespiration(noseY) {
         }
         let rpm = Math.round((peaks / (span / 60)) || 14);
         if (rpm < 6) rpm = 12; if (rpm > 35) rpm = 24;
-        currentRPMValue = rpm;
         if (rpm > maxTrackedRPM) maxTrackedRPM = rpm;
         document.getElementById('v15-resp').innerText = rpm + " rpm";
     }
@@ -813,7 +748,6 @@ try {
     initOnnxModel();
     initWorker();
     await initWebGPU();
-    await initWebNNModel();
 } catch (error) { document.getElementById('status').innerText = "ERREUR : " + error.message; return; } 
 
 isRunning = true; 
@@ -832,7 +766,7 @@ SingularityFrontiers.timeSeriesBuffer = [];
 document.getElementById('btn-toggle').disabled = false;
 document.getElementById('btn-toggle').innerText = "Arrêter";
 document.getElementById('btn-toggle').className = "px-4 py-1.5 bg-red-600 hover:bg-red-500 text-white font-bold rounded-lg text-xs transition-all shadow-lg shadow-red-900/40";
-document.getElementById('status').innerText = "SYSTÈME ONLINE (V17 WEBNN SLM)";
+document.getElementById('status').innerText = "SYSTÈME ONLINE (V16 WEBGPU & vEEG)";
 document.getElementById('status').className = "px-3 py-1 bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-full text-xs animate-pulse";
 document.getElementById('scan-effect').classList.remove('hidden');
 document.getElementById('overlay-msg').classList.add('hidden');
@@ -852,7 +786,6 @@ document.getElementById('status').innerText = "SYSTÈME EN VEILLE";
 document.getElementById('status').className = "px-3 py-1 bg-gray-800 text-gray-400 border border-gray-700 rounded-full text-xs";
 document.getElementById('scan-effect').classList.add('hidden');
 document.getElementById('overlay-msg').classList.remove('hidden');
-document.getElementById('slm-hud-banner').classList.add('hidden');
 ctx.clearRect(0, 0, canvas.width, canvas.height); 
 
 document.getElementById('m-face').innerText = "NON";
@@ -1084,23 +1017,12 @@ document.getElementById('m-au1').innerText = (au1Val * 100).toFixed(0) + "%";
 document.getElementById('m-au4').innerText = (au4Val * 100).toFixed(0) + "%";
 if (au4Val > trackMaxStress) trackMaxStress = au4Val;
 
-const currentRiskVal = Math.min(100, (arousal + au4Val + (SingularityFrontiers.maxLstmRisk / 100)) * 50);
-
-// Appel du SLM Co-Pilot WebNN en direct
-updateSLMCoPilot({
-    risk: currentRiskVal,
-    alpha: currentAlphaValue,
-    hr: currentBPM,
-    rpm: currentRPMValue,
-    micro: ekmanMicroDetected
-});
-
 if (frameCount % 15 === 0) {
     document.getElementById('m-hr').innerText = currentBPM.toFixed(0) + " bpm (rPPG)";
     const currentPupil = 3.0 + (au4Val * 4.0);
     document.getElementById('m-pupil').innerText = currentPupil.toFixed(1) + " mm";
     
-    const riskPercent = currentRiskVal;
+    const riskPercent = Math.min(100, (arousal + au4Val + (SingularityFrontiers.maxLstmRisk / 100)) * 50);
     const riskBar = document.getElementById('risk-bar');
     riskBar.style.width = riskPercent + "%"; 
     if (riskPercent > 50) {
@@ -1112,7 +1034,6 @@ if (frameCount % 15 === 0) {
         document.getElementById('risk-status').innerText = `Nominal`;
         document.getElementById('main-container').classList.remove('red-alert');
     }
-}
 }
 }
 }
