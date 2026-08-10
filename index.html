@@ -42,6 +42,14 @@ canvas { pointer-events: none; }
 <div id="three-container"></div>
 <div id="scan-effect" class="scan-line hidden z-20"></div>
 <div id="overlay-msg" class="absolute text-gray-500 text-xs font-mono uppercase tracking-wider z-20">Cliquez sur "Démarrer" pour initialiser l'IA multi-modale WebGPU & vEEG</div>
+
+<!-- NOUVEAU : HUD Minimaliste (AR) -->
+<div id="ar-minimal-hud" class="absolute inset-0 pointer-events-none z-30 flex flex-col justify-between p-4 transition-opacity duration-500 opacity-0">
+<div id="ar-tension-halo" class="absolute inset-0 border-[8px] border-transparent rounded-xl transition-colors duration-700 pointer-events-none"></div>
+<div id="ar-dissonance-popup" class="self-end bg-gray-900/90 text-white px-3 py-1 rounded border border-gray-700 text-xs font-bold tracking-wider hidden transition-all z-40 mt-auto mb-2 mr-2 shadow-lg"></div>
+</div>
+<!-- FIN NOUVEAU -->
+
 </div> 
 
 <div class="space-y-4 font-mono text-[10px] max-h-[500px] overflow-y-auto pr-1">
@@ -136,7 +144,7 @@ canvas { pointer-events: none; }
 
 <!-- MODAL DE RAPPORT -->
 <div id="report-modal" class="hidden absolute inset-0 z-50 glass-panel flex items-center justify-center p-6">
-<div class="bg-gray-900 border border-emerald-500/50 rounded-xl shadow-2xl p-6 w-full max-w-3xl font-mono text-sm max-h-full overflow-y-auto">
+<div class="bg-gray-900 border border-emerald-500/50 rounded-xl shadow-2xl p-6 w-full max-w-4xl font-mono text-sm max-h-full overflow-y-auto">
 <div class="flex justify-between items-start border-b border-gray-700 pb-4 mb-4">
 <div>
 <h2 class="text-2xl font-bold text-white">RAPPORT DE SYNTHÈSE SINGULARITY V16</h2>
@@ -174,6 +182,32 @@ canvas { pointer-events: none; }
 </div>
 </div>
 </div> 
+
+<!-- NOUVEAU : Synthèse Comportementale -->
+<div class="mt-6 border-t border-gray-700 pt-4">
+<h3 class="text-emerald-400 font-bold text-lg mb-3">SYNTHÈSE COMPORTEMENTALE (PROFILAGE)</h3>
+<div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+    <div class="bg-gray-800/50 p-3 rounded border border-gray-700">
+        <h4 class="text-gray-400 uppercase text-[10px] mb-1">A. Indice de Réceptivité</h4>
+        <p id="r-syn-receptivity" class="text-white text-sm font-bold">--</p>
+    </div>
+    <div class="bg-gray-800/50 p-3 rounded border border-gray-700">
+        <h4 class="text-gray-400 uppercase text-[10px] mb-1">B. Climat Émotionnel</h4>
+        <p id="r-syn-climate" class="text-white text-sm font-bold">--</p>
+    </div>
+    <div class="bg-gray-800/50 p-3 rounded border border-gray-700">
+        <h4 class="text-gray-400 uppercase text-[10px] mb-1">C. Niveau de Congruence</h4>
+        <p id="r-syn-congruence" class="text-white text-sm font-bold">--</p>
+    </div>
+</div>
+<div class="bg-gray-800/50 p-3 rounded border border-gray-700 mb-2">
+    <h4 class="text-gray-400 uppercase text-[10px] mb-2">Points de Bascule (Timeline de la session)</h4>
+    <ul id="r-syn-timeline" class="text-xs space-y-1 text-gray-300 max-h-32 overflow-y-auto font-mono"></ul>
+</div>
+<p id="r-syn-diagnostic" class="mt-3 text-sm font-bold border-l-2 pl-2"></p>
+</div>
+<!-- FIN NOUVEAU -->
+
 <div class="mt-6 text-center text-xs text-gray-500 border-t border-gray-800 pt-4">
 Généré automatiquement par le module EgoLens Telemetry & Diagnostics V16.
 </div>
@@ -200,6 +234,11 @@ let microExpressionCount = 0;
 let prevShapes = {}; 
 let trackSumValence = 0, trackSumArousal = 0, trackCountRussell = 0;
 let trackMaxAsymmetry = 0;
+
+// NOUVEAU : Variables pour l'AR Minimaliste et la Synthèse
+let currentArTension = 0;
+let sessionTimeline = [];
+// FIN NOUVEAU
 
 const WINDOW_SIZE = 5; 
 let slidingWindowShapes = []; 
@@ -762,6 +801,7 @@ SingularityFrontiers.audioAnomalies = 0;
 SingularityFrontiers.gsrPeakCount = 0;
 SingularityFrontiers.maxLstmRisk = 0;
 SingularityFrontiers.timeSeriesBuffer = [];
+currentArTension = 0; sessionTimeline = []; // NOUVEAU RESET
 
 document.getElementById('btn-toggle').disabled = false;
 document.getElementById('btn-toggle').innerText = "Arrêter";
@@ -788,6 +828,9 @@ document.getElementById('scan-effect').classList.add('hidden');
 document.getElementById('overlay-msg').classList.remove('hidden');
 ctx.clearRect(0, 0, canvas.width, canvas.height); 
 
+// Reset AR minimaliste
+document.getElementById('ar-minimal-hud').style.opacity = 0;
+
 document.getElementById('m-face').innerText = "NON";
 ['m-head','m-pupil','m-hr','m-blink','m-gaze','m-au1','m-au17','m-au4','m-au9','m-valence','m-arousal','m-asymmetry'].forEach(id => { document.getElementById(id).innerText = '--'; });
 document.getElementById('m-smile').innerText = 'Neutre';
@@ -808,11 +851,11 @@ const mins = Math.floor(durationSec / 60);
 const secs = Math.floor(durationSec % 60);
 document.getElementById('r-duration').innerText = `${mins}m ${secs}s`; 
 
-const avgVal = trackCountRussell > 0 ? (trackSumValence / trackCountRussell).toFixed(2) : "0.00";
-const avgAro = trackCountRussell > 0 ? (trackSumArousal / trackCountRussell).toFixed(2) : "0.00";
+const avgVal = trackCountRussell > 0 ? (trackSumValence / trackCountRussell) : 0;
+const avgAro = trackCountRussell > 0 ? (trackSumArousal / trackCountRussell) : 0;
 
-document.getElementById('r-val-avg').innerText = avgVal;
-document.getElementById('r-aro-avg').innerText = avgAro;
+document.getElementById('r-val-avg').innerText = avgVal.toFixed(2);
+document.getElementById('r-aro-avg').innerText = avgAro.toFixed(2);
 document.getElementById('r-micro-exp').innerText = microExpressionCount + " détections";
 document.getElementById('r-smile-max').innerText = (trackMaxSmile * 100).toFixed(0) + "%"; 
 document.getElementById('r-gsr-peak').innerText = SingularityFrontiers.gsrPeakCount;
@@ -829,6 +872,49 @@ cogEl.innerText = "+" + (trackMaxStress * 100).toFixed(0) + "%";
 
 const globalStatus = trackMaxStress > 0.6 || SingularityFrontiers.maxLstmRisk > 70 ? "🔴 Tolérance franchie" : (trackMaxStress > 0.4 ? "🟡 Tension modérée" : "🟢 Stable, nominal");
 document.getElementById('r-global-status').innerText = globalStatus;
+
+// ============================================================================
+// NOUVEAU : Calcul Synthèse Comportementale Finale
+// ============================================================================
+// A. Réceptivité
+let receptivity = Math.max(0, Math.min(100, 100 - (trackMaxStress * 50) + (maxTrackedAlpha > 30 ? 15 : 0)));
+let recEl = document.getElementById('r-syn-receptivity');
+recEl.innerText = receptivity > 60 ? `Attention soutenue (${receptivity.toFixed(0)}%)` : `Décrochage cognitif (${receptivity.toFixed(0)}%)`;
+recEl.className = receptivity > 60 ? "text-emerald-400 text-sm font-bold" : "text-yellow-400 text-sm font-bold";
+
+// B. Climat
+let climateState = "Neutre";
+if (avgAro > 0.4 && avgVal > 0.1) climateState = "Dynamisme collaboratif";
+else if (avgAro > 0.4 && avgVal < -0.1) climateState = "Résistance / Tension";
+else if (avgAro <= 0.4 && avgVal >= 0) climateState = "Détendu / Aligné";
+else if (avgAro <= 0.4 && avgVal < 0) climateState = "Résistance passive";
+let climEl = document.getElementById('r-syn-climate');
+climEl.innerText = climateState;
+climEl.className = climateState.includes("Résistance") ? "text-yellow-400 text-sm font-bold" : "text-emerald-400 text-sm font-bold";
+
+// C. Congruence
+let congruenceScore = 100 - (microExpressionCount * 5) - (SingularityFrontiers.gsrPeakCount * 10) - (SingularityFrontiers.audioAnomalies * 5);
+congruenceScore = Math.max(0, congruenceScore);
+let congEl = document.getElementById('r-syn-congruence');
+congEl.innerText = congruenceScore > 75 ? `Authentique (${congruenceScore}%)` : `Masquage probable (${congruenceScore}%)`;
+congEl.className = congruenceScore > 75 ? "text-emerald-400 text-sm font-bold" : "text-red-400 text-sm font-bold";
+
+// Timeline
+let tlHtml = "";
+sessionTimeline.forEach(ev => { tlHtml += `<li class="py-1 border-b border-gray-700 last:border-0">${ev.str}</li>`; });
+if (tlHtml === "") tlHtml = "<li class='text-gray-500 italic'>Aucun événement disruptif détecté durant la session.</li>";
+document.getElementById('r-syn-timeline').innerHTML = tlHtml;
+
+// Diagnostic Profilage
+let diag = "Interaction globalement positive, sujet aligné avec le discours.";
+if (congruenceScore < 60) diag = "Alerte : Le sujet montre des signes de masquage émotionnel ou d'inconfort. Explorez avec bienveillance les non-dits.";
+else if (receptivity < 50) diag = "Attention : Charge cognitive saturée. Il est recommandé de synthétiser vos propos et ralentir le rythme.";
+else if (climateState.includes("Résistance")) diag = "Alerte : Climat défensif identifié. Rompez le pattern actuel pour recréer du rapport (PNL).";
+let diagEl = document.getElementById('r-syn-diagnostic');
+diagEl.innerText = "Recommandation : " + diag;
+diagEl.className = (congruenceScore < 60 || climateState.includes("Résistance")) ? "mt-3 text-sm text-red-400 font-bold border-l-4 border-red-500 pl-2 py-1 bg-red-900/20" : "mt-3 text-sm text-emerald-400 font-bold border-l-4 border-emerald-500 pl-2 py-1 bg-emerald-900/20";
+// ============================================================================
+
 document.getElementById('report-modal').classList.remove('hidden');
 } 
 
@@ -1035,6 +1121,57 @@ if (frameCount % 15 === 0) {
         document.getElementById('main-container').classList.remove('red-alert');
     }
 }
+
+// ============================================================================
+// NOUVEAU : Calcul AR Minimaliste (Jauge & Timeline)
+// ============================================================================
+// Normalisation du BPM (60 = 0, 120 = 1)
+let normBPM = Math.max(0, Math.min(1, (currentBPM - 60) / 60));
+// Calcul cible de la tension
+let targetTension = (normBPM * 0.2) + (au4Val * 0.4) + (arousal * 0.4);
+// Lissage exponentiel (Lerp) pour éviter les clignotements intempestifs
+currentArTension = (currentArTension * 0.95) + (targetTension * 0.05);
+
+let arHud = document.getElementById('ar-minimal-hud');
+let arHalo = document.getElementById('ar-tension-halo');
+let arPopup = document.getElementById('ar-dissonance-popup');
+
+// Logique de l'exception : on affiche l'AR uniquement si la tension dépasse un seuil
+if (currentArTension < 0.3) {
+    arHud.style.opacity = "0";
+    arHalo.style.borderColor = "transparent";
+} else {
+    arHud.style.opacity = "1";
+    if (currentArTension < 0.6) {
+        // Zone Focus / Inconfort léger (Jaune)
+        arHalo.style.borderColor = `rgba(234, 179, 8, ${(currentArTension - 0.3) * 2})`;
+    } else {
+        // Zone Stress (Rouge)
+        arHalo.style.borderColor = `rgba(239, 68, 68, ${currentArTension})`;
+    }
+}
+
+// Gestion des Pop-ups de Dissonance et de la Timeline
+if (ekmanMicroDetected || isFake || asymmetryPercent > 40) {
+    let msg = isFake ? "⚠️ FAUX SOURIRE DÉTECTÉ" : (asymmetryPercent > 40 ? "⚠️ ASYMÉTRIE FORTE" : `⚡ MICRO-EXPRESSION: ${detectedEmotion.toUpperCase()}`);
+    arPopup.innerText = msg;
+    arPopup.classList.remove('hidden');
+    
+    // Log pour le rapport final (avec debounce de 4 secondes pour éviter le spam)
+    let timeSec = Math.floor((Date.now() - sessionStartTime.getTime()) / 1000);
+    if (sessionTimeline.length === 0 || timeSec - sessionTimeline[sessionTimeline.length - 1].rawTime > 4) {
+        let timeStr = `${Math.floor(timeSec / 60)}:${(timeSec % 60).toString().padStart(2, '0')}`;
+        sessionTimeline.push({
+            rawTime: timeSec, 
+            str: `<span class="text-gray-400">[${timeStr}]</span> <span class="text-yellow-400 font-bold">${msg}</span> (Tension: ${(currentArTension*100).toFixed(0)}%)`
+        });
+    }
+    
+    // Disparition automatique du popup AR
+    setTimeout(() => { arPopup.classList.add('hidden'); }, 2500);
+}
+// ============================================================================
+
 }
 }
 } catch (err) { console.error(err); }
