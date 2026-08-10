@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>EgoLens v10.19 - Ultimate Suite & Diagnostic Intégré</title>
+<title>EgoLens v10.20 - Ultimate Suite & Diagnostic Intégré</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <style>
 .scan-line { position: absolute; width: 100%; height: 2px; background: #10b981; opacity: 0.3; animation: scan 2s linear infinite; }
@@ -18,7 +18,7 @@ canvas { pointer-events: none; }
 <div id="main-container" class="w-full max-w-6xl bg-gray-900 border border-gray-800 rounded-2xl shadow-2xl p-6 transition-all duration-300 risk-glow">
 <div class="flex flex-col md:flex-row justify-between items-center mb-6 border-b border-gray-800 pb-4 gap-4">
 <div>
-<h1 class="text-2xl font-bold text-emerald-400">EGOLENS <span class="text-xs text-gray-400 font-normal">v10.19 ULTIMATE + DIAG</span></h1>
+<h1 class="text-2xl font-bold text-emerald-400">EGOLENS <span class="text-xs text-gray-400 font-normal">v10.20 ULTIMATE + DIAG</span></h1>
 <p class="text-[10px] text-gray-400 uppercase tracking-widest">Pupillometry | MediaPipe Face Mesh | rPPG Optique | Gaze Tracking</p>
 </div>
 <div class="flex flex-wrap items-center gap-3">
@@ -106,13 +106,8 @@ let audioCtx = null, audioAnalyser = null, audioDataArray = null, audioStreamRef
 let isRunning = false, sessionStartTime = 0, riskHistory = [], hrHistory = [];
 let animationId = null;
 
-let blinkTimestamps = [];
-let isEyeClosed = false;
-
 let faceLandmarker = null;
 let frameCount = 0, lastFpsUpdate = Date.now();
-
-const standardSmooth = (curr, target, factor = 0.25) => curr + (target - curr) * factor;
 
 const video = document.getElementById('webcam');
 const canvas = document.getElementById('output_canvas');
@@ -127,7 +122,6 @@ async function initMediaPipe() {
     "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3/wasm"
   );
 
-  // Passage en mode IMAGE : plus stable pour éviter les blocages de timestamps
   faceLandmarker = await FaceLandmarker.createFromOptions(filesetResolver, {
     baseOptions: {
       modelAssetPath: "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task",
@@ -138,21 +132,6 @@ async function initMediaPipe() {
     outputFaceBlendshapes: true,
     outputFacialTransformationMatrixes: false
   });
-}
-
-async function initAudio() {
-  if (audioCtx) return;
-  try {
-    audioStreamRef = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
-    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    const source = audioCtx.createMediaStreamSource(audioStreamRef);
-    audioAnalyser = audioCtx.createAnalyser();
-    audioAnalyser.fftSize = 256;
-    source.connect(audioAnalyser);
-    audioDataArray = new Uint8Array(audioAnalyser.frequencyBinCount);
-  } catch (e) {
-    console.warn("Microphone non disponible ou refusé", e);
-  }
 }
 
 async function startCamera() {
@@ -189,7 +168,6 @@ async function toggleSystem() {
 
     try {
       await initMediaPipe();
-      await initAudio();
       await startCamera();
     } catch (error) {
       document.getElementById('status').innerText = "ERREUR : " + error.message;
@@ -201,8 +179,6 @@ async function toggleSystem() {
 
     isRunning = true;
     sessionStartTime = Date.now();
-    riskHistory = []; hrHistory = [];
-    blinkTimestamps = [];
 
     document.getElementById('btn-toggle').disabled = false;
     document.getElementById('btn-toggle').innerText = "Arrêter";
@@ -216,8 +192,6 @@ async function toggleSystem() {
   } else {
     isRunning = false;
     if (currentStream) currentStream.getTracks().forEach(track => track.stop());
-    if (audioStreamRef) audioStreamRef.getTracks().forEach(track => track.stop());
-    if (audioCtx) { audioCtx.close(); audioCtx = null; audioAnalyser = null; }
     cancelAnimationFrame(animationId);
 
     document.getElementById('btn-toggle').innerText = "Démarrer";
@@ -227,24 +201,14 @@ async function toggleSystem() {
     document.getElementById('scan-effect').classList.add('hidden');
     document.getElementById('overlay-msg').classList.remove('hidden');
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    showReport();
   }
 }
 
 function drawMesh(landmarks, width, height) {
-  ctx.strokeStyle = 'rgba(16, 185, 129, 0.7)';
-  ctx.lineWidth = 1;
+  ctx.strokeStyle = 'rgba(16, 185, 129, 0.8)';
+  ctx.lineWidth = 1.5;
   ctx.beginPath();
   [33, 160, 158, 133, 153, 144, 33].forEach((pt, i) => {
-    const x = landmarks[pt].x * width;
-    const y = landmarks[pt].y * height;
-    if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
-  });
-  ctx.stroke();
-
-  ctx.beginPath();
-  [362, 385, 387, 263, 373, 380, 362].forEach((pt, i) => {
     const x = landmarks[pt].x * width;
     const y = landmarks[pt].y * height;
     if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
@@ -269,30 +233,24 @@ function loop() {
       canvas.height = video.videoHeight;
     }
 
+    // Dessine la vidéo sur le canvas pour que l'IA l'analyse
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
     if (faceLandmarker) {
       try {
-        // Envoi direct de l'élément canvas ou vidéo en mode IMAGE (détection immédiate)
-        const results = faceLandmarker.detect(canvas);
+        // Envoi direct de l'élément vidéo source à MediaPipe en mode IMAGE
+        const results = faceLandmarker.detect(video);
 
-        if (results.faceLandmarks && results.faceLandmarks.length > 0) {
+        if (results && results.faceLandmarks && results.faceLandmarks.length > 0) {
           document.getElementById('m-face').innerText = "OUI";
           document.getElementById('m-face').className = "text-emerald-400 font-bold";
           drawMesh(results.faceLandmarks[0], canvas.width, canvas.height);
-
-          if (results.faceBlendshapes && results.faceBlendshapes.length > 0) {
-            let bMap = {};
-            results.faceBlendshapes[0].categories.forEach(cat => { bMap[cat.categoryName] = cat.score; });
-            s.au1 = bMap['browInnerUp'] || 0;
-            document.getElementById('m-au1').innerText = s.au1.toFixed(3);
-          }
         } else {
           document.getElementById('m-face').innerText = "NON";
           document.getElementById('m-face').className = "text-red-400 font-bold";
         }
       } catch (err) {
-        console.warn("Erreur de détection IMAGE :", err);
+        console.error("Erreur critique de détection :", err);
       }
     }
   }
@@ -300,17 +258,6 @@ function loop() {
   if (isRunning) {
     animationId = requestAnimationFrame(loop);
   }
-}
-
-function showReport() {
-  document.getElementById('rep-date').innerText = new Date().toLocaleString();
-  document.getElementById('report-modal').classList.remove('hidden');
-  document.getElementById('report-modal').classList.add('flex');
-}
-
-function closeReport() {
-  document.getElementById('report-modal').classList.remove('flex');
-  document.getElementById('report-modal').classList.add('hidden');
 }
 </script>
 </body>
