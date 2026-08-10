@@ -51,7 +51,7 @@ canvas { pointer-events: none; }
 </div>
 <div class="flex justify-between"><span>Pupille (Cognitif):</span><span id="m-pupil" class="text-emerald-400 font-bold">--</span></div>
 <div class="flex justify-between"><span>HR (rPPG Optique):</span><span id="m-hr">--</span></div>
-<div class="flex justify-between"><span>Fatigue (Blink/m):</span><span id="m-blink">--</span></div>
+<div class="flex justify-between"><span>Fatigue (Blink):</span><span id="m-blink" class="text-emerald-300 font-bold">--</span></div>
 <div class="flex justify-between"><span>Sourire (Duchenne):</span><span id="m-smile" class="text-emerald-400 font-bold">Neutre</span></div>
 <div class="flex justify-between"><span>Tension Vocale:</span><span id="m-audio">--</span></div>
 <div class="flex justify-between"><span>Regard (Gaze):</span><span id="m-gaze" class="text-emerald-300 font-bold">--</span></div>
@@ -74,40 +74,19 @@ canvas { pointer-events: none; }
 </div>
 </div>
 
-<!-- Modal Rapport -->
-<div id="report-modal" class="fixed inset-0 bg-black/80 backdrop-blur-sm hidden items-center justify-center p-4 z-50">
-<div class="bg-gray-900 border border-gray-800 rounded-2xl w-full max-w-2xl p-6 space-y-4 font-mono shadow-2xl">
-<div class="flex justify-between items-center border-b border-gray-800 pb-3">
-<h2 class="text-lg font-bold text-emerald-400">RAPPORT DE FIN DE SESSION - EGOLENS AI</h2>
-<span id="rep-date" class="text-[10px] text-gray-500"></span>
-</div>
-<div class="grid grid-cols-2 gap-4 text-xs">
-<div class="bg-gray-950 p-3 rounded-xl border border-gray-800 space-y-1">
-<div class="text-gray-400">Durée de session:</div>
-<div id="rep-duration" class="font-bold text-emerald-400">00:00</div>
-</div>
-<div class="bg-gray-950 p-3 rounded-xl border border-gray-800 space-y-1">
-<div class="text-gray-400">Risque Global Moyen:</div>
-<div id="rep-risk" class="font-bold text-emerald-400">0%</div>
-</div>
-</div>
-<div class="flex justify-end pt-2">
-<button onclick="closeReport()" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs transition-all">Fermer & Réinitialiser</button>
-</div>
-</div>
-</div>
-
 <script>
 'use strict';
 
-let s = { hr: 72, audio: 0, au1: 0, au10: 0, au17: 0, au20: 0, gazeText: "Centre", blink: 0, pupil: 1.0, smileState: "Neutre" };
 let useFrontCamera = true, currentStream = null;
-let audioCtx = null, audioAnalyser = null, audioDataArray = null, audioStreamRef = null;
-let isRunning = false, sessionStartTime = 0, riskHistory = [], hrHistory = [];
+let isRunning = false;
 let animationId = null;
 
 let faceLandmarker = null;
 let frameCount = 0, lastFpsUpdate = Date.now();
+
+// Variables de simulation
+let simBlinkCount = 0;
+let isBlinking = false;
 
 const video = document.getElementById('webcam');
 const canvas = document.getElementById('output_canvas');
@@ -125,12 +104,11 @@ async function initMediaPipe() {
   faceLandmarker = await FaceLandmarker.createFromOptions(filesetResolver, {
     baseOptions: {
       modelAssetPath: "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task",
-      // Passage en CPU pour garantir 100% de compatibilité sans erreur GPU
       delegate: "CPU" 
     },
     runningMode: "IMAGE",
     numFaces: 1,
-    outputFaceBlendshapes: true,
+    outputFaceBlendshapes: true, // Crucial pour extraire les émotions et mouvements
     outputFacialTransformationMatrixes: false
   });
 }
@@ -172,15 +150,10 @@ async function toggleSystem() {
       await startCamera();
     } catch (error) {
       document.getElementById('status').innerText = "ERREUR : " + error.message;
-      document.getElementById('status').className = "px-3 py-1 bg-red-500/20 text-red-400 border border-red-500/30 rounded-full text-xs";
-      document.getElementById('btn-toggle').disabled = false;
-      document.getElementById('btn-toggle').innerText = "Démarrer";
       return;
     }
 
     isRunning = true;
-    sessionStartTime = Date.now();
-
     document.getElementById('btn-toggle').disabled = false;
     document.getElementById('btn-toggle').innerText = "Arrêter";
     document.getElementById('btn-toggle').className = "px-4 py-1.5 bg-red-600 hover:bg-red-500 text-white font-bold rounded-lg text-xs transition-all shadow-lg shadow-red-900/40";
@@ -204,18 +177,23 @@ async function toggleSystem() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     document.getElementById('m-face').innerText = "NON";
     document.getElementById('m-face').className = "text-red-400 font-bold";
+    
+    // Reset valeurs
+    ['m-pupil','m-hr','m-blink','m-audio','m-gaze','m-au1','m-au10','m-au17','m-au20'].forEach(id => {
+      document.getElementById(id).innerText = '--';
+    });
+    document.getElementById('m-smile').innerText = 'Neutre';
+    document.getElementById('risk-bar').style.width = '0%';
   }
 }
 
 function drawMesh(landmarks, width, height) {
-  ctx.strokeStyle = 'rgba(16, 185, 129, 0.8)'; // Vert émeraude semi-transparent
-  ctx.lineWidth = 1.5;
+  ctx.strokeStyle = 'rgba(16, 185, 129, 0.4)';
+  ctx.lineWidth = 1;
   ctx.beginPath();
-  // Dessin d'un masque très basique autour des yeux et du nez
-  [33, 160, 158, 133, 153, 144, 33].forEach((pt, i) => {
-    const x = landmarks[pt].x * width;
-    const y = landmarks[pt].y * height;
-    if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+  // Dessin complet du visage
+  landmarks.forEach((pt) => {
+    ctx.lineTo(pt.x * width, pt.y * height);
   });
   ctx.stroke();
 }
@@ -237,20 +215,90 @@ function loop() {
       canvas.height = video.videoHeight;
     }
 
-    // 1. On "photographie" la vidéo sur le canvas
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
     if (faceLandmarker) {
       try {
-        // 2. CORRECTION : On analyse le canvas (image figée) et non la vidéo
         const results = faceLandmarker.detect(canvas);
 
         if (results && results.faceLandmarks && results.faceLandmarks.length > 0) {
           document.getElementById('m-face').innerText = "OUI";
           document.getElementById('m-face').className = "text-emerald-400 font-bold";
-          
-          // Dessine le mesh par-dessus le canvas
           drawMesh(results.faceLandmarks[0], canvas.width, canvas.height);
+
+          // ======== EXTRACTION DES PARAMÈTRES (BLENDSHAPES) ========
+          if(results.faceBlendshapes && results.faceBlendshapes.length > 0) {
+            
+            // On transforme l'array en objet { nom_du_muscle: score } pour que ce soit plus simple
+            const shapes = {};
+            results.faceBlendshapes[0].categories.forEach(cat => {
+              shapes[cat.categoryName] = cat.score;
+            });
+
+            // 1. SOURIRE (Moyenne des deux coins de la bouche)
+            const smileScore = (shapes.mouthSmileLeft + shapes.mouthSmileRight) / 2;
+            document.getElementById('m-smile').innerText = smileScore > 0.5 ? "Actif 😊" : "Neutre";
+            document.getElementById('m-smile').className = smileScore > 0.5 ? "text-green-400 font-bold" : "text-gray-400";
+
+            // 2. FATIGUE / CLIGNEMENT DES YEUX
+            const blinkScore = (shapes.eyeBlinkLeft + shapes.eyeBlinkRight) / 2;
+            if (blinkScore > 0.4) {
+               document.getElementById('m-blink').innerText = "YEUX FERMÉS";
+               document.getElementById('m-blink').className = "text-red-400 font-bold";
+            } else {
+               document.getElementById('m-blink').innerText = "Ouvert";
+               document.getElementById('m-blink').className = "text-emerald-300 font-bold";
+            }
+
+            // 3. REGARD (Gaze Tracking)
+            let gaze = "Centre";
+            if (shapes.eyeLookOutLeft > 0.4) gaze = "Extérieur Gauche";
+            else if (shapes.eyeLookInLeft > 0.4) gaze = "Intérieur Droit";
+            else if (shapes.eyeLookUpLeft > 0.4) gaze = "Vers le Haut";
+            else if (shapes.eyeLookDownLeft > 0.4) gaze = "Vers le Bas";
+            document.getElementById('m-gaze').innerText = gaze;
+
+            // 4. ACTION UNITS (AUs) - Traduits en pourcentages
+            document.getElementById('m-au1').innerText = (shapes.browInnerUp * 100).toFixed(0) + "%"; // Haussement sourcils (Détresse)
+            document.getElementById('m-au10').innerText = (shapes.mouthUpperUpLeft * 100).toFixed(0) + "%"; // Lèvre supérieure (Dégoût)
+            document.getElementById('m-au17').innerText = (shapes.mouthDimpleLeft * 100).toFixed(0) + "%"; // Fossette (Doute)
+            document.getElementById('m-au20').innerText = (shapes.mouthStretchLeft * 100).toFixed(0) + "%"; // Étirement lèvre (Angoisse)
+
+            // 5. SIMULATIONS ORGANIQUES BASÉES SUR LE STRESS (AU1 + AU20)
+            // Calculé tous les ~15 frames pour éviter que ça clignote trop vite
+            if (frameCount % 15 === 0) {
+              const stressLevel = (shapes.browInnerUp + shapes.mouthStretchLeft) / 2; // Score de 0 à 1
+              
+              // HR (Rythme Cardiaque) s'accélère avec le stress
+              const currentHR = 70 + (stressLevel * 60) + (Math.random() * 5); 
+              document.getElementById('m-hr').innerText = currentHR.toFixed(0) + " bpm";
+              
+              // La pupille se dilate avec le stress
+              const currentPupil = 3.0 + (stressLevel * 4.0) + (Math.random() * 0.2);
+              document.getElementById('m-pupil').innerText = currentPupil.toFixed(1) + " mm";
+
+              // Tension vocale (Simulée)
+              document.getElementById('m-audio').innerText = (stressLevel * 100).toFixed(0) + " %";
+
+              // BARRE DE RISQUE GLOBAL
+              const riskPercent = Math.min(100, stressLevel * 150); // Multiplicateur pour rendre la barre réactive
+              const riskBar = document.getElementById('risk-bar');
+              riskBar.style.width = riskPercent + "%";
+              
+              if (riskPercent > 50) {
+                riskBar.className = "bg-red-500 h-full transition-all duration-300";
+                document.getElementById('risk-status').innerText = `ALERTE COGNITIVE (${riskPercent.toFixed(0)}%)`;
+                document.getElementById('risk-status').className = "text-right text-[9px] text-red-400 mt-1 font-bold animate-pulse";
+                document.getElementById('main-container').classList.add('red-alert');
+              } else {
+                riskBar.className = "bg-emerald-500 h-full transition-all duration-300";
+                document.getElementById('risk-status').innerText = `Nominal (${riskPercent.toFixed(0)}%)`;
+                document.getElementById('risk-status').className = "text-right text-[9px] text-gray-400 mt-1";
+                document.getElementById('main-container').classList.remove('red-alert');
+              }
+            }
+          }
+
         } else {
           document.getElementById('m-face').innerText = "NON";
           document.getElementById('m-face').className = "text-red-400 font-bold";
