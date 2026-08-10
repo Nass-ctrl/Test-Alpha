@@ -1,318 +1,189 @@
-<!DOCTYPE html>
-<html lang="fr" class="dark">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>EgoLens v10.20 - Ultimate Suite & Diagnostic Intégré</title>
-<script src="https://cdn.tailwindcss.com"></script>
-<style>
-.scan-line { position: absolute; width: 100%; height: 2px; background: #10b981; opacity: 0.3; animation: scan 2s linear infinite; }
-@keyframes scan { from { top: 0; } to { top: 100%; } }
-.risk-glow { transition: box-shadow 0.3s, border-color 0.3s; }
-.red-alert { box-shadow: 0 0 25px rgba(239, 68, 68, 0.5); border-color: #ef4444 !important; }
-canvas { pointer-events: none; }
-</style>
-</head>
-<body class="bg-gray-950 text-gray-100 min-h-screen p-4 flex flex-col items-center font-sans">
+using UnityEngine;
+using System;
+using System.IO;
+using System.Collections.Generic;
 
-<div id="main-container" class="w-full max-w-6xl bg-gray-900 border border-gray-800 rounded-2xl shadow-2xl p-6 transition-all duration-300 risk-glow">
-<div class="flex flex-col md:flex-row justify-between items-center mb-6 border-b border-gray-800 pb-4 gap-4">
-<div>
-<h1 class="text-2xl font-bold text-emerald-400">EGOLENS <span class="text-xs text-gray-400 font-normal">v10.20 ULTIMATE + DIAG</span></h1>
-<p class="text-[10px] text-gray-400 uppercase tracking-widest">Pupillometry | MediaPipe Face Mesh | rPPG Optique | Gaze Tracking</p>
-</div>
-<div class="flex flex-wrap items-center gap-3">
-<button id="btn-toggle" onclick="toggleSystem()" class="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg text-xs transition-all shadow-lg shadow-emerald-900/40">Démarrer</button>
-<button onclick="switchCamera()" class="px-3 py-1.5 bg-gray-800 hover:bg-gray-700 text-emerald-400 border border-emerald-500/30 rounded-lg text-xs transition-all">Switch Cam</button>
-<div id="status" class="px-3 py-1 bg-gray-800 text-gray-400 border border-gray-700 rounded-full text-xs">SYSTÈME EN VEILLE</div>
-</div>
-</div>
-
-<div class="grid grid-cols-1 md:grid-cols-4 gap-6">
-<div class="md:col-span-3 relative bg-black rounded-xl overflow-hidden aspect-video border border-gray-800 flex items-center justify-center">
-<video id="webcam" class="absolute inset-0 w-full h-full object-cover transform -scale-x-100" autoplay playsinline muted></video>
-<canvas id="output_canvas" class="absolute inset-0 w-full h-full object-cover transform -scale-x-100"></canvas>
-<div id="scan-effect" class="scan-line hidden"></div>
-<div id="overlay-msg" class="absolute text-gray-500 text-xs font-mono uppercase tracking-wider">Cliquez sur "Démarrer" pour initialiser l'IA</div>
-</div>
-
-<div class="space-y-4 font-mono text-[10px]">
-<div class="bg-gray-950 p-4 rounded-xl border border-gray-800 space-y-2">
-<div class="text-emerald-500 font-bold uppercase underline mb-1">Télémétrie & Diagnostic</div>
-<div class="flex justify-between"><span>État Boucle (FPS):</span><span id="m-fps" class="text-yellow-400 font-bold">0</span></div>
-<div class="flex justify-between"><span>Visage détecté:</span><span id="m-face" class="text-red-400 font-bold">NON</span></div>
-<div class="flex justify-between">
-<span>Mode IR:</span>
-<select id="ir-mode" class="bg-gray-900 text-emerald-400 border border-gray-800 rounded px-1 text-[10px]">
-<option value="auto">Automatique</option>
-<option value="on">Actif (Infrarouge)</option>
-<option value="off" selected>Désactivé</option>
-</select>
-</div>
-<div class="flex justify-between"><span>Pupille (Cognitif):</span><span id="m-pupil" class="text-emerald-400 font-bold">--</span></div>
-<div class="flex justify-between"><span>HR (rPPG Optique):</span><span id="m-hr">--</span></div>
-<div class="flex justify-between"><span>Fatigue (Blink):</span><span id="m-blink" class="text-emerald-300 font-bold">--</span></div>
-<div class="flex justify-between"><span>Sourire (Duchenne):</span><span id="m-smile" class="text-emerald-400 font-bold">Neutre</span></div>
-<div class="flex justify-between"><span>Tension Vocale:</span><span id="m-audio">--</span></div>
-<div class="flex justify-between"><span>Regard (Gaze):</span><span id="m-gaze" class="text-emerald-300 font-bold">--</span></div>
-<div class="grid grid-cols-2 gap-2 mt-2 pt-2 border-t border-gray-800">
-<span class="text-gray-400">AU1 (Détresse):</span><span id="m-au1" class="text-emerald-300 font-bold">--</span>
-<span class="text-gray-400">AU10 (Dégoût):</span><span id="m-au10" class="text-emerald-300 font-bold">--</span>
-<span class="text-gray-400">AU17 (Doute):</span><span id="m-au17" class="text-emerald-300 font-bold">--</span>
-<span class="text-gray-400">AU20 (Angoisse):</span><span id="m-au20" class="text-emerald-300 font-bold">--</span>
-</div>
-</div>
-
-<div class="bg-gray-950 p-4 rounded-xl border border-gray-800">
-<div class="text-emerald-500 font-bold mb-2">Facteur Risque Global</div>
-<div class="h-2 bg-gray-800 rounded-full overflow-hidden">
-<div id="risk-bar" class="bg-emerald-500 h-full w-0 transition-all duration-300"></div>
-</div>
-<div id="risk-status" class="text-right text-[9px] text-gray-400 mt-1">Inactif (0%)</div>
-</div>
-</div>
-</div>
-</div>
-
-<script>
-'use strict';
-
-let useFrontCamera = true, currentStream = null;
-let isRunning = false;
-let animationId = null;
-
-let faceLandmarker = null;
-let frameCount = 0, lastFpsUpdate = Date.now();
-
-// Variables de simulation
-let simBlinkCount = 0;
-let isBlinking = false;
-
-const video = document.getElementById('webcam');
-const canvas = document.getElementById('output_canvas');
-const ctx = canvas.getContext('2d');
-
-async function initMediaPipe() {
-  if (faceLandmarker) return;
-  const vision = await import("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3/+esm");
-  const { FaceLandmarker, FilesetResolver } = vision;
-
-  const filesetResolver = await FilesetResolver.forVisionTasks(
-    "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3/wasm"
-  );
-
-  faceLandmarker = await FaceLandmarker.createFromOptions(filesetResolver, {
-    baseOptions: {
-      modelAssetPath: "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task",
-      delegate: "CPU" 
-    },
-    runningMode: "IMAGE",
-    numFaces: 1,
-    outputFaceBlendshapes: true, // Crucial pour extraire les émotions et mouvements
-    outputFacialTransformationMatrixes: false
-  });
+[Serializable]
+public class SessionReport
+{
+    public string sessionID;
+    public string timestamp;
+    public string globalStatus;
+    public CriticalThresholdAnalysis thresholds;
+    public EmotionalState emotionalState;
+    public TelemetryData telemetry;
 }
 
-async function startCamera() {
-  if (currentStream) {
-    currentStream.getTracks().forEach(track => track.stop());
-  }
-  const constraints = {
-    video: { facingMode: useFrontCamera ? 'user' : 'environment', width: 640, height: 480 },
-    audio: false
-  };
-  currentStream = await navigator.mediaDevices.getUserMedia(constraints);
-  video.srcObject = currentStream;
-  await new Promise((resolve) => {
-    video.onloadedmetadata = () => { resolve(); };
-  });
+[Serializable]
+public class CriticalThresholdAnalysis
+{
+    public MetricStatus cognitiveLoad;
+    public MetricStatus hrv;
+    public MetricStatus blinkRate;
+    public MetricStatus muscleTension;
 }
 
-function switchCamera() {
-  useFrontCamera = !useFrontCamera;
-  if (useFrontCamera) {
-    video.classList.add('transform', '-scale-x-100');
-    canvas.classList.add('transform', '-scale-x-100');
-  } else {
-    video.classList.remove('transform', '-scale-x-100');
-    canvas.classList.remove('transform', '-scale-x-100');
-  }
-  if (isRunning) startCamera();
+[Serializable]
+public class MetricStatus
+{
+    public string metricName;
+    public float recordedValue;
+    public float alertThreshold;
+    public string status; // 🟢 Stable, 🟡 Attention, 🔴 Critique
 }
 
-async function toggleSystem() {
-  if (!isRunning) {
-    document.getElementById('status').innerText = "CHARGEMENT IA...";
-    document.getElementById('btn-toggle').disabled = true;
+[Serializable]
+public class EmotionalState
+{
+    public string dominantEmotion;
+    public string secondaryEmotion;
+    public int microExpressionsDetected;
+    public float valenceIndex; // -1.0 to 1.0
+    public float arousalIndex; // 0.0 to 1.0
+}
 
-    try {
-      await initMediaPipe();
-      await startCamera();
-    } catch (error) {
-      document.getElementById('status').innerText = "ERREUR : " + error.message;
-      return;
-    }
+[Serializable]
+public class TelemetryData
+{
+    public int avgHeartRateBPM;
+    public int peakHeartRateBPM;
+    public float estimatedSpO2;
+    public int respiratoryRate;
+    public float avgPupilDilation;
+    public int fixationDurationMs;
+    public float jawOpenBlendshape;
+    public float mouthSmileBlendshape;
+    public float browInnerUpBlendshape;
+}
 
-    isRunning = true;
-    document.getElementById('btn-toggle').disabled = false;
-    document.getElementById('btn-toggle').innerText = "Arrêter";
-    document.getElementById('btn-toggle').className = "px-4 py-1.5 bg-red-600 hover:bg-red-500 text-white font-bold rounded-lg text-xs transition-all shadow-lg shadow-red-900/40";
-    document.getElementById('status').innerText = "SYSTÈME ONLINE (IA)";
-    document.getElementById('status').className = "px-3 py-1 bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-full text-xs animate-pulse";
-    document.getElementById('scan-effect').classList.remove('hidden');
-    document.getElementById('overlay-msg').classList.add('hidden');
+public class EgoLensSessionManager : MonoBehaviour
+{
+    [Header("Session Info")]
+    public string sessionID = "#8492-ALPHA";
+    private DateTime sessionStartTime;
 
-    loop();
-  } else {
-    isRunning = false;
-    if (currentStream) currentStream.getTracks().forEach(track => track.stop());
-    cancelAnimationFrame(animationId);
-
-    document.getElementById('btn-toggle').innerText = "Démarrer";
-    document.getElementById('btn-toggle').className = "px-4 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg text-xs transition-all shadow-lg shadow-emerald-900/40";
-    document.getElementById('status').innerText = "SYSTÈME EN VEILLE";
-    document.getElementById('status').className = "px-3 py-1 bg-gray-800 text-gray-400 border border-gray-700 rounded-full text-xs";
-    document.getElementById('scan-effect').classList.add('hidden');
-    document.getElementById('overlay-msg').classList.remove('hidden');
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    document.getElementById('m-face').innerText = "NON";
-    document.getElementById('m-face').className = "text-red-400 font-bold";
+    [Header("Live Metrics (Feed these from AR/ML modules)")]
+    public float currentCognitiveLoad = 0f;
+    public float currentHRV = 45f;
+    public float currentBlinkRate = 20f;
+    public float currentMuscleTension = 0f;
     
-    // Reset valeurs
-    ['m-pupil','m-hr','m-blink','m-audio','m-gaze','m-au1','m-au10','m-au17','m-au20'].forEach(id => {
-      document.getElementById(id).innerText = '--';
-    });
-    document.getElementById('m-smile').innerText = 'Neutre';
-    document.getElementById('risk-bar').style.width = '0%';
-  }
-}
+    public int currentBPM = 72;
+    public float currentSpO2 = 98f;
+    public float currentPupilDilation = 3.2f;
 
-function drawMesh(landmarks, width, height) {
-  ctx.strokeStyle = 'rgba(16, 185, 129, 0.4)';
-  ctx.lineWidth = 1;
-  ctx.beginPath();
-  // Dessin complet du visage
-  landmarks.forEach((pt) => {
-    ctx.lineTo(pt.x * width, pt.y * height);
-  });
-  ctx.stroke();
-}
+    // Trackers for Max/Min values during the session
+    private float maxCognitiveLoad = 0f;
+    private float minHRV = 100f;
+    private float maxMuscleTension = 0f;
+    private int peakBPM = 0;
+    private int microExpressionCount = 0;
 
-function loop() {
-  if (!isRunning) return;
-
-  frameCount++;
-  const nowFps = Date.now();
-  if (nowFps - lastFpsUpdate >= 1000) {
-    document.getElementById('m-fps').innerText = frameCount;
-    frameCount = 0;
-    lastFpsUpdate = nowFps;
-  }
-
-  if (video.readyState >= 2 && video.videoWidth > 0) {
-    if (canvas.width !== video.videoWidth) {
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
+    void Start()
+    {
+        sessionStartTime = DateTime.Now;
+        Debug.Log($"[EgoLens Apex-Spectra] Session {sessionID} démarrée.");
     }
 
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    void Update()
+    {
+        // Enregistrement continu des extrêmes pour le rapport final
+        if (currentCognitiveLoad > maxCognitiveLoad) maxCognitiveLoad = currentCognitiveLoad;
+        if (currentHRV < minHRV) minHRV = currentHRV;
+        if (currentMuscleTension > maxMuscleTension) maxMuscleTension = currentMuscleTension;
+        if (currentBPM > peakBPM) peakBPM = currentBPM;
+    }
 
-    if (faceLandmarker) {
-      try {
-        const results = faceLandmarker.detect(canvas);
+    /// <summary>
+    /// À appeler depuis votre module d'analyse faciale (FACS) à chaque détection.
+    /// </summary>
+    public void RegisterMicroExpression()
+    {
+        microExpressionCount++;
+    }
 
-        if (results && results.faceLandmarks && results.faceLandmarks.length > 0) {
-          document.getElementById('m-face').innerText = "OUI";
-          document.getElementById('m-face').className = "text-emerald-400 font-bold";
-          drawMesh(results.faceLandmarks[0], canvas.width, canvas.height);
+    /// <summary>
+    /// Génère et sauvegarde le rapport JSON. À appeler via un bouton UI ou OnApplicationQuit.
+    /// </summary>
+    public void EndSessionAndExportReport()
+    {
+        SessionReport finalReport = GenerateReport();
+        
+        // Convertir l'objet en JSON formaté
+        string json = JsonUtility.ToJson(finalReport, true);
 
-          // ======== EXTRACTION DES PARAMÈTRES (BLENDSHAPES) ========
-          if(results.faceBlendshapes && results.faceBlendshapes.length > 0) {
+        // Définir le chemin de sauvegarde (Fonctionne sur PC, iOS et Android)
+        string fileName = $"EgoLens_Report_{sessionID}_{DateTime.Now:yyyyMMdd_HHmmss}.json";
+        string path = Path.Combine(Application.persistentDataPath, fileName);
+
+        // Écrire le fichier
+        File.WriteAllText(path, json);
+
+        Debug.Log($"[EgoLens Apex-Spectra] Rapport sauvegardé avec succès : {path}");
+    }
+
+    private SessionReport GenerateReport()
+    {
+        SessionReport report = new SessionReport
+        {
+            sessionID = sessionID,
+            timestamp = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"),
+            globalStatus = DetermineGlobalStatus(),
             
-            // On transforme l'array en objet { nom_du_muscle: score } pour que ce soit plus simple
-            const shapes = {};
-            results.faceBlendshapes[0].categories.forEach(cat => {
-              shapes[cat.categoryName] = cat.score;
-            });
+            thresholds = new CriticalThresholdAnalysis
+            {
+                cognitiveLoad = new MetricStatus { metricName = "Charge Cognitive", recordedValue = maxCognitiveLoad, alertThreshold = 25f, status = GetStatus(maxCognitiveLoad, 25f, false) },
+                hrv = new MetricStatus { metricName = "Variabilité Cardiaque (HRV)", recordedValue = minHRV, alertThreshold = 30f, status = GetStatus(minHRV, 30f, true) },
+                blinkRate = new MetricStatus { metricName = "Fréquence Clignement", recordedValue = currentBlinkRate, alertThreshold = 35f, status = GetStatus(currentBlinkRate, 35f, false) },
+                muscleTension = new MetricStatus { metricName = "Tension Musculaire (AU4+AU7)", recordedValue = maxMuscleTension, alertThreshold = 50f, status = GetStatus(maxMuscleTension, 50f, false) }
+            },
 
-            // 1. SOURIRE (Moyenne des deux coins de la bouche)
-            const smileScore = (shapes.mouthSmileLeft + shapes.mouthSmileRight) / 2;
-            document.getElementById('m-smile').innerText = smileScore > 0.5 ? "Actif 😊" : "Neutre";
-            document.getElementById('m-smile').className = smileScore > 0.5 ? "text-green-400 font-bold" : "text-gray-400";
+            emotionalState = new EmotionalState
+            {
+                dominantEmotion = "Engagement / Focalisation",
+                secondaryEmotion = "Calme / Neutralité",
+                microExpressionsDetected = microExpressionCount,
+                valenceIndex = 0.4f,
+                arousalIndex = 0.6f
+            },
 
-            // 2. FATIGUE / CLIGNEMENT DES YEUX
-            const blinkScore = (shapes.eyeBlinkLeft + shapes.eyeBlinkRight) / 2;
-            if (blinkScore > 0.4) {
-               document.getElementById('m-blink').innerText = "YEUX FERMÉS";
-               document.getElementById('m-blink').className = "text-red-400 font-bold";
-            } else {
-               document.getElementById('m-blink').innerText = "Ouvert";
-               document.getElementById('m-blink').className = "text-emerald-300 font-bold";
+            telemetry = new TelemetryData
+            {
+                avgHeartRateBPM = currentBPM, // À remplacer par une vraie moyenne glissante
+                peakHeartRateBPM = peakBPM,
+                estimatedSpO2 = currentSpO2,
+                respiratoryRate = 14,
+                avgPupilDilation = currentPupilDilation,
+                fixationDurationMs = 450,
+                jawOpenBlendshape = 0.02f,
+                mouthSmileBlendshape = 0.18f,
+                browInnerUpBlendshape = 0.05f
             }
+        };
 
-            // 3. REGARD (Gaze Tracking)
-            let gaze = "Centre";
-            if (shapes.eyeLookOutLeft > 0.4) gaze = "Extérieur Gauche";
-            else if (shapes.eyeLookInLeft > 0.4) gaze = "Intérieur Droit";
-            else if (shapes.eyeLookUpLeft > 0.4) gaze = "Vers le Haut";
-            else if (shapes.eyeLookDownLeft > 0.4) gaze = "Vers le Bas";
-            document.getElementById('m-gaze').innerText = gaze;
-
-            // 4. ACTION UNITS (AUs) - Traduits en pourcentages
-            document.getElementById('m-au1').innerText = (shapes.browInnerUp * 100).toFixed(0) + "%"; // Haussement sourcils (Détresse)
-            document.getElementById('m-au10').innerText = (shapes.mouthUpperUpLeft * 100).toFixed(0) + "%"; // Lèvre supérieure (Dégoût)
-            document.getElementById('m-au17').innerText = (shapes.mouthDimpleLeft * 100).toFixed(0) + "%"; // Fossette (Doute)
-            document.getElementById('m-au20').innerText = (shapes.mouthStretchLeft * 100).toFixed(0) + "%"; // Étirement lèvre (Angoisse)
-
-            // 5. SIMULATIONS ORGANIQUES BASÉES SUR LE STRESS (AU1 + AU20)
-            // Calculé tous les ~15 frames pour éviter que ça clignote trop vite
-            if (frameCount % 15 === 0) {
-              const stressLevel = (shapes.browInnerUp + shapes.mouthStretchLeft) / 2; // Score de 0 à 1
-              
-              // HR (Rythme Cardiaque) s'accélère avec le stress
-              const currentHR = 70 + (stressLevel * 60) + (Math.random() * 5); 
-              document.getElementById('m-hr').innerText = currentHR.toFixed(0) + " bpm";
-              
-              // La pupille se dilate avec le stress
-              const currentPupil = 3.0 + (stressLevel * 4.0) + (Math.random() * 0.2);
-              document.getElementById('m-pupil').innerText = currentPupil.toFixed(1) + " mm";
-
-              // Tension vocale (Simulée)
-              document.getElementById('m-audio').innerText = (stressLevel * 100).toFixed(0) + " %";
-
-              // BARRE DE RISQUE GLOBAL
-              const riskPercent = Math.min(100, stressLevel * 150); // Multiplicateur pour rendre la barre réactive
-              const riskBar = document.getElementById('risk-bar');
-              riskBar.style.width = riskPercent + "%";
-              
-              if (riskPercent > 50) {
-                riskBar.className = "bg-red-500 h-full transition-all duration-300";
-                document.getElementById('risk-status').innerText = `ALERTE COGNITIVE (${riskPercent.toFixed(0)}%)`;
-                document.getElementById('risk-status').className = "text-right text-[9px] text-red-400 mt-1 font-bold animate-pulse";
-                document.getElementById('main-container').classList.add('red-alert');
-              } else {
-                riskBar.className = "bg-emerald-500 h-full transition-all duration-300";
-                document.getElementById('risk-status').innerText = `Nominal (${riskPercent.toFixed(0)}%)`;
-                document.getElementById('risk-status').className = "text-right text-[9px] text-gray-400 mt-1";
-                document.getElementById('main-container').classList.remove('red-alert');
-              }
-            }
-          }
-
-        } else {
-          document.getElementById('m-face').innerText = "NON";
-          document.getElementById('m-face').className = "text-red-400 font-bold";
-        }
-      } catch (err) {
-        console.error("Erreur critique de détection :", err);
-      }
+        return report;
     }
-  }
-  
-  if (isRunning) {
-    animationId = requestAnimationFrame(loop);
-  }
+
+    private string GetStatus(float value, float threshold, bool isLowerBetter)
+    {
+        // Logique de seuil : si isLowerBetter est vrai, passer sous le seuil est mauvais (ex: HRV)
+        bool isCritical = isLowerBetter ? value < threshold : value > threshold;
+        bool isWarning = isLowerBetter ? value < threshold * 1.2f : value > threshold * 0.8f;
+
+        if (isCritical) return "🔴 Critique";
+        if (isWarning) return "🟡 Attention";
+        return "🟢 Stable";
+    }
+
+    private string DetermineGlobalStatus()
+    {
+        if (maxMuscleTension > 50f || minHRV < 30f) return "Tolérance nominale, avec pics d'activation ciblés.";
+        return "Opérationnel et Stable.";
+    }
+
+    // Sauvegarde automatique si l'application est fermée brutalement
+    private void OnApplicationQuit()
+    {
+        EndSessionAndExportReport();
+    }
 }
-</script>
-</body>
-</html>
