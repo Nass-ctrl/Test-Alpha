@@ -2,7 +2,7 @@
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
-<title>EgoLens Apex Spectra x Spectrum - Full Industrial Suite (v24.03 Instant Cache)</title>
+<title>EgoLens Apex Spectra x Spectrum - Full Industrial Suite (v24.03)</title>
 <style>
 body { margin: 0; background: #020617; color: #f8fafc; font-family: monospace; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; overflow: hidden; }
 #viewfinder { position: relative; width: 1280px; height: 720px; max-width: 95vw; max-height: 75vh; border-radius: 10px; overflow: hidden; border: 1px solid #334155; background: #000; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.9); }
@@ -35,12 +35,12 @@ button:disabled { background: #475569; cursor: not-allowed; color: #94a3b8; }
 
 <!-- CALIBRAGE INITIAL -->
 <div id="calibration-overlay">
-<h2 style="color: #38bdf8; margin-bottom: 10px;">APEX SPECTRA x SPECTRUM // v24.03 INSTANT</h2>
+<h2 style="color: #38bdf8; margin-bottom: 10px;">APEX SPECTRA x SPECTRUM // v24.03</h2>
 <p style="color: #94a3b8; max-width: 520px; font-size: 11px; margin-bottom: 20px;">
-Chargement intelligent : Utilisation du cache local (IndexedDB) pour un démarrage instantané.<br><br>
-<span id="loading-indicator" style="color: #f43f5e;">VÉRIFICATION DU CACHE LOCAL DES MODÈLES...</span>
+Initialisation des modèles de vision et des flux biométriques.<br><br>
+<span id="loading-indicator" style="color: #f43f5e;">CHARGEMENT DES MODÈLES MEDIAPIPE EN COURS...</span>
 </p>
-<button id="btn-start" onclick="startCalibration()" style="padding: 8px 16px; font-size: 10px;" disabled>LANCER LE PIPELINE INSTANTANÉ</button>
+<button id="btn-start" onclick="startCalibration()" style="padding: 8px 16px; font-size: 10px;" disabled>LANCER LE PIPELINE</button>
 </div> 
 
 <!-- HUD GAUCHE -->
@@ -94,68 +94,7 @@ Chargement intelligent : Utilisation du cache local (IndexedDB) pour un démarra
 </div> 
 
 <script>
-// --- GESTIONNAIRE DE CACHE INDEXEDDB (Stockage persistant des modèles IA) ---
-const MODEL_CACHE_DB = "EgoLensModelCache";
-const STORE_NAME = "models";
-
-function openCacheDB() {
-    return new Promise((resolve, reject) => {
-        const request = indexedDB.open(MODEL_CACHE_DB, 1);
-        request.onupgradeneeded = (e) => {
-            const db = e.target.result;
-            if (!db.objectStoreNames.contains(STORE_NAME)) {
-                db.createObjectStore(STORE_NAME);
-            }
-        };
-        request.onsuccess = (e) => resolve(e.target.result);
-        request.onerror = (e) => reject(e.target.error);
-    });
-}
-
-async function getCachedModelBuffer(url) {
-    try {
-        const db = await openCacheDB();
-        return new Promise((resolve) => {
-            const tx = db.transaction(STORE_NAME, "readonly");
-            const store = tx.objectStore(STORE_NAME);
-            const req = store.get(url);
-            req.onsuccess = () => resolve(req.result || null);
-            req.onerror = () => resolve(null);
-        });
-    } catch {
-        return null;
-    }
-}
-
-async function cacheModelBuffer(url, buffer) {
-    try {
-        const db = await openCacheDB();
-        const tx = db.transaction(STORE_NAME, "readwrite");
-        const store = tx.objectStore(STORE_NAME);
-        store.put(buffer, url);
-    } catch (e) {
-        console.warn("Impossible de mettre en cache localement :", e);
-    }
-}
-
-// Fonction utilitaire fetch avec mise en cache transparente
-async function fetchModelWithCache(url, onProgress) {
-    const cached = await getCachedModelBuffer(url);
-    if (cached) {
-        if (onProgress) onProgress(100, true);
-        return cached;
-    }
-
-    if (onProgress) onProgress(10, false);
-    const response = await fetch(url);
-    const buffer = await response.arrayBuffer();
-    await cacheModelBuffer(url, buffer);
-    if (onProgress) onProgress(100, false);
-    return buffer;
-}
-
-
-// --- 1. WORKER VISION OPTIMISÉ AVEC CACHE ---
+// --- 1. WORKER VISION ---
 const visionWorkerCode = `
 importScripts("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.12/vision_bundle.js"); 
 
@@ -163,10 +102,8 @@ let faceLandmarker = null;
 let poseLandmarker = null;
 let isCalibrated = false;
 let blinkCount = 0;
-let lastEyeStateOpen = true;
 let previousAus = null;
 let microSpikeCount = 0;
-let previousIrisCenter = null; 
 let lastTimestampMs = -1;
 
 class KalmanFilter {
@@ -407,21 +344,6 @@ const processingInterval = 33;
 
 async function initSystem() {
     try {
-        // Pré-téléchargement invisible des modèles lourds pour les stocker dans IndexedDB
-        document.getElementById('loading-indicator').textContent = "VÉRIFICATION DU CACHE LOCAL...";
-        
-        await fetchModelWithCache("https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task", (p, cached) => {
-            if (cached) {
-                console.log("[EgoLens] Modèle Face Mesh récupéré instantanément depuis le cache local !");
-            }
-        });
-
-        await fetchModelWithCache("https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task", (p, cached) => {
-            if (cached) {
-                console.log("[EgoLens] Modèle Pose récupéré instantanément depuis le cache local !");
-            }
-        });
-
         const stream = await navigator.mediaDevices.getUserMedia({
             video: { width: 1280, height: 720, frameRate: { ideal: 60 }, facingMode: "user" },
             audio: true
@@ -451,6 +373,7 @@ async function initSystem() {
         };
     } catch (err) {
         console.error("Erreur d'accès aux flux média :", err);
+        document.getElementById('loading-indicator').textContent = "ERREUR D'ACCÈS CAMÉRA/MICRO";
     }
 } 
 
@@ -465,11 +388,13 @@ function startCalibration() {
 visionWorker.onmessage = (e) => {
     if (e.data.type === 'READY') {
         isModelsLoaded = true;
-        document.getElementById('st-status').textContent = "PRÊT (CACHÉ LOCAL)";
+        document.getElementById('st-status').textContent = "PRÊT";
         document.getElementById('st-status').className = "val-ok";
         document.getElementById('loading-indicator').style.color = "#10b981";
-        document.getElementById('loading-indicator').textContent = "MODÈLES CHARGÉS DEPUIS LE CACHE (INSTANTANÉ).";
+        document.getElementById('loading-indicator').textContent = "MODÈLES CHARGÉS AVEC SUCCÈS.";
         document.getElementById('btn-start').disabled = false;
+    } else if (e.data.type === 'ERROR') {
+        document.getElementById('loading-indicator').textContent = "ERREUR DE CHARGEMENT : " + e.data.message;
     } else if (e.data.type === 'RESULT') {
         currentMetrics = e.data.data;
         const au = currentMetrics.aus || {}; 
