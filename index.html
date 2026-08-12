@@ -614,6 +614,7 @@ console.warn("MediaPipe FaceMesh non chargé, chargement différé...");
 setTimeout(initFaceMeshEngine, 500);
 return;
 }
+try {
 faceMesh = new FaceMesh({
 locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`
 });
@@ -627,6 +628,9 @@ minTrackingConfidence: 0.5
 
 faceMesh.onResults(onFaceMeshResults);
 console.log("Moteur MediaPipe FaceMesh initialisé.");
+} catch (e) {
+console.error("Erreur d'initialisation de FaceMesh:", e);
+}
 }
 
 function extractRobustrPPG(videoEl, landmarks) {
@@ -750,7 +754,11 @@ canvasCtx.restore();
 async function processVideoFrame() {
 if (!isRunning) return;
 if (videoElement.readyState >= 2 && faceMesh) {
+try {
 await faceMesh.send({ image: videoElement });
+} catch (err) {
+// Ignore les erreurs de frame isolées pour ne pas stopper la boucle
+}
 }
 requestAnimationFrame(processVideoFrame);
 }
@@ -811,22 +819,42 @@ const btnToggleInfrared = document.getElementById('btn-toggle-infrared');
 
 async function startCameraStream() {
 try {
+if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+throw new Error("L'API MediaDevices n'est pas supportée par votre navigateur ou contexte sécurisé manquant (HTTPS / localhost requis).");
+}
+
 if (videoElement.srcObject) {
 videoElement.srcObject.getTracks().forEach(track => track.stop());
 }
-const constraints = {
+
+let stream;
+try {
+// Tentative avec vidéo et audio
+stream = await navigator.mediaDevices.getUserMedia({
 video: { width: 1280, height: 720, facingMode: currentFacingMode },
 audio: true
-};
-const stream = await navigator.mediaDevices.getUserMedia(constraints);
+});
+} catch (audioErr) {
+console.warn("Accès micro refusé ou indisponible, tentative vidéo seule...", audioErr);
+// Fallback vidéo seule si le micro pose problème
+stream = await navigator.mediaDevices.getUserMedia({
+video: { width: 1280, height: 720, facingMode: currentFacingMode },
+audio: false
+});
+}
+
 videoElement.srcObject = stream;
 await videoElement.play();
 
+if (stream.getAudioTracks().length > 0) {
 initAudioProsodyAnalysis(stream);
+}
 initFaceMeshEngine();
+return true;
 } catch (err) {
-console.error("Erreur d'accès aux périphériques:", err);
-alert("Impossible d'accéder à la webcam ou au micro.");
+console.error("Erreur critique d'accès aux périphériques:", err);
+alert("Impossible d'accéder à la webcam. Vérifiez que vous êtes sur localhost ou HTTPS et que vous avez autorisé l'accès à la caméra.\nDétails: " + err.message);
+return false;
 }
 }
 
@@ -856,7 +884,9 @@ btnToggleInfrared.classList.remove('bg-amber-600/30', 'border-amber-500');
 });
 
 btnStart.addEventListener('click', async () => {
-await startCameraStream();
+const success = await startCameraStream();
+if (!success) return;
+
 isRunning = true;
 startTimer();
 requestAnimationFrame(processVideoFrame);
