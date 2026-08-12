@@ -829,14 +829,12 @@ videoElement.srcObject.getTracks().forEach(track => track.stop());
 
 let stream;
 try {
-// Tentative avec vidéo et audio
 stream = await navigator.mediaDevices.getUserMedia({
 video: { width: 1280, height: 720, facingMode: currentFacingMode },
 audio: true
 });
 } catch (audioErr) {
 console.warn("Accès micro refusé ou indisponible, tentative vidéo seule...", audioErr);
-// Fallback vidéo seule si le micro pose problème
 stream = await navigator.mediaDevices.getUserMedia({
 video: { width: 1280, height: 720, facingMode: currentFacingMode },
 audio: false
