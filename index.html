@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>EgoLens v16.07 - Advanced Biometric Telemetry & FACS Analysis</title>
+<title>EgoLens v16.08 - Advanced Biometric Telemetry & FACS Analysis</title>
 <!-- Tailwind CSS CDN -->
 <script src="https://cdn.tailwindcss.com"></script>
 <script>
@@ -53,7 +53,7 @@ success: '#10b981'
 <i class="fa-solid fa-brain text-xl"></i>
 </div>
 <div>
-<h1 class="font-bold text-lg tracking-wider">EGOLENS <span class="text-xs bg-blue-900 text-blue-300 px-2 py-0.5 rounded ml-2">v16.07 PROD</span></h1>
+<h1 class="font-bold text-lg tracking-wider">EGOLENS <span class="text-xs bg-blue-900 text-blue-300 px-2 py-0.5 rounded ml-2">v16.08 PROD</span></h1>
 <p class="text-xs text-slate-400">Multi-modal Biometric Telemetry & FACS Analysis Engine</p>
 </div>
 </div>
@@ -61,8 +61,12 @@ success: '#10b981'
 <div id="session-timer" class="text-sm font-mono bg-slate-900 px-3 py-1.5 rounded border border-slate-800">
 <i class="fa-regular fa-clock text-blue-400 mr-2"></i>00:00:00
 </div>
+<!-- NOUVEAU BOUTON : Toggle Maillage -->
+<button id="btn-toggle-mesh" class="bg-slate-800 hover:bg-slate-700 text-xs px-3 py-2 rounded font-medium transition flex items-center space-x-2">
+<i class="fa-solid fa-draw-polygon"></i><span>Maillage AR</span>
+</button>
 <button id="btn-toggle-hud" class="bg-slate-800 hover:bg-slate-700 text-xs px-3 py-2 rounded font-medium transition flex items-center space-x-2">
-<i class="fa-solid fa-eye"></i><span>HUD AR</span>
+<i class="fa-solid fa-eye"></i><span>HUD 3D</span>
 </button>
 <button id="btn-export-report" class="bg-blue-600 hover:bg-blue-500 text-xs px-4 py-2 rounded font-medium transition flex items-center space-x-2 shadow-lg shadow-blue-600/20">
 <i class="fa-solid fa-file-pdf"></i><span>Générer Rapport</span>
@@ -198,7 +202,7 @@ success: '#10b981'
 </div>
 <div>
 <h2 class="font-bold text-sm tracking-wider">RAPPORT DE SYNTHÈSE SINGULARITY V16</h2>
-<p class="text-[11px] text-slate-400" id="report-id-sub">ID : #9921-V16.07 | INDUSTRIAL AUDIT LAB</p>
+<p class="text-[11px] text-slate-400" id="report-id-sub">ID : #9921-V16.08 | INDUSTRIAL AUDIT LAB</p>
 </div>
 </div>
 <button id="btn-close-modal" class="text-slate-400 hover:text-white transition p-2">
@@ -206,7 +210,6 @@ success: '#10b981'
 </button>
 </div>
 
-<!-- Contenu simulé du rapport -->
 <div class="p-6 flex-1 overflow-y-auto space-y-6 text-xs font-mono">
 <div class="grid grid-cols-2 gap-4 bg-slate-900/50 p-4 rounded-xl border border-slate-800">
 <div><span class="text-slate-400">Durée de l'analyse :</span> <span id="rep-duration" class="text-white font-bold">03m 42s</span></div>
@@ -351,6 +354,7 @@ return Math.min(100, Math.max(0, score));
 
 let faceMesh = null, rppgBuffer = [];
 let lastBlinkTime = Date.now(), blinkCount = 0;
+let meshVisible = true; // NOUVEAU : Contrôle de la visibilité du maillage
 
 function initFaceMeshEngine() {
 if (typeof FaceMesh === 'undefined') {
@@ -362,9 +366,6 @@ faceMesh.setOptions({ maxNumFaces: 1, refineLandmarks: true, minDetectionConfide
 faceMesh.onResults(onFaceMeshResults);
 }
 
-// =========================================================================
-// ALGORITHME rPPG ROBUSTE (ROI DYNAMIQUE SUR LE FRONT)
-// =========================================================================
 function extractRobustrPPG(videoEl, landmarks) {
 if (!videoEl || videoEl.paused || videoEl.ended || !landmarks) return null;
 try {
@@ -372,7 +373,6 @@ const offCanvas = document.createElement('canvas');
 offCanvas.width = 64; offCanvas.height = 64;
 const offCtx = offCanvas.getContext('2d');
 
-// Repères MediaPipe du front: 10 (haut), 9 (nez), 67 (gauche), 297 (droite)
 const pts = [landmarks[10], landmarks[9], landmarks[67], landmarks[297]];
 let minX = Math.max(0, Math.min(...pts.map(p => p.x)));
 let maxX = Math.min(1, Math.max(...pts.map(p => p.x)));
@@ -384,7 +384,6 @@ const vh = videoEl.videoHeight;
 const x = minX * vw; const y = minY * vh;
 const w = (maxX - minX) * vw; const h = (maxY - minY) * vh;
 
-// Si la zone est trop petite on sécurise le flux
 if (w < 10 || h < 10) return 74;
 
 offCtx.drawImage(videoEl, x, y, w, h, 0, 0, 64, 64);
@@ -423,21 +422,18 @@ const landmarks = results.multiFaceLandmarks[0];
 document.getElementById('face-detected').className = 'text-emerald-400 font-bold';
 document.getElementById('face-detected').innerText = 'OUI';
 
-// Dessin UI
+// NOUVEAU : Dessin conditionnel du maillage MediaPipe
+if (meshVisible) {
 drawConnectors(canvasCtx, landmarks, FACEMESH_TESSELATION, { color: 'rgba(59, 130, 246, 0.15)', lineWidth: 0.5 });
 drawConnectors(canvasCtx, landmarks, FACEMESH_RIGHT_EYE, { color: '#3b82f6', lineWidth: 1 });
 drawConnectors(canvasCtx, landmarks, FACEMESH_LEFT_EYE, { color: '#3b82f6', lineWidth: 1 });
 drawConnectors(canvasCtx, landmarks, FACEMESH_LIPS, { color: '#10b981', lineWidth: 1 });
+}
 
 const noseTip = landmarks[1];
 document.getElementById('m-gaze').innerText = `[X:${((noseTip.x - 0.5) * 20).toFixed(1)}, Y:${((noseTip.y - 0.5) * 20).toFixed(1)}]`;
 
-// =========================================================================
-// FACS REEL TEMPS (Action Units - Scale-Invariant)
-// =========================================================================
-// Largeur de référence du visage (entre les oreilles) pour rendre les calculs indépendants de la distance caméra
 const faceWidth = Math.abs(landmarks[454].x - landmarks[234].x) || 0.1;
-
 const leftLip = landmarks[61];
 const rightLip = landmarks[291];
 const upperLip = landmarks[13];
@@ -445,7 +441,6 @@ const lowerLip = landmarks[14];
 const leftInnerBrow = landmarks[107];
 const rightInnerBrow = landmarks[336];
 
-// Calcul des distances relatives normalisées
 const mouthWidth = Math.hypot(leftLip.x - rightLip.x, leftLip.y - rightLip.y) / faceWidth;
 const mouthOpen = Math.hypot(upperLip.x - lowerLip.x, upperLip.y - lowerLip.y) / faceWidth;
 const browSqueeze = Math.hypot(leftInnerBrow.x - rightInnerBrow.x, leftInnerBrow.y - rightInnerBrow.y) / faceWidth;
@@ -455,23 +450,13 @@ let macro = "Neutre";
 let micro = "Aucune";
 let auList = [];
 
-// Détection de Joie (AU12 - Lip Corner Puller)
-if (mouthWidth > 0.44) {
-macro = "Joie (AU12)";
-auList.push("AU12");
-}
-// Détection Surprise (AU26 - Jaw Drop)
-if (mouthOpen > 0.10) {
-macro = "Surprise / Parole (AU26)";
-auList.push("AU26");
-}
-// Détection Concentration/Colère (AU4 - Brow Lowerer/Squeezer)
+if (mouthWidth > 0.44) { macro = "Joie (AU12)"; auList.push("AU12"); }
+if (mouthOpen > 0.10) { macro = "Surprise / Parole (AU26)"; auList.push("AU26"); }
 if (browSqueeze < 0.28) {
 if (macro === "Neutre") macro = "Concentration (AU4)";
 micro = "Micro-froncement (AU4)";
 auList.push("AU4");
 }
-// Détection Asymétrie (AU14 - Dimpler / Mépris partiel)
 if (parseFloat(lipAsymmetry) > 15 && macro === "Neutre") {
 micro = "Asymétrie labiale (AU14)";
 auList.push("AU14");
@@ -482,7 +467,6 @@ document.getElementById('m-micro-name').innerText = micro;
 document.getElementById('m-au').innerText = auList.length > 0 ? auList.join(", ") : "--";
 document.getElementById('m-asymmetry').innerText = Math.min(100, lipAsymmetry) + '%';
 
-// Extraction rPPG dynamique avec landmarks
 const calculatedHR = extractRobustrPPG(videoElement, landmarks);
 if (calculatedHR) {
 document.getElementById('m-hr').innerText = calculatedHR + ' bpm';
@@ -574,6 +558,29 @@ if (videoElement.srcObject) videoElement.srcObject.getTracks().forEach(t => t.st
 document.getElementById('report-modal').classList.remove('hidden');
 });
 
+// NOUVEAU : Event Listener pour le bouton Maillage AR
+document.getElementById('btn-toggle-mesh').addEventListener('click', function() {
+meshVisible = !meshVisible;
+if(meshVisible) {
+this.classList.remove('opacity-50');
+} else {
+this.classList.add('opacity-50');
+// Effacer le canvas immédiatement si désactivé
+canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+}
+});
+
+let hudVisible = true;
+document.getElementById('btn-toggle-hud').addEventListener('click', function() {
+hudVisible = !hudVisible;
+document.getElementById('three-container').style.display = hudVisible ? 'block' : 'none';
+if(hudVisible) {
+this.classList.remove('opacity-50');
+} else {
+this.classList.add('opacity-50');
+}
+});
+
 function simulateGeneralTelemetry() {
 if (!isRunning) return;
 extractVocalProsody();
@@ -597,11 +604,6 @@ setTimeout(simulateGeneralTelemetry, 1500);
 document.getElementById('btn-export-report').addEventListener('click', () => document.getElementById('report-modal').classList.remove('hidden'));
 document.getElementById('btn-close-modal').addEventListener('click', () => document.getElementById('report-modal').classList.add('hidden'));
 document.getElementById('btn-close-report').addEventListener('click', () => document.getElementById('report-modal').classList.add('hidden'));
-let hudVisible = true;
-document.getElementById('btn-toggle-hud').addEventListener('click', () => {
-hudVisible = !hudVisible;
-document.getElementById('three-container').style.display = hudVisible ? 'block' : 'none';
-});
 </script>
 </body>
 </html>
