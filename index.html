@@ -53,6 +53,10 @@ background: #0a0f1d;
 background: #1f2937;
 border-radius: 4px;
 }
+/* Filtre Infrarouge / Thermographie thermique simulée */
+.filter-infrared {
+filter: hue-rotate(180deg) invert(1) contrast(150%) brightness(90%);
+}
 </style>
 </head>
 <body class="bg-darkbg text-slate-100 font-sans min-h-screen flex flex-col overflow-x-hidden">
@@ -89,7 +93,7 @@ border-radius: 4px;
 <div class="relative bg-panel border border-slate-800 rounded-2xl overflow-hidden flex-1 min-h-[500px] flex items-center justify-center glow-border">
 
 <!-- Vidéo source cachée / traitée -->
-<video id="webcam" class="absolute inset-0 w-full h-full object-cover transform -scale-x-100 opacity-60" autoplay playsinline muted></video>
+<video id="webcam" class="absolute inset-0 w-full h-full object-cover transform -scale-x-100 opacity-60 transition-all duration-300" autoplay playsinline muted></video>
 
 <!-- Canvas pour le Mesh MediaPipe -->
 <canvas id="output_canvas" class="absolute inset-0 w-full h-full object-cover transform -scale-x-100 z-10"></canvas>
@@ -124,6 +128,14 @@ border-radius: 4px;
 </button>
 <button id="btn-stop" class="bg-red-600 hover:bg-red-500 text-white w-10 h-10 rounded-full flex items-center justify-center transition opacity-50 cursor-not-allowed" disabled>
 <i class="fa-solid fa-stop"></i>
+</button>
+<!-- Switch Caméra Ajouté -->
+<button id="btn-switch-camera" title="Changer de caméra" class="bg-slate-800 hover:bg-slate-700 text-slate-300 w-10 h-10 rounded-full flex items-center justify-center transition border border-slate-700">
+<i class="fa-solid fa-camera-rotate"></i>
+</button>
+<!-- Toggle Infrarouge Ajouté -->
+<button id="btn-toggle-infrared" title="Activer / Désactiver Infrarouge" class="bg-slate-800 hover:bg-slate-700 text-slate-300 w-10 h-10 rounded-full flex items-center justify-center transition border border-slate-700">
+<i class="fa-solid fa-fire text-amber-400"></i>
 </button>
 </div>
 </div>
@@ -683,6 +695,8 @@ let isRunning = false;
 let sessionStartTime = null;
 let timerInterval = null;
 let eventCount = 0;
+let currentFacingMode = 'user'; // 'user' (front) ou 'environment' (back)
+let isInfraredActive = false;
 
 const videoElement = document.getElementById('webcam');
 const canvasElement = document.getElementById('output_canvas');
@@ -728,15 +742,60 @@ const btnPause = document.getElementById('btn-pause');
 const btnStop = document.getElementById('btn-stop');
 const statusIndicator = document.getElementById('status-indicator');
 const statusText = document.getElementById('status-text');
+const btnSwitchCamera = document.getElementById('btn-switch-camera');
+const btnToggleInfrared = document.getElementById('btn-toggle-infrared');
 
-btnStart.addEventListener('click', async () => {
+// --- FONCTION DE DEMARRAGE / CHANGEMENT DE FLUX CAMÉRA ---
+async function startCameraStream() {
 try {
-const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 1280, height: 720 }, audio: true });
+if (videoElement.srcObject) {
+videoElement.srcObject.getTracks().forEach(track => track.stop());
+}
+const constraints = {
+video: { width: 1280, height: 720, facingMode: currentFacingMode },
+audio: true
+};
+const stream = await navigator.mediaDevices.getUserMedia(constraints);
 videoElement.srcObject = stream;
 await videoElement.play();
 
 initAudioProsodyAnalysis(stream);
 initFaceMeshEngine();
+} catch (err) {
+console.error("Erreur d'accès aux périphériques:", err);
+alert("Impossible d'accéder à la webcam ou au micro.");
+}
+}
+
+// Événement Switch Camera Ajouté
+btnSwitchCamera.addEventListener('click', async () => {
+currentFacingMode = currentFacingMode === 'user' ? 'environment' : 'user';
+if (currentFacingMode === 'environment') {
+videoElement.classList.remove('transform', '-scale-x-100');
+canvasElement.classList.remove('transform', '-scale-x-100');
+} else {
+videoElement.classList.add('transform', '-scale-x-100');
+canvasElement.classList.add('transform', '-scale-x-100');
+}
+if (isRunning) {
+await startCameraStream();
+}
+});
+
+// Événement Toggle Infrarouge Ajouté
+btnToggleInfrared.addEventListener('click', () => {
+isInfraredActive = !isInfraredActive;
+if (isInfraredActive) {
+videoElement.classList.add('filter-infrared');
+btnToggleInfrared.classList.add('bg-amber-600/30', 'border-amber-500');
+} else {
+videoElement.classList.remove('filter-infrared');
+btnToggleInfrared.classList.remove('bg-amber-600/30', 'border-amber-500');
+}
+});
+
+btnStart.addEventListener('click', async () => {
+await startCameraStream();
 isRunning = true;
 startTimer();
 requestAnimationFrame(processVideoFrame);
@@ -751,10 +810,6 @@ statusIndicator.className = 'w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse
 statusText.innerText = 'CALIBRATION INITIALE...';
 
 simulateGeneralTelemetry();
-} catch (err) {
-console.error("Erreur d'accès aux périphériques:", err);
-alert("Impossible d'accéder à la webcam ou au micro.");
-}
 });
 
 btnStop.addEventListener('click', () => {
