@@ -7,11 +7,11 @@
 body { margin: 0; background: #020617; color: #f8fafc; font-family: monospace; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; overflow: hidden; }
 #viewfinder { position: relative; width: 1280px; height: 720px; max-width: 95vw; max-height: 75vh; border-radius: 10px; overflow: hidden; border: 1px solid #334155; background: #000; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.9); }
 video, canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
-canvas { z-index: 10; pointer-events: none; }
+canvas { z-index: 10; pointer-events: none; } 
 
 #hud-left { position: absolute; top: 10px; left: 10px; z-index: 20; background: rgba(3, 7, 18, 0.95); padding: 10px; border-radius: 8px; border: 1px solid #38bdf855; font-size: 9px; width: 325px; backdrop-filter: blur(12px); }
 #hud-right { position: absolute; top: 10px; right: 10px; z-index: 20; background: rgba(3, 7, 18, 0.95); padding: 10px; border-radius: 8px; border: 1px solid #38bdf855; font-size: 9px; width: 325px; backdrop-filter: blur(12px); }
-#hud-bottom { position: absolute; bottom: 10px; left: 10px; right: 10px; z-index: 20; background: rgba(3, 7, 18, 0.97); padding: 10px; border-radius: 8px; border: 1px solid #38bdf877; font-size: 10px; backdrop-filter: blur(12px); display: flex; justify-content: space-between; align-items: center; }
+#hud-bottom { position: absolute; bottom: 10px; left: 10px; right: 10px; z-index: 20; background: rgba(3, 7, 18, 0.97); padding: 10px; border-radius: 8px; border: 1px solid #38bdf877; font-size: 10px; backdrop-filter: blur(12px); display: flex; justify-content: space-between; align-items: center; } 
 
 .section-title { color: #38bdf8; font-weight: bold; border-bottom: 1px solid #1e293b; margin-bottom: 3px; padding-bottom: 2px; font-size: 8px; letter-spacing: 0.08em; }
 .row { display: flex; justify-content: space-between; margin-bottom: 1px; }
@@ -19,18 +19,18 @@ canvas { z-index: 10; pointer-events: none; }
 .val-warn { color: #f43f5e; font-weight: bold; }
 .val-ok { color: #10b981; font-weight: bold; }
 button { background: #0284c7; color: white; border: none; padding: 5px 8px; border-radius: 4px; font-family: monospace; cursor: pointer; font-weight: bold; font-size: 8px; margin-left: 2px; transition: background 0.2s; }
-button:hover { background: #0369a1; }
+button:hover { background: #0369a1; } 
 
 #hud-slm-text { font-size: 8px; color: #94a3b8; margin-top: 3px; max-height: 35px; overflow-y: auto; border-top: 1px solid #1e293b; padding-top: 2px; line-height: 1.1; }
 #rppg-graph { width: 100%; height: 20px; background: #020617; border: 1px solid #1e293b; margin-top: 3px; border-radius: 3px; display: block; }
 #calibration-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(2, 6, 23, 0.97); z-index: 50; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 20px; }
 </style>
 </head>
-<body>
+<body> 
 
 <div id="viewfinder">
 <video id="webcam" autoplay playsinline muted></video>
-<canvas id="ar-overlay"></canvas>
+<canvas id="ar-overlay"></canvas> 
 
 <!-- CALIBRAGE INITIAL -->
 <div id="calibration-overlay">
@@ -39,9 +39,9 @@ button:hover { background: #0369a1; }
 Initialisation optimisée : Maillage facial 3D, Pose Kinesics, CHROM rPPG, Pupillométrie, Analyse MFCC & VSA (8-14 Hz).
 </p>
 <button onclick="startCalibration()" style="padding: 8px 16px; font-size: 10px;">LANCER LE PIPELINE STABLE</button>
-</div>
+</div> 
 
-<!-- HUD GAUCHE : FACS 15 Matrix, Pose Kinesics & CHROM rPPG -->
+<!-- HUD GAUCHE -->
 <div id="hud-left">
 <div class="section-title">APEX // FACS 15-MATRIX & KINESICS POSTURAUX</div>
 <div class="row"><span>CORE STATUS:</span> <span id="st-status" class="val">EN ATTENTE</span></div>
@@ -57,9 +57,9 @@ Initialisation optimisée : Maillage facial 3D, Pose Kinesics, CHROM rPPG, Pupil
 <div class="row"><span>AU23/25/26:</span> <span id="au-23" class="val">0.00</span>/<span id="au-25" class="val">0.00</span>/<span id="au-26" class="val">0.00</span></div>
 <div class="row"><span>CHROM rPPG (HR):</span> <span id="st-hr" class="val">-- BPM</span></div>
 <canvas id="rppg-graph"></canvas>
-</div>
+</div> 
 
-<!-- HUD DROIT : Iris, Pupillométrie, Saccades, VSA, MFCC & Disfluencies -->
+<!-- HUD DROIT -->
 <div id="hud-right">
 <div class="section-title">SPECTRA // PUPILLOMETRY, SACCADES & VSA (8-14Hz)</div>
 <div class="row"><span>IRIS GAZE (X/Y):</span> <span id="st-gaze" class="val">[0.00, 0.00]</span></div>
@@ -76,9 +76,9 @@ Initialisation optimisée : Maillage facial 3D, Pose Kinesics, CHROM rPPG, Pupil
 <div class="row"><span>BETA (13-30Hz - Focus):</span> <span id="veeg-beta" class="val">31%</span></div>
 <div class="row"><span>THETA (4-7Hz - Drowsy):</span> <span id="veeg-theta" class="val">18%</span></div>
 <div class="row"><span>DELTA / GAMMA:</span> <span id="veeg-dg" class="val">6% / 3%</span></div>
-</div>
+</div> 
 
-<!-- HUD BAS : Co-Pilote SLM WebNN & Contrôles -->
+<!-- HUD BAS -->
 <div id="hud-bottom">
 <div style="width: 70%;">
 <div style="color: #38bdf8; font-weight: bold; margin-bottom: 2px;">SLM WEBNN CO-PILOT // v24.02</div>
@@ -89,12 +89,11 @@ Initialisation optimisée : Maillage facial 3D, Pose Kinesics, CHROM rPPG, Pupil
 <button id="btn-ir" onclick="toggleIRMode()">IR/RGB</button>
 </div>
 </div>
-</div>
+</div> 
 
 <script>
-// --- 1. WORKER VISION OPTIMISÉ (Delegate CPU pour stabilité absolue) ---
 const visionWorkerCode = `
-importScripts("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision/vision_bundle.js");
+importScripts("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision/vision_bundle.js"); 
 
 let faceLandmarker = null;
 let poseLandmarker = null;
@@ -103,7 +102,7 @@ let blinkCount = 0;
 let lastEyeStateOpen = true;
 let previousAus = null;
 let microSpikeCount = 0;
-let previousIrisCenter = null;
+let previousIrisCenter = null; 
 
 class KalmanFilter {
 constructor(q = 0.01, r = 0.1) {
@@ -122,7 +121,7 @@ this.p[key] = (1 - k) * p_pred;
 return this.x[key];
 }
 }
-const kFilter = new KalmanFilter();
+const kFilter = new KalmanFilter(); 
 
 async function init() {
 try {
@@ -138,7 +137,7 @@ runningMode: "IMAGE",
 outputFaceBlendshapes: true,
 outputFacialTransformationMatrixes: true,
 numFaces: 1
-});
+}); 
 
 poseLandmarker = await vision.PoseLandmarker.createFromOptions(resolver, {
 baseOptions: {
@@ -147,25 +146,25 @@ delegate: "CPU"
 },
 runningMode: "IMAGE",
 numPoses: 1
-});
+}); 
 
 postMessage({ type: 'READY' });
 } catch (e) {
 postMessage({ type: 'ERROR', message: e.toString() });
 }
 }
-init();
+init(); 
 
 onmessage = function (e) {
 if (e.data.type === 'CALIBRATE') {
 isCalibrated = true;
 postMessage({ type: 'CALIBRATED' });
-}
+} 
 
 if (e.data.type === 'PROCESS' && faceLandmarker && poseLandmarker) {
 const { imageBitmap, timestamp } = e.data;
 const faceResults = faceLandmarker.detect(imageBitmap);
-const poseResults = poseLandmarker.detect(imageBitmap);
+const poseResults = poseLandmarker.detect(imageBitmap); 
 
 let data = {
 mesh: faceResults.faceLandmarks ? faceResults.faceLandmarks[0] : null,
@@ -186,7 +185,7 @@ fatigueBlinks: 12,
 veeg: { alpha: 42, beta: 31, theta: 18, delta: 6, gamma: 3 },
 valence: 0.0,
 arousal: 0.1
-};
+}; 
 
 if (data.pose) {
 let lShoulder = data.pose[11];
@@ -197,11 +196,11 @@ data.shoulderTension = Number((shoulderDiffY * 15.0).toFixed(2));
 let torsoAngle = Math.atan2(rShoulder.y - lShoulder.y, rShoulder.x - lShoulder.x) * (180 / Math.PI);
 data.torsoLean = Number(torsoAngle.toFixed(1));
 }
-}
+} 
 
 if (faceResults.faceBlendshapes && faceResults.faceBlendshapes.length > 0) {
 const cats = faceResults.faceBlendshapes[0].categories;
-const getCatScore = (name) => cats.find(c => c.categoryName === name)?.score || 0;
+const getCatScore = (name) => cats.find(c => c.categoryName === name)?.score || 0; 
 
 const rawAus = {
 au1: getCatScore('browInnerUp'),
@@ -220,13 +219,13 @@ au20: getCatScore('mouthStretchLeft'),
 au23: getCatScore('mouthPressLeft'),
 au25: getCatScore('lipsOpen'),
 au26: getCatScore('jawOpen')
-};
+}; 
 
 const currentAus = {};
 for (let k in rawAus) {
 currentAus[k] = Number(kFilter.filter(k, rawAus[k]).toFixed(2));
 }
-data.aus = currentAus;
+data.aus = currentAus; 
 
 if (previousAus) {
 let deltaAU4 = Math.abs(currentAus.au4 - previousAus.au4);
@@ -242,64 +241,63 @@ data.microSpike = "NONE";
 }
 }
 previousAus = { ...currentAus };
-data.microSpikeCount = microSpikeCount;
+data.microSpikeCount = microSpikeCount; 
 
 if (data.mesh && data.mesh[468] && data.mesh[473]) {
 let irisR = data.mesh[468];
 data.gaze = [Number((irisR.x - 0.5).toFixed(2)), Number((irisR.y - 0.5).toFixed(2))];
-}
+} 
 
 if (data.mesh && data.mesh[468] && data.mesh[469] && data.mesh[234] && data.mesh[454]) {
 let irisC = data.mesh[468];
 let irisE = data.mesh[469];
 let templeL = data.mesh[234];
-let templeR = data.mesh[454];
+let templeR = data.mesh[454]; 
 
 let irisRadius = Math.hypot(irisC.x - irisE.x, irisC.y - irisE.y);
 let faceWidth = Math.hypot(templeL.x - templeR.x, templeL.y - templeR.y);
-data.pupilIndex = Number(((irisRadius / (faceWidth || 1)) * 35.0).toFixed(2));
+data.pupilIndex = Number(((irisRadius / (faceWidth || 1)) * 35.0).toFixed(2)); 
 
 if (previousIrisCenter) {
 let dist = Math.hypot(irisC.x - previousIrisCenter.x, irisC.y - previousIrisCenter.y);
 data.saccadicVelocity = Number((dist * 60.0).toFixed(2));
 }
 previousIrisCenter = { x: irisC.x, y: irisC.y };
-}
+} 
 
 if (faceResults.facialTransformationMatrixes && faceResults.facialTransformationMatrixes.length > 0) {
 let rawScaleZ = faceResults.facialTransformationMatrixes[0].data[10] || 1.0;
 data.pdi = Number((1.0 + (rawScaleZ - 1.0) * 0.2 + (currentAus.au4 * 0.15)).toFixed(2));
-}
+} 
 
 const eyeBlink = (getCatScore('eyeBlinkLeft') + getCatScore('eyeBlinkRight')) / 2;
 let isOpen = eyeBlink < 0.4;
 if (lastEyeStateOpen && !isOpen) blinkCount++;
 lastEyeStateOpen = isOpen;
-data.fatigueBlinks = 12 + Math.floor(blinkCount / 5);
+data.fatigueBlinks = 12 + Math.floor(blinkCount / 5); 
 
 let waveVal = Math.sin(timestamp / 300) * 0.9 + (currentAus.au4 * 0.1);
 data.rppgWaveValue = Number(waveVal.toFixed(2));
-data.rppgBpm = Number((72 + Math.sin(timestamp / 550) * 4 + (currentAus.au4 * 6)).toFixed(1));
+data.rppgBpm = Number((72 + Math.sin(timestamp / 550) * 4 + (currentAus.au4 * 6)).toFixed(1)); 
 
 let betaMod = Math.round(31 + (currentAus.au4 * 20) + (data.pdi > 1.3 ? 15 : 0));
 let alphaMod = Math.max(10, 55 - betaMod);
-data.veeg = { alpha: alphaMod, beta: betaMod, theta: 18, delta: 6, gamma: 3 };
+data.veeg = { alpha: alphaMod, beta: betaMod, theta: 18, delta: 6, gamma: 3 }; 
 
 data.valence = Number((currentAus.au12 - currentAus.au4).toFixed(2));
 data.arousal = Number((Math.min(1.0, 0.2 + (currentAus.au4 * 0.5) + (data.pdi - 1.0) + (data.shoulderTension * 0.1))).toFixed(2));
-}
+} 
 
 postMessage({ type: 'RESULT', data: data });
 }
 };
-`;
+`; 
 
-// --- 2. WORKER AUDIO ---
 const audioWorkerCode = `
 self.onmessage = function(e) {
 if (e.data.type === 'PROCESS_AUDIO') {
 const timeData = e.data.timeData;
-const freqData = e.data.freqData;
+const freqData = e.data.freqData; 
 
 let sum = 0;
 let peaks = [];
@@ -307,7 +305,7 @@ for(let i=0; i<timeData.length; i++) {
 sum += timeData[i] * timeData[i];
 if (Math.abs(timeData[i]) > 0.035) peaks.push(Math.abs(timeData[i]));
 }
-let rms = Math.sqrt(sum / timeData.length);
+let rms = Math.sqrt(sum / timeData.length); 
 
 let jitter = 0.01, shimmer = 0.02;
 if (peaks.length > 2) {
@@ -315,7 +313,7 @@ let diffs = 0;
 for(let k=1; k<peaks.length; k++) diffs += Math.abs(peaks[k] - peaks[k-1]);
 shimmer = Number((diffs / peaks.length).toFixed(3));
 jitter = Number((rms * 0.09).toFixed(3));
-}
+} 
 
 let mfccBank = [];
 let binSize = Math.floor(freqData.length / 13);
@@ -325,35 +323,35 @@ for (let b = m * binSize; b < (m + 1) * binSize; b++) {
 bandSum += freqData[b] || 0;
 }
 mfccBank.push(Number((bandSum / (binSize * 255)).toFixed(3)));
-}
+} 
 
 let maxVal = -1, maxIndex = 0;
 for(let i = 2; i < freqData.length / 2; i++) {
 if(freqData[i] > maxVal) { maxVal = freqData[i]; maxIndex = i; }
 }
 let f0 = Math.round((maxIndex * 44100) / (freqData.length * 2));
-if (f0 < 60 || f0 > 350) f0 = 120;
+if (f0 < 60 || f0 > 350) f0 = 120; 
 
 self.f0History = self.f0History || [];
 self.f0History.push(f0);
-if (self.f0History.length > 32) self.f0History.shift();
+if (self.f0History.length > 32) self.f0History.shift(); 
 
 let vsaTremor = 0.0;
 if (self.f0History.length >= 16) {
 let meanF0 = self.f0History.reduce((a, b) => a + b, 0) / self.f0History.length;
 let variance = self.f0History.reduce((a, b) => a + Math.pow(b - meanF0, 2), 0) / self.f0History.length;
 vsaTremor = Number((Math.sqrt(variance) / (meanF0 || 1) * 100).toFixed(2));
-}
+} 
 
 let isPause = rms < 0.015;
 self.disfluencyCount = self.disfluencyCount || 0;
 if (isPause && self.wasActive) {
 self.disfluencyCount++;
 }
-self.wasActive = !isPause;
+self.wasActive = !isPause; 
 
 let mfccIndex = Number((rms * 0.1 + (Math.abs(f0 - 120) / 700)).toFixed(3));
-let status = (mfccIndex > 0.06 || jitter > 0.025 || vsaTremor > 3.5) ? "TENSION_DETECTED" : "NOMINAL";
+let status = (mfccIndex > 0.06 || jitter > 0.025 || vsaTremor > 3.5) ? "TENSION_DETECTED" : "NOMINAL"; 
 
 self.postMessage({
 type: 'AUDIO_RESULT',
@@ -368,18 +366,17 @@ status: status
 });
 }
 };
-`;
+`; 
 
-// --- 3. WORKER SLM ---
 const slmWorkerCode = `
 self.onmessage = async function(e) {
 if (e.data.type === 'INFER') {
 const { metrics, audioStatus } = e.data;
 let state = "BASELINE_CONGRUENT";
-let congruence = 98;
+let congruence = 98; 
 
 let dissonance = Math.abs(metrics.valence) * (metrics.arousal * 100) + (metrics.aus.au4 * 25) + (metrics.shoulderTension * 2) + (metrics.microSpikeCount * 2);
-if (audioStatus === "TENSION_DETECTED") dissonance += 15;
+if (audioStatus === "TENSION_DETECTED") dissonance += 15; 
 
 if (dissonance > 40 || metrics.aus.au4 > 0.40 || metrics.microSpike !== "NONE") {
 state = "HIGH_COGNITIVE_DISSONANCE / SPECTRUM LEAK";
@@ -387,23 +384,23 @@ congruence = Math.max(25, 95 - Math.round(dissonance));
 } else if (metrics.aus.au12 > 0.45) {
 state = "ALIGNED_POSITIVE_AFFECT";
 congruence = 99;
-}
+} 
 
-let diagnosticText = `État : ${state} | Congruence : \${congruence}%. ${metrics.microSpike !== 'NONE' ? 'Fuite : ' + metrics.microSpike + '.' : 'Stabilité nominale.'}\;
+let diagnosticText = \`État : \${state} | Congruence : \${congruence}%. \${metrics.microSpike !== 'NONE' ? 'Fuite : ' + metrics.microSpike + '.' : 'Stabilité nominale.'}\`;
 self.postMessage({ type: 'SLM_RESULT', state: state, congruence: congruence, text: diagnosticText });
 }
 };
-`;
+`; 
 
 const visionWorker = new Worker(URL.createObjectURL(new Blob([visionWorkerCode], { type: 'application/javascript' })));
 const audioWorker = new Worker(URL.createObjectURL(new Blob([audioWorkerCode], { type: 'application/javascript' })));
-const slmWorker = new Worker(URL.createObjectURL(new Blob([slmWorkerCode], { type: 'application/javascript' })));
+const slmWorker = new Worker(URL.createObjectURL(new Blob([slmWorkerCode], { type: 'application/javascript' }))); 
 
 const video = document.getElementById('webcam');
 const canvas = document.getElementById('ar-overlay');
 const ctx = canvas.getContext('2d');
 const rppgCanvas = document.getElementById('rppg-graph');
-const rppgCtx = rppgCanvas.getContext('2d');
+const rppgCtx = rppgCanvas.getContext('2d'); 
 
 let currentMetrics = {};
 let currentAudioStatus = "NOMINAL";
@@ -411,7 +408,7 @@ let isInfrared = false;
 let systemReady = false;
 let rppgHistory = new Array(60).fill(0);
 let lastProcessingTime = 0;
-const processingInterval = 33; // Cadencement IA à ~30 FPS pour préserver la fluidité à 60 FPS
+const processingInterval = 33;
 
 async function initSystem() {
 try {
@@ -419,22 +416,22 @@ const stream = await navigator.mediaDevices.getUserMedia({
 video: { width: 1280, height: 720, frameRate: { ideal: 60 }, facingMode: "user" },
 audio: true
 });
-video.srcObject = stream;
+video.srcObject = stream; 
 
 const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 const source = audioCtx.createMediaStreamSource(stream);
 const analyzer = audioCtx.createAnalyser();
 analyzer.fftSize = 1024;
-source.connect(analyzer);
+source.connect(analyzer); 
 
 const timeData = new Float32Array(analyzer.fftSize);
-const freqData = new Uint8Array(analyzer.frequencyBinCount);
+const freqData = new Uint8Array(analyzer.frequencyBinCount); 
 
 setInterval(() => {
 analyzer.getFloatTimeDomainData(timeData);
 analyzer.getByteFrequencyData(freqData);
 audioWorker.postMessage({ type: 'PROCESS_AUDIO', timeData: timeData, freqData: freqData });
-}, 100);
+}, 100); 
 
 video.onloadedmetadata = () => {
 canvas.width = video.videoWidth;
@@ -443,17 +440,17 @@ rppgCanvas.width = rppgCanvas.clientWidth;
 rppgCanvas.height = rppgCanvas.clientHeight;
 };
 } catch (err) {
-console.error(err);
+console.error("Erreur d'accès aux flux média :", err);
 }
-}
+} 
 
 function startCalibration() {
 const overlay = document.getElementById('calibration-overlay');
-overlay.innerHTML = <h2 style="color: #38bdf8;"&gt;CHARGEMENT DU PIPELINE STABLE...&lt;/h2>;
+overlay.innerHTML = '<h2 style="color: #38bdf8;">CHARGEMENT DU PIPELINE STABLE...</h2>';
 setTimeout(() => {
 visionWorker.postMessage({ type: 'CALIBRATE' });
 }, 1000);
-}
+} 
 
 visionWorker.onmessage = (e) => {
 if (e.data.type === 'READY') {
@@ -465,7 +462,7 @@ document.getElementById('st-status').textContent = "STABLE // 60 FPS UI";
 startPipeline();
 } else if (e.data.type === 'RESULT') {
 currentMetrics = e.data.data;
-const au = currentMetrics.aus || {};
+const au = currentMetrics.aus || {}; 
 
 document.getElementById('au-1').textContent = au.au1?.toFixed(2) || '0.00';
 document.getElementById('au-2').textContent = au.au2?.toFixed(2) || '0.00';
@@ -482,35 +479,39 @@ document.getElementById('au-17').textContent = au.au17?.toFixed(2) || '0.00';
 document.getElementById('au-20').textContent = au.au20?.toFixed(2) || '0.00';
 document.getElementById('au-23').textContent = au.au23?.toFixed(2) || '0.00';
 document.getElementById('au-25').textContent = au.au25?.toFixed(2) || '0.00';
-document.getElementById('au-26').textContent = au.au26?.toFixed(2) || '0.00';
+document.getElementById('au-26').textContent = au.au26?.toFixed(2) || '0.00'; 
 
-document.getElementById('st-shoulder').textContent = ${currentMetrics.shoulderTension} ($`{currentMetrics.shoulderTension &gt; 2.0 ? 'TENSE' : 'STABLE'})`; document.getElementById('st-torso').textContent =${currentMetrics.torsoLean}°`;
-document.getElementById('st-hr').textContent = currentMetrics.rppgBpm + " BPM";
+document.getElementById('st-shoulder').textContent = `${currentMetrics.shoulderTension} (${currentMetrics.shoulderTension > 2.0 ? 'TENSE' : 'STABLE'})`;
+document.getElementById('st-torso').textContent = `${currentMetrics.torsoLean}°`;
+document.getElementById('st-hr').textContent = currentMetrics.rppgBpm + " BPM"; 
 
-document.getElementById('st-gaze').textContent = [${currentMetrics.gaze.join(', ')}]; document.getElementById('st-pupil').textContent = ``${currentMetrics.pupilIndex} (${currentMetrics.pupilIndex > 1.2 ? 'DILATED' : 'NOMINAL'}); document.getElementById('st-saccade').textContent = ``${currentMetrics.saccadicVelocity} rad/s;
-document.getElementById('st-val-arou').textContent = ${currentMetrics.valence} / ${currentMetrics.arousal};
-document.getElementById('st-fatigue').textContent = currentMetrics.fatigueBlinks + " CPM";
+document.getElementById('st-gaze').textContent = `[${currentMetrics.gaze.join(', ')}]`;
+document.getElementById('st-pupil').textContent = `${currentMetrics.pupilIndex} (${currentMetrics.pupilIndex > 1.2 ? 'DILATED' : 'NOMINAL'})`;
+document.getElementById('st-saccade').textContent = `${currentMetrics.saccadicVelocity} rad/s`;
+document.getElementById('st-val-arou').textContent = `${currentMetrics.valence} / ${currentMetrics.arousal}`;
+document.getElementById('st-fatigue').textContent = currentMetrics.fatigueBlinks + " CPM"; 
 
 rppgHistory.shift();
 rppgHistory.push(currentMetrics.rppgWaveValue || 0);
-drawRppgWaveform();
+drawRppgWaveform(); 
 
 slmWorker.postMessage({
 type: 'INFER',
 metrics: currentMetrics,
 audioStatus: currentAudioStatus
-});
+}); 
 
 renderAR(currentMetrics);
 }
-};
+}; 
 
 audioWorker.onmessage = (e) => {
 currentAudioStatus = e.data.status;
-document.getElementById('st-js').textContent = ${e.data.jitter} / ${e.data.shimmer};
-document.getElementById('st-vsa').textContent = ${e.data.vsaTremor}% (${e.data.vsaTremor &gt; 3.0 ? 'TREMOR' : 'STABLE'});
-document.getElementById('st-mfcc-bank').textContent = [${e.data.mfccBank.join(', ')}]; document.getElementById('st-disfluency').textContent = ``${e.data.disfluencies} PAUSES;
-};
+document.getElementById('st-js').textContent = `${e.data.jitter} / ${e.data.shimmer}`;
+document.getElementById('st-vsa').textContent = `${e.data.vsaTremor}% (${e.data.vsaTremor > 3.0 ? 'TREMOR' : 'STABLE'})`;
+document.getElementById('st-mfcc-bank').textContent = `[${e.data.mfccBank.join(', ')}]`;
+document.getElementById('st-disfluency').textContent = `${e.data.disfluencies} PAUSES`;
+}; 
 
 slmWorker.onmessage = (e) => {
 if (e.data.state) {
@@ -524,15 +525,13 @@ congEl.className = e.data.congruence < 60 ? "val-warn" : "val-ok";
 if (e.data.text) {
 document.getElementById('hud-slm-text').textContent = e.data.text;
 }
-};
+}; 
 
 async function startPipeline() {
 function loop(now) {
 if (video.readyState >= 2 && systemReady) {
-// Rendu UI fluide à 60 FPS
-ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+ctx.drawImage(video, 0, 0, canvas.width, canvas.height); 
 
-// Throttling du worker vision pour éviter la surcharge (30 FPS max pour l'IA)
 if (now - lastProcessingTime > processingInterval) {
 lastProcessingTime = now;
 createImageBitmap(video).then(bitmap => {
@@ -543,7 +542,7 @@ visionWorker.postMessage({ type: 'PROCESS', imageBitmap: bitmap, timestamp: now 
 requestAnimationFrame(loop);
 }
 requestAnimationFrame(loop);
-}
+} 
 
 function drawRppgWaveform() {
 rppgCtx.clearRect(0, 0, rppgCanvas.width, rppgCanvas.height);
@@ -558,7 +557,7 @@ if (i === 0) rppgCtx.moveTo(x, y);
 else rppgCtx.lineTo(x, y);
 }
 rppgCtx.stroke();
-}
+} 
 
 function renderAR(m) {
 ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -571,13 +570,13 @@ ctx.fillRect(pt.x * canvas.width, pt.y * canvas.height, 2, 2);
 ctx.strokeStyle = m.shoulderTension > 2.0 ? '#f43f5e' : '#38bdf8';
 ctx.lineWidth = 1.5;
 ctx.strokeRect(canvas.width / 2 - 170, canvas.height / 2 - 200, 340, 400);
-}
+} 
 
 function toggleIRMode() {
 isInfrared = !isInfrared;
 video.style.filter = isInfrared ? 'invert(1) hue-rotate(180deg) contrast(160%)' : 'none';
 document.getElementById('btn-ir').style.background = isInfrared ? '#f43f5e' : '#0284c7';
-}
+} 
 
 initSystem();
 </script>
