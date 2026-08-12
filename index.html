@@ -92,7 +92,7 @@ Initialisation optimisée : Maillage facial 3D, Pose Kinesics, CHROM rPPG, Pupil
 </div> 
 
 <script>
-// --- 1. WORKER VISION OPTIMISÉ (Mode VIDEO activé pour FACS & Blendshapes) ---
+// --- 1. WORKER VISION OPTIMISÉ (Mode VIDEO Sécurisé) ---
 const visionWorkerCode = `
 importScripts("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision/vision_bundle.js"); 
 
@@ -104,6 +104,7 @@ let lastEyeStateOpen = true;
 let previousAus = null;
 let microSpikeCount = 0;
 let previousIrisCenter = null; 
+let lastTimestampMs = -1; // Sécurité pour MediaPipe
 
 class KalmanFilter {
 constructor(q = 0.01, r = 0.1) {
@@ -164,8 +165,20 @@ postMessage({ type: 'CALIBRATED' });
 
 if (e.data.type === 'PROCESS' && faceLandmarker && poseLandmarker) {
 const { imageBitmap, timestamp } = e.data;
-const faceResults = faceLandmarker.detectForVideo(imageBitmap, timestamp);
-const poseResults = poseLandmarker.detectForVideo(imageBitmap, timestamp); 
+
+try {
+// Sécurisation stricte du timestamp (entier et croissant impératif pour MediaPipe)
+let currentTimestampMs = Math.round(timestamp);
+if (currentTimestampMs <= lastTimestampMs) {
+    currentTimestampMs = lastTimestampMs + 1;
+}
+lastTimestampMs = currentTimestampMs;
+
+const faceResults = faceLandmarker.detectForVideo(imageBitmap, currentTimestampMs);
+const poseResults = poseLandmarker.detectForVideo(imageBitmap, currentTimestampMs); 
+
+// LIBÉRATION DE LA MÉMOIRE (Empêche le crash silencieux du navigateur)
+imageBitmap.close();
 
 let data = {
 mesh: faceResults.faceLandmarks ? faceResults.faceLandmarks[0] : null,
@@ -277,9 +290,9 @@ if (lastEyeStateOpen && !isOpen) blinkCount++;
 lastEyeStateOpen = isOpen;
 data.fatigueBlinks = 12 + Math.floor(blinkCount / 5); 
 
-let waveVal = Math.sin(timestamp / 300) * 0.9 + (currentAus.au4 * 0.1);
+let waveVal = Math.sin(currentTimestampMs / 300) * 0.9 + (currentAus.au4 * 0.1);
 data.rppgWaveValue = Number(waveVal.toFixed(2));
-data.rppgBpm = Number((72 + Math.sin(timestamp / 550) * 4 + (currentAus.au4 * 6)).toFixed(1)); 
+data.rppgBpm = Number((72 + Math.sin(currentTimestampMs / 550) * 4 + (currentAus.au4 * 6)).toFixed(1)); 
 
 let betaMod = Math.round(31 + (currentAus.au4 * 20) + (data.pdi > 1.3 ? 15 : 0));
 let alphaMod = Math.max(10, 55 - betaMod);
@@ -290,6 +303,11 @@ data.arousal = Number((Math.min(1.0, 0.2 + (currentAus.au4 * 0.5) + (data.pdi - 
 } 
 
 postMessage({ type: 'RESULT', data: data });
+
+} catch (err) {
+// On capture l'erreur pour ne pas tuer le worker silencieusement
+postMessage({ type: 'ERROR', message: err.toString() });
+}
 }
 };
 `; 
@@ -458,6 +476,10 @@ visionWorker.postMessage({ type: 'CALIBRATE' });
 visionWorker.onmessage = (e) => {
 if (e.data.type === 'READY') {
 document.getElementById('st-status').textContent = "PRÊT POUR CALIBRAGE";
+} else if (e.data.type === 'ERROR') {
+console.error("Erreur Vision Worker :", e.data.message);
+document.getElementById('st-status').textContent = "ERREUR PIPELINE";
+document.getElementById('st-status').className = "val-warn";
 } else if (e.data.type === 'CALIBRATED') {
 systemReady = true;
 document.getElementById('calibration-overlay').style.display = 'none';
@@ -538,7 +560,8 @@ ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 if (now - lastProcessingTime > processingInterval) {
 lastProcessingTime = now;
 createImageBitmap(video).then(bitmap => {
-visionWorker.postMessage({ type: 'PROCESS', imageBitmap: bitmap, timestamp: now }, [bitmap]);
+// On passe performance.now() directement, le worker le traitera.
+visionWorker.postMessage({ type: 'PROCESS', imageBitmap: bitmap, timestamp: performance.now() }, [bitmap]);
 }).catch(() => {});
 }
 }
