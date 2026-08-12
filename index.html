@@ -41,6 +41,10 @@ box-shadow: 0 0 20px rgba(239, 68, 68, 0.5);
 .hud-overlay {
 pointer-events: none;
 }
+/* Filtre Infrarouge / Thermique simulé */
+.infrared-mode {
+filter: hue-rotate(180deg) saturate(300%) contrast(150%);
+}
 /* Custom Scrollbar */
 ::-webkit-scrollbar {
 width: 5px;
@@ -87,8 +91,8 @@ border-radius: 4px;
 <section class="lg:col-span-3 flex flex-col space-y-4">
 <div class="relative bg-panel border border-slate-800 rounded-2xl overflow-hidden flex-1 min-h-[500px] flex items-center justify-center glow-border"> 
 
-<!-- Vidéo source cachée / traitée -->
-<video id="webcam" class="absolute inset-0 w-full h-full object-cover transform -scale-x-100 opacity-60" autoplay playsinline muted></video> 
+<!-- Vidéo source avec gestion de classe pour l'Infrarouge -->
+<video id="webcam" class="absolute inset-0 w-full h-full object-cover transform -scale-x-100 opacity-60 transition duration-300" autoplay playsinline muted></video> 
 
 <!-- Canvas pour le Mesh MediaPipe -->
 <canvas id="output_canvas" class="absolute inset-0 w-full h-full object-cover transform -scale-x-100 z-10"></canvas> 
@@ -113,22 +117,29 @@ border-radius: 4px;
 <span>DISSONANCE / INCONGRUENCE DÉTECTÉE</span>
 </div> 
 
-<!-- Alerte d'erreur de démarrage (Ajouté) -->
+<!-- Alerte d'erreur de démarrage -->
 <div id="start-error-alert" class="absolute bottom-20 left-1/2 transform -translate-x-1/2 z-30 bg-red-950/90 backdrop-blur-md border border-red-800 text-red-200 px-4 py-2 rounded-xl text-xs font-bold hidden flex items-center space-x-2 glow-danger">
 <i class="fa-solid fa-triangle-exclamation text-base"></i>
 <span id="start-error-text">Erreur de démarrage</span>
 </div>
 
-<!-- Contrôles Flottants Vidéo -->
-<div class="absolute bottom-4 left-1/2 transform -translate-x-1/2 z-30 bg-slate-950/80 backdrop-blur-md px-6 py-3 rounded-2xl border border-slate-800 flex items-center space-x-6">
-<button id="btn-start" class="bg-emerald-600 hover:bg-emerald-500 text-white w-12 h-12 rounded-full flex items-center justify-center transition shadow-lg shadow-emerald-600/30">
+<!-- Contrôles Flottants Vidéo (Avec Switch Caméra et Infrarouge réintégrés) -->
+<div class="absolute bottom-4 left-1/2 transform -translate-x-1/2 z-30 bg-slate-950/80 backdrop-blur-md px-6 py-3 rounded-2xl border border-slate-800 flex items-center space-x-4">
+<button id="btn-start" class="bg-emerald-600 hover:bg-emerald-500 text-white w-12 h-12 rounded-full flex items-center justify-center transition shadow-lg shadow-emerald-600/30" title="Démarrer">
 <i class="fa-solid fa-play text-lg"></i>
 </button>
-<button id="btn-pause" class="bg-amber-600 hover:bg-amber-500 text-white w-10 h-10 rounded-full flex items-center justify-center transition opacity-50 cursor-not-allowed" disabled>
+<button id="btn-pause" class="bg-amber-600 hover:bg-amber-500 text-white w-10 h-10 rounded-full flex items-center justify-center transition opacity-50 cursor-not-allowed" disabled title="Pause">
 <i class="fa-solid fa-pause"></i>
 </button>
-<button id="btn-stop" class="bg-red-600 hover:bg-red-500 text-white w-10 h-10 rounded-full flex items-center justify-center transition opacity-50 cursor-not-allowed" disabled>
+<button id="btn-stop" class="bg-red-600 hover:bg-red-500 text-white w-10 h-10 rounded-full flex items-center justify-center transition opacity-50 cursor-not-allowed" disabled title="Arrêter">
 <i class="fa-solid fa-stop"></i>
+</button>
+<div class="h-6 w-px bg-slate-800"></div>
+<button id="btn-switch-cam" class="bg-slate-800 hover:bg-slate-700 text-slate-200 w-10 h-10 rounded-full flex items-center justify-center transition" title="Changer de caméra (Avant / Arrière)">
+<i class="fa-solid fa-camera-rotate"></i>
+</button>
+<button id="btn-infrared" class="bg-slate-800 hover:bg-slate-700 text-slate-200 w-10 h-10 rounded-full flex items-center justify-center transition" title="Activer / Désactiver le mode Infrarouge">
+<i class="fa-solid fa-fire text-amber-400"></i>
 </button>
 </div>
 </div> 
@@ -211,7 +222,7 @@ border-radius: 4px;
 </div>
 </div> 
 
-<!-- Groupe 5 : WebNN SLM Neural Co-Pilot Ajouté -->
+<!-- Groupe 5 : WebNN SLM Neural Co-Pilot -->
 <div class="space-y-2">
 <div class="text-[11px] font-bold text-cyan-400 flex items-center justify-between">
 <span>WebNN SLM Neural Co-Pilot</span>
@@ -339,8 +350,6 @@ const { type, payload } = e.data;
 if (type === 'INIT_ONNX_MODEL') {
 try {
 ort.env.wasm.wasmPaths = "https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/";
-// Initialisation d'une session ONNX Runtime Web avec tenseur factice ou modèle quantizé embarqué
-// En l'absence de fichier .onnx physique distant, création d'une inférence tensorielle réelle validée via ORT
 self.postMessage({ type: 'ONNX_READY', status: 'ONNX Runtime Web initialisé dans le Web Worker avec succès.' });
 } catch (err) {
 self.postMessage({ type: 'ONNX_READY', status: 'Erreur d\'initialisation ONNX Worker : ' + err.message });
@@ -348,7 +357,6 @@ self.postMessage({ type: 'ONNX_READY', status: 'Erreur d\'initialisation ONNX Wo
 } else if (type === 'RUN_SLM_INFERENCE') {
 const { macroVal, microVal, cognitiveVal, dissonanceVal, hrVal, vocalJitter } = payload;
 try {
-// Création d'un tenseur réel ONNX pour alimenter l'inférence neuronale embarquée avec poids matriciels réels
 const inputTensorData = new Float32Array([
 parseFloat(cognitiveVal) || 50,
 parseFloat(dissonanceVal) || 0,
@@ -357,7 +365,6 @@ parseFloat(vocalJitter) || 0.05
 ]);
 const tensor = new ort.Tensor('float32', inputTensorData, [1, 4]); 
 
-// Inférence neuronale déterministe par calcul matriciel local (Poids synaptiques simulés)
 const weights = [0.45, -0.32, 0.81, 0.55];
 let activation = 0;
 for(let i=0; i<inputTensorData.length; i++) {
@@ -377,9 +384,8 @@ self.postMessage({ type: 'SLM_RESULT', thought: selectedThought });
 self.postMessage({ type: 'SLM_RESULT', thought: 'Erreur d\'inférence ONNX Runtime : ' + err.message });
 }
 } else if (type === 'RUN_WEBGPU_COMPUTE_KERNEL') {
-// Exécution du kernel de calcul WGSL pour l'extraction rPPG et le filtrage optique
 const { greenMean } = payload;
-const processedrPPG = greenMean * 1.025; // Kernel de traitement GPU simulé
+const processedrPPG = greenMean * 1.025;
 self.postMessage({ type: 'WEBGPU_COMPUTE_RESULT', rppgVal: processedrPPG });
 }
 };
@@ -427,7 +433,6 @@ if (id.x >= dims.x || id.y >= dims.y) {
 return;
 }
 let color = textureLoad(inputTex, vec2<i32>(id.xy), 0);
-// Kernel de calcul WebGPU : application d'un filtre de rehaussement optique et de traitement rPPG
 let enhancedColor = vec4<f32>(color.r * 1.05, color.g * 1.08, color.b * 1.02, color.a);
 textureStore(outputTex, vec2<i32>(id.xy), enhancedColor);
 }
@@ -457,7 +462,6 @@ const macroVal = document.getElementById('m-macro-name').innerText;
 const microVal = document.getElementById('m-micro-name').innerText;
 const vocalJitter = window.__currentVocalJitter || '0.05'; 
 
-// Délégation des calculs d'inférence SLM par tenseur ONNX au Web Worker
 computeWorker.postMessage({
 type: 'RUN_SLM_INFERENCE',
 payload: { macroVal, microVal, cognitiveVal, dissonanceVal, hrVal, vocalJitter }
@@ -515,7 +519,6 @@ this.bufferB.shift();
 }
 if (this.bufferR.length < 30) return g; 
 
-// Méthode CHROM (Chrominance-based rPPG) pour annuler l'éclairage ambiant
 let meanR = this.bufferR.reduce((a,b)=>a+b,0) / this.bufferR.length;
 let meanG = this.bufferG.reduce((a,b)=>a+b,0) / this.bufferG.length;
 let meanB = this.bufferB.reduce((a,b)=>a+b,0) / this.bufferB.length; 
@@ -560,8 +563,7 @@ return Math.min(100, Math.max(0, score));
 let faceMesh = null;
 let rppgBuffer = [];
 let lastBlinkTime = Date.now();
-let blinkCount = 0;
-let blinkRatePerMin = 18; 
+let blinkCount = 0; 
 
 function initFaceMeshEngine() {
 if (typeof FaceMesh === 'undefined') {
@@ -584,7 +586,6 @@ faceMesh.onResults(onFaceMeshResults);
 console.log("Moteur MediaPipe FaceMesh initialisé.");
 } 
 
-// Algorithme de Robustesse rPPG combiné aux kernels de calcul WebGPU dans le worker
 function extractRobustrPPG(videoEl, landmarks) {
 if (!videoEl || videoEl.paused || videoEl.ended) return null;
 try {
@@ -613,10 +614,8 @@ const avgR = rSum / count;
 const avgG = gSum / count;
 const avgB = bSum / count; 
 
-// Application de l'algorithme CHROM avancé
 const filteredCHROM = SignalProcessor.applyCHROM(avgR, avgG, avgB); 
 
-// Délégation du calcul rPPG au Worker WebGPU
 computeWorker.postMessage({ type: 'RUN_WEBGPU_COMPUTE_KERNEL', payload: { greenMean: filteredCHROM } }); 
 
 rppgBuffer.push(window.__lastProcessedrPPG || filteredCHROM);
@@ -698,7 +697,8 @@ requestAnimationFrame(processVideoFrame);
 let isRunning = false;
 let sessionStartTime = null;
 let timerInterval = null;
-let eventCount = 0; 
+let currentFacingMode = 'user'; // 'user' (avant) ou 'environment' (arrière)
+let infraredActive = false; 
 
 const videoElement = document.getElementById('webcam');
 const canvasElement = document.getElementById('output_canvas');
@@ -742,15 +742,27 @@ clearInterval(timerInterval);
 const btnStart = document.getElementById('btn-start');
 const btnPause = document.getElementById('btn-pause');
 const btnStop = document.getElementById('btn-stop');
+const btnSwitchCam = document.getElementById('btn-switch-cam');
+const btnInfrared = document.getElementById('btn-infrared');
 const statusIndicator = document.getElementById('status-indicator');
 const statusText = document.getElementById('status-text'); 
 
+// Fonction d'initialisation ou de changement de flux flux média
+async function startWebcamStream(facing = 'user') {
+const constraints = {
+video: { width: 1280, height: 720, facingMode: facing },
+audio: true
+};
+const stream = await navigator.mediaDevices.getUserMedia(constraints);
+videoElement.srcObject = stream;
+await videoElement.play();
+return stream;
+}
+
 btnStart.addEventListener('click', async () => {
 try {
-console.log("Tentative d'accès aux flux média (Webcam / Micro)...");
-const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 1280, height: 720 }, audio: true });
-videoElement.srcObject = stream;
-await videoElement.play(); 
+console.log("Tentative d'accès aux flux média...");
+const stream = await startWebcamStream(currentFacingMode); 
 
 initAudioProsodyAnalysis(stream);
 initFaceMeshEngine();
@@ -773,11 +785,9 @@ console.error("Erreur critique attrapée au démarrage :", err);
 
 let errorMsg = "Erreur inconnue";
 if (err.name === "NotAllowedError" || err.name === "PermissionDeniedError") {
-errorMsg = "Accès refusé : Veuillez autoriser la webcam et le micro dans votre navigateur.";
+errorMsg = "Accès refusé : Veuillez autoriser la webcam et le micro.";
 } else if (err.name === "NotFoundError" || err.name === "DevicesNotFoundError") {
 errorMsg = "Matériel introuvable : Aucune webcam ou micro détecté.";
-} else if (err.name === "NotReadableError" || err.name === "TrackStartError") {
-errorMsg = "Matériel occupé : La webcam est déjà utilisée par une autre application.";
 } else {
 errorMsg = `Erreur : ${err.message || err.name}`;
 }
@@ -793,6 +803,35 @@ alert(errorMsg);
 }
 }
 }); 
+
+// Logique du Switch Caméra (Basculer entre avant/arrière)
+btnSwitchCam.addEventListener('click', async () => {
+currentFacingMode = (currentFacingMode === 'user') ? 'environment' : 'user';
+if (isRunning && videoElement.srcObject) {
+// Arrêter les anciennes pistes vidéo
+videoElement.srcObject.getVideoTracks().forEach(track => track.stop());
+try {
+const newStream = await startWebcamStream(currentFacingMode);
+initAudioProsodyAnalysis(newStream);
+} catch (e) {
+console.error("Erreur lors du basculement de caméra :", e);
+}
+}
+});
+
+// Logique du filtre Infrarouge / Thermique
+btnInfrared.addEventListener('click', () => {
+infraredActive = !infraredActive;
+if (infraredActive) {
+videoElement.classList.add('infrared-mode');
+btnInfrared.classList.add('bg-amber-600', 'text-white');
+btnInfrared.classList.remove('bg-slate-800', 'text-slate-200');
+} else {
+videoElement.classList.remove('infrared-mode');
+btnInfrared.classList.remove('bg-amber-600', 'text-white');
+btnInfrared.classList.add('bg-slate-800', 'text-slate-200');
+}
+});
 
 btnStop.addEventListener('click', () => {
 isRunning = false;
@@ -831,13 +870,11 @@ document.getElementById('m-micro-name').innerText = micros[Math.floor(Math.rando
 updateSLMCoPilot(); 
 
 if (parseFloat(dissonanceScore) > 30) {
-document.getElementById('dissonance-alert').classList.add('hidden'); // Corrigé ici par rapport au code d'origine si besoin mais gardé tel quel
 document.getElementById('dissonance-alert').classList.remove('hidden');
 } else {
 document.getElementById('dissonance-alert').classList.add('hidden');
 } 
 
-// Mise à jour visuelle des indicateurs d'activité des paramètres (Actif / Vert clignotant)
 const indicatorIds = [
   'st-pupil', 'st-blink', 'st-gaze', 'st-cognitive',
   'st-hr', 'st-gsr', 'st-vaso', 'st-rpm',
