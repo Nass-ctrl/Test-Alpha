@@ -41,7 +41,7 @@ Initialisation optimisée : Maillage facial 3D, Pose Kinesics, CHROM rPPG, Pupil
 <button onclick="startCalibration()" style="padding: 8px 16px; font-size: 10px;">LANCER LE PIPELINE STABLE</button>
 </div> 
 
-<!-- HUD GAUCHE -->
+<!-- HUD GAUCHE : FACS 15 Matrix, Pose Kinesics & CHROM rPPG -->
 <div id="hud-left">
 <div class="section-title">APEX // FACS 15-MATRIX & KINESICS POSTURAUX</div>
 <div class="row"><span>CORE STATUS:</span> <span id="st-status" class="val">EN ATTENTE</span></div>
@@ -59,7 +59,7 @@ Initialisation optimisée : Maillage facial 3D, Pose Kinesics, CHROM rPPG, Pupil
 <canvas id="rppg-graph"></canvas>
 </div> 
 
-<!-- HUD DROIT -->
+<!-- HUD DROIT : Iris, Pupillométrie, Saccades, VSA, MFCC & Disfluencies -->
 <div id="hud-right">
 <div class="section-title">SPECTRA // PUPILLOMETRY, SACCADES & VSA (8-14Hz)</div>
 <div class="row"><span>IRIS GAZE (X/Y):</span> <span id="st-gaze" class="val">[0.00, 0.00]</span></div>
@@ -78,7 +78,7 @@ Initialisation optimisée : Maillage facial 3D, Pose Kinesics, CHROM rPPG, Pupil
 <div class="row"><span>DELTA / GAMMA:</span> <span id="veeg-dg" class="val">6% / 3%</span></div>
 </div> 
 
-<!-- HUD BAS -->
+<!-- HUD BAS : Co-Pilote SLM WebNN & Contrôles -->
 <div id="hud-bottom">
 <div style="width: 70%;">
 <div style="color: #38bdf8; font-weight: bold; margin-bottom: 2px;">SLM WEBNN CO-PILOT // v24.02</div>
@@ -92,6 +92,7 @@ Initialisation optimisée : Maillage facial 3D, Pose Kinesics, CHROM rPPG, Pupil
 </div> 
 
 <script>
+// --- 1. WORKER VISION OPTIMISÉ (Mode VIDEO activé pour FACS & Blendshapes) ---
 const visionWorkerCode = `
 importScripts("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision/vision_bundle.js"); 
 
@@ -133,7 +134,7 @@ baseOptions: {
 modelAssetPath: "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task",
 delegate: "CPU"
 },
-runningMode: "IMAGE",
+runningMode: "VIDEO",
 outputFaceBlendshapes: true,
 outputFacialTransformationMatrixes: true,
 numFaces: 1
@@ -144,7 +145,7 @@ baseOptions: {
 modelAssetPath: "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task",
 delegate: "CPU"
 },
-runningMode: "IMAGE",
+runningMode: "VIDEO",
 numPoses: 1
 }); 
 
@@ -163,8 +164,8 @@ postMessage({ type: 'CALIBRATED' });
 
 if (e.data.type === 'PROCESS' && faceLandmarker && poseLandmarker) {
 const { imageBitmap, timestamp } = e.data;
-const faceResults = faceLandmarker.detect(imageBitmap);
-const poseResults = poseLandmarker.detect(imageBitmap); 
+const faceResults = faceLandmarker.detectForVideo(imageBitmap, timestamp);
+const poseResults = poseLandmarker.detectForVideo(imageBitmap, timestamp); 
 
 let data = {
 mesh: faceResults.faceLandmarks ? faceResults.faceLandmarks[0] : null,
@@ -230,10 +231,10 @@ data.aus = currentAus;
 if (previousAus) {
 let deltaAU4 = Math.abs(currentAus.au4 - previousAus.au4);
 let deltaAU12 = Math.abs(currentAus.au12 - previousAus.au12);
-if (deltaAU4 > 0.20) {
+if (deltaAU4 > 0.08) {
 microSpikeCount++;
 data.microSpike = "AU4_STRESS_SPIKE";
-} else if (deltaAU12 > 0.22) {
+} else if (deltaAU12 > 0.10) {
 microSpikeCount++;
 data.microSpike = "AU12_VALENCE_LEAK";
 } else {
@@ -293,6 +294,7 @@ postMessage({ type: 'RESULT', data: data });
 };
 `; 
 
+// --- 2. WORKER AUDIO ---
 const audioWorkerCode = `
 self.onmessage = function(e) {
 if (e.data.type === 'PROCESS_AUDIO') {
@@ -368,6 +370,7 @@ status: status
 };
 `; 
 
+// --- 3. WORKER SLM ---
 const slmWorkerCode = `
 self.onmessage = async function(e) {
 if (e.data.type === 'INFER') {
@@ -408,7 +411,7 @@ let isInfrared = false;
 let systemReady = false;
 let rppgHistory = new Array(60).fill(0);
 let lastProcessingTime = 0;
-const processingInterval = 33;
+const processingInterval = 33; 
 
 async function initSystem() {
 try {
@@ -489,7 +492,7 @@ document.getElementById('st-gaze').textContent = `[${currentMetrics.gaze.join(',
 document.getElementById('st-pupil').textContent = `${currentMetrics.pupilIndex} (${currentMetrics.pupilIndex > 1.2 ? 'DILATED' : 'NOMINAL'})`;
 document.getElementById('st-saccade').textContent = `${currentMetrics.saccadicVelocity} rad/s`;
 document.getElementById('st-val-arou').textContent = `${currentMetrics.valence} / ${currentMetrics.arousal}`;
-document.getElementById('st-fatigue').textContent = currentMetrics.fatigueBlinks + " CPM"; 
+document.getElementById('st-fatigue').textContent = `${currentMetrics.fatigueBlinks} CPM`; 
 
 rppgHistory.shift();
 rppgHistory.push(currentMetrics.rppgWaveValue || 0);
