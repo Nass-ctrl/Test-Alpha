@@ -95,7 +95,7 @@ filter: hue-rotate(180deg) invert(1) contrast(150%) brightness(90%);
 <!-- Vidéo source cachée / traitée -->
 <video id="webcam" class="absolute inset-0 w-full h-full object-cover transform -scale-x-100 opacity-60 transition-all duration-300" autoplay playsinline muted></video>
 
-<!-- Canvas pour le Mesh MediaPipe (Maillage Vert Actif) -->
+<!-- Canvas pour le Mesh MediaPipe -->
 <canvas id="output_canvas" class="absolute inset-0 w-full h-full object-cover transform -scale-x-100 z-10"></canvas>
 
 <!-- Canvas Three.js pour le HUD AR Spatial -->
@@ -129,9 +129,11 @@ filter: hue-rotate(180deg) invert(1) contrast(150%) brightness(90%);
 <button id="btn-stop" class="bg-red-600 hover:bg-red-500 text-white w-10 h-10 rounded-full flex items-center justify-center transition opacity-50 cursor-not-allowed" disabled>
 <i class="fa-solid fa-stop"></i>
 </button>
+<!-- Switch Caméra Ajouté -->
 <button id="btn-switch-camera" title="Changer de caméra" class="bg-slate-800 hover:bg-slate-700 text-slate-300 w-10 h-10 rounded-full flex items-center justify-center transition border border-slate-700">
 <i class="fa-solid fa-camera-rotate"></i>
 </button>
+<!-- Toggle Infrarouge Ajouté -->
 <button id="btn-toggle-infrared" title="Activer / Désactiver Infrarouge" class="bg-slate-800 hover:bg-slate-700 text-slate-300 w-10 h-10 rounded-full flex items-center justify-center transition border border-slate-700">
 <i class="fa-solid fa-fire text-amber-400"></i>
 </button>
@@ -204,17 +206,14 @@ filter: hue-rotate(180deg) invert(1) contrast(150%) brightness(90%);
 </div>
 </div>
 
-<!-- Groupe 5 : WebNN SLM Neural Co-Pilot + Diagnostic de Statut -->
+<!-- Groupe 5 : WebNN SLM Neural Co-Pilot Ajouté -->
 <div class="space-y-2">
 <div class="text-[11px] font-bold text-cyan-400 flex items-center justify-between">
 <span>WebNN SLM Neural Co-Pilot</span>
-<span id="webnn-status-badge" class="text-[9px] bg-amber-950 text-amber-300 px-1.5 py-0.5 rounded border border-amber-800">Vérification...</span>
+<span class="text-[9px] bg-cyan-950 text-cyan-300 px-1.5 py-0.5 rounded border border-cyan-800">ONNX Worker</span>
 </div>
 <div class="bg-slate-900/50 p-2.5 rounded-xl border border-slate-800/80 space-y-2 text-xs font-mono">
 <div id="slm-stream-text" class="text-cyan-200/90 italic min-h-[45px] leading-relaxed">En attente de l'activation du flux neural...</div>
-<button id="btn-test-webnn" class="w-full bg-cyan-600 hover:bg-cyan-500 text-white py-1.5 px-3 rounded-lg text-[11px] font-bold transition flex items-center justify-center space-x-2">
-<i class="fa-solid fa-microchip"></i><span>Tester le Statut WebNN SLM</span>
-</button>
 </div>
 </div>
 
@@ -245,11 +244,13 @@ filter: hue-rotate(180deg) invert(1) contrast(150%) brightness(90%);
 
 <!-- Modal Content -->
 <div class="p-6 flex-1 overflow-y-auto space-y-6 text-xs font-mono">
+<!-- Méta-données -->
 <div class="grid grid-cols-2 gap-4 bg-slate-900/50 p-4 rounded-xl border border-slate-800">
 <div><span class="text-slate-400">Durée de l'analyse :</span> <span id="rep-duration" class="text-white font-bold">03m 42s</span></div>
 <div><span class="text-slate-400">Statut Global :</span> <span id="rep-status" class="text-emerald-400 font-bold">CONFORME</span></div>
 </div>
 
+<!-- Bilan Émotionnel & Russell -->
 <div class="space-y-2">
 <div class="text-slate-300 font-bold uppercase tracking-wider">1. Bilan Émotionnel & Russell (Polar)</div>
 <div class="bg-slate-900/50 p-4 rounded-xl border border-slate-800 space-y-2">
@@ -260,6 +261,7 @@ filter: hue-rotate(180deg) invert(1) contrast(150%) brightness(90%);
 </div>
 </div>
 
+<!-- Analyse Avancée Industrielle -->
 <div class="space-y-2">
 <div class="text-slate-300 font-bold uppercase tracking-wider">2. Analyse Avancée Industrielle</div>
 <div class="bg-slate-900/50 p-4 rounded-xl border border-slate-800 grid grid-cols-2 gap-4">
@@ -272,6 +274,7 @@ filter: hue-rotate(180deg) invert(1) contrast(150%) brightness(90%);
 </div>
 </div>
 
+<!-- Synthèse Comportementale Table -->
 <div class="space-y-2">
 <div class="text-slate-300 font-bold uppercase tracking-wider">3. Synthèse Comportementale (Profilage)</div>
 <div class="overflow-x-auto">
@@ -294,6 +297,7 @@ filter: hue-rotate(180deg) invert(1) contrast(150%) brightness(90%);
 </div>
 </div>
 
+<!-- Diagnostic Final -->
 <div class="bg-blue-950/30 border border-blue-900/50 p-4 rounded-xl space-y-2">
 <div class="text-blue-400 font-bold uppercase tracking-wider text-[11px]">Diagnostic Final & Recommandation</div>
 <p id="rep-diagnostic" class="text-slate-300 leading-relaxed font-sans text-xs">
@@ -329,7 +333,7 @@ try {
 ort.env.wasm.wasmPaths = "https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/";
 self.postMessage({ type: 'ONNX_READY', status: 'ONNX Runtime Web initialisé dans le Web Worker avec succès.' });
 } catch (err) {
-self.postMessage({ type: 'ONNX_READY', status: 'Erreur d\\'initialisation ONNX Worker : ' + err.message });
+self.postMessage({ type: 'ONNX_READY', status: 'Erreur d\'initialisation ONNX Worker : ' + err.message });
 }
 } else if (type === 'RUN_SLM_INFERENCE') {
 const { macroVal, microVal, cognitiveVal, dissonanceVal, hrVal, vocalJitter, au4Score, au12Score } = payload;
@@ -354,13 +358,13 @@ const confidence = (1 / (1 + Math.exp(-activation / 50))).toFixed(2);
 const thoughtStreams = [
 'Inférence Tensorielle ONNX (Worker) : Tenseur validé [AU4:' + au4Score + ', AU12:' + au12Score + ']. Confiance : ' + confidence + '.',
 'Analyse neuronale avancée (Worker) : HR à ' + hrVal + ' bpm, Jitter vocal à ' + vocalJitter + '. Dissonance : ' + dissonanceVal + '.',
-'Vérification du modèle (Worker) : Les vecteurs d\\'attention calculés par le graphe ONNX confirment la conformité cognitive.',
+'Vérification du modèle (Worker) : Les vecteurs d\'attention calculés par le graphe ONNX confirment la conformité cognitive.',
 'Co-pilote SLM (Worker) : Micro-expression relevée [' + microVal + ']. Poursuite de la télémétrie multimodale en temps réel.'
 ];
 const selectedThought = thoughtStreams[Math.floor(Math.abs(activation) % thoughtStreams.length)];
 self.postMessage({ type: 'SLM_RESULT', thought: selectedThought });
 } catch (err) {
-self.postMessage({ type: 'SLM_RESULT', thought: 'Erreur d\\'inférence ONNX Runtime : ' + err.message });
+self.postMessage({ type: 'SLM_RESULT', thought: 'Erreur d\'inférence ONNX Runtime : ' + err.message });
 }
 } else if (type === 'RUN_WEBGPU_COMPUTE_KERNEL') {
 const { greenMean } = payload;
@@ -382,50 +386,12 @@ slmTextElement.innerText = thought;
 }
 } else if (type === 'ONNX_READY') {
 console.log(status);
-window.isWorkerReady = true;
-updateWebNNBadge('FONCTIONNEL', 'bg-emerald-950 text-emerald-300 border-emerald-800');
 } else if (type === 'WEBGPU_COMPUTE_RESULT') {
 window.__lastProcessedrPPG = rppgVal;
 }
 };
 
 computeWorker.postMessage({ type: 'INIT_ONNX_MODEL' });
-
-// Fonction de mise à jour du badge de statut WebNN SLM
-function updateWebNNBadge(text, className) {
-const badge = document.getElementById('webnn-status-badge');
-if (badge) {
-badge.innerText = text;
-badge.className = `text-[9px] px-1.5 py-0.5 rounded border ${className}`;
-}
-}
-
-// --- BOUTON DE TEST MANUEL DU STATUT WEBNN SLM ---
-document.getElementById('btn-test-webnn').addEventListener('click', async () => {
-const badge = document.getElementById('webnn-status-badge');
-const streamText = document.getElementById('slm-stream-text');
-
-badge.innerText = 'TEST EN COURS...';
-badge.className = 'text-[9px] bg-blue-950 text-blue-300 px-1.5 py-0.5 rounded border border-blue-800';
-
-let hasWebNNAPI = ('ml' in navigator);
-let ortLoaded = (typeof ort !== 'undefined');
-let workerActive = (window.isWorkerReady === true);
-
-setTimeout(() => {
-if (ortLoaded && workerActive) {
-updateWebNNBadge('FONCTIONNEL (WASM)', 'bg-emerald-950 text-emerald-300 border-emerald-800');
-if (hasWebNNAPI) {
-streamText.innerText = 'Diagnostic WebNN SLM : Succès total. ONNX Runtime Web et l\\'accélération matérielle WebNN/WASM sont opérationnels.';
-} else {
-streamText.innerText = 'Diagnostic WebNN SLM : Opérationnel via ONNX Runtime Web Worker (Fallback WASM actif - navigateur sans support natif navigator.ml).';
-}
-} else {
-updateWebNNBadge('ERREUR / BLOQUÉ', 'bg-red-950 text-red-300 border-red-800');
-streamText.innerText = 'Diagnostic WebNN SLM : Échec. Vérifiez les restrictions de sécurité (CORS / file://) ou le chargement du script ort.min.js.';
-}
-}, 600);
-});
 
 // --- MODULE D'ACCÉLÉRATION WEBGPU : KERNELS DE CALCUL WGSL & PIPELINE ---
 async function initWebGPUComputePipeline() {
@@ -468,20 +434,25 @@ initWebGPUComputePipeline().then(ctx => { webgpuContext = ctx; });
 
 // --- MOTEUR DE CALCUL RÉEL DES ACTION UNITS (FACS - Ekman / BP4D / DISFA) ---
 function computeRealActionUnits(landmarks) {
+// Normalisation par la distance inter-oculaire (stabilité aux mouvements de la tête)
 const leftEyeInner = landmarks[133];
 const rightEyeInner = landmarks[362];
 const interocularDist = Math.hypot(rightEyeInner.x - leftEyeInner.x, rightEyeInner.y - leftEyeInner.y) || 0.05;
 
+// AU4 : Froncement des sourcils (Rapprochement des sourcils 70 et 300 / ou 55 et 285)
 const leftEyebrowInner = landmarks[55];
 const rightEyebrowInner = landmarks[285];
 const browDistance = Math.hypot(rightEyebrowInner.x - leftEyebrowInner.x, rightEyebrowInner.y - leftEyebrowInner.y);
 const normalizedBrowDist = browDistance / interocularDist;
+// Baseline standard ~0.85 ; si ça diminue, AU4 augmente
 const au4Raw = Math.max(0, Math.min(100, (0.85 - normalizedBrowDist) * 300));
 
+// AU12 : Étirement des coins des lèvres / Sourire (Éloignement horizontal des commissures 61 et 291)
 const leftLipCorner = landmarks[61];
 const rightLipCorner = landmarks[291];
 const mouthWidth = Math.hypot(rightLipCorner.x - leftLipCorner.x, rightLipCorner.y - leftLipCorner.y);
 const normalizedMouthWidth = mouthWidth / interocularDist;
+// Baseline standard ~1.05 ; si ça augmente, AU12 augmente
 const au12Raw = Math.max(0, Math.min(100, (normalizedMouthWidth - 1.05) * 250));
 
 window.__currentAU4 = Number(au4Raw.toFixed(1));
@@ -602,7 +573,7 @@ let score = (hrDeviation * 0.4) + (asymmetry * 0.3) + (vocalJitterVal * 0.1) + h
 return Math.min(100, Math.max(0, score));
 }
 
-// --- CONNEXION RÉELLE DES LANDMARKS (MEDIAPIPE FACE MESH) & MAILLAGE VERT ---
+// --- CONNEXION RÉELLE DES LANDMARKS (MEDIAPIPE FACE MESH) & ROBUSTESSE rPPG ---
 let faceMesh = null;
 let rppgBuffer = [];
 let lastBlinkTime = Date.now();
@@ -614,7 +585,6 @@ console.warn("MediaPipe FaceMesh non chargé, chargement différé...");
 setTimeout(initFaceMeshEngine, 500);
 return;
 }
-try {
 faceMesh = new FaceMesh({
 locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`
 });
@@ -628,9 +598,6 @@ minTrackingConfidence: 0.5
 
 faceMesh.onResults(onFaceMeshResults);
 console.log("Moteur MediaPipe FaceMesh initialisé.");
-} catch (e) {
-console.error("Erreur d'initialisation de FaceMesh:", e);
-}
 }
 
 function extractRobustrPPG(videoEl, landmarks) {
@@ -692,18 +659,16 @@ const landmarks = results.multiFaceLandmarks[0];
 document.getElementById('face-detected').className = 'text-emerald-400 font-bold';
 document.getElementById('face-detected').innerText = 'OUI';
 
-// --- AFFICHAGE DU MAILLAGE VERT DU VISAGE (MÉTHODE MEDIAPIPE DRAWING UTILS) ---
-drawConnectors(canvasCtx, landmarks, FACEMESH_TESSELATION, { color: 'rgba(16, 185, 129, 0.4)', lineWidth: 0.8 });
-drawConnectors(canvasCtx, landmarks, FACEMESH_RIGHT_EYE, { color: '#10b981', lineWidth: 1.2 });
-drawConnectors(canvasCtx, landmarks, FACEMESH_LEFT_EYE, { color: '#10b981', lineWidth: 1.2 });
-drawConnectors(canvasCtx, landmarks, FACEMESH_RIGHT_EYEBROW, { color: '#10b981', lineWidth: 1.0 });
-drawConnectors(canvasCtx, landmarks, FACEMESH_LEFT_EYEBROW, { color: '#10b981', lineWidth: 1.0 });
-drawConnectors(canvasCtx, landmarks, FACEMESH_LIPS, { color: '#34d399', lineWidth: 1.5 });
-drawConnectors(canvasCtx, landmarks, FACEMESH_FACE_OVAL, { color: '#059669', lineWidth: 1.2 });
+drawConnectors(canvasCtx, landmarks, FACEMESH_TESSELATION, { color: 'rgba(59, 130, 246, 0.15)', lineWidth: 0.5 });
+drawConnectors(canvasCtx, landmarks, FACEMESH_RIGHT_EYE, { color: '#3b82f6', lineWidth: 1 });
+drawConnectors(canvasCtx, landmarks, FACEMESH_LEFT_EYE, { color: '#3b82f6', lineWidth: 1 });
+drawConnectors(canvasCtx, landmarks, FACEMESH_LIPS, { color: '#10b981', lineWidth: 1 });
 
+// --- INTEGRATION DU CALCUL RÉEL DES ACTION UNITS ---
 const auMetrics = computeRealActionUnits(landmarks);
 document.getElementById('m-au').innerText = `AU4: ${auMetrics.au4.toFixed(0)}%, AU12: ${auMetrics.au12.toFixed(0)}%`;
 
+// Déduction dynamique des micro/macro expressions à partir des scores réels d'AU
 if (auMetrics.au12 > 40) {
 document.getElementById('m-macro-name').innerText = `Joie (${auMetrics.au12.toFixed(0)}%)`;
 document.getElementById('m-micro-name').innerText = 'Sourire authentique (AU12)';
@@ -714,6 +679,7 @@ document.getElementById('m-micro-name').innerText = 'Froncement sourcil (AU4)';
 document.getElementById('m-macro-name').innerText = 'Neutre';
 document.getElementById('m-micro-name').innerText = 'Aucune';
 }
+// ---------------------------------------------------
 
 const leftEyeTop = landmarks[159];
 const leftEyeBottom = landmarks[145];
@@ -754,11 +720,7 @@ canvasCtx.restore();
 async function processVideoFrame() {
 if (!isRunning) return;
 if (videoElement.readyState >= 2 && faceMesh) {
-try {
 await faceMesh.send({ image: videoElement });
-} catch (err) {
-// Ignore les erreurs de frame isolées pour ne pas stopper la boucle
-}
 }
 requestAnimationFrame(processVideoFrame);
 }
@@ -819,40 +781,22 @@ const btnToggleInfrared = document.getElementById('btn-toggle-infrared');
 
 async function startCameraStream() {
 try {
-if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-throw new Error("L'API MediaDevices n'est pas supportée par votre navigateur ou contexte sécurisé manquant (HTTPS / localhost requis).");
-}
-
 if (videoElement.srcObject) {
 videoElement.srcObject.getTracks().forEach(track => track.stop());
 }
-
-let stream;
-try {
-stream = await navigator.mediaDevices.getUserMedia({
+const constraints = {
 video: { width: 1280, height: 720, facingMode: currentFacingMode },
 audio: true
-});
-} catch (audioErr) {
-console.warn("Accès micro refusé ou indisponible, tentative vidéo seule...", audioErr);
-stream = await navigator.mediaDevices.getUserMedia({
-video: { width: 1280, height: 720, facingMode: currentFacingMode },
-audio: false
-});
-}
-
+};
+const stream = await navigator.mediaDevices.getUserMedia(constraints);
 videoElement.srcObject = stream;
 await videoElement.play();
 
-if (stream.getAudioTracks().length > 0) {
 initAudioProsodyAnalysis(stream);
-}
 initFaceMeshEngine();
-return true;
 } catch (err) {
-console.error("Erreur critique d'accès aux périphériques:", err);
-alert("Impossible d'accéder à la webcam. Vérifiez que vous êtes sur localhost ou HTTPS et que vous avez autorisé l'accès à la caméra.\nDétails: " + err.message);
-return false;
+console.error("Erreur d'accès aux périphériques:", err);
+alert("Impossible d'accéder à la webcam ou au micro.");
 }
 }
 
@@ -882,9 +826,7 @@ btnToggleInfrared.classList.remove('bg-amber-600/30', 'border-amber-500');
 });
 
 btnStart.addEventListener('click', async () => {
-const success = await startCameraStream();
-if (!success) return;
-
+await startCameraStream();
 isRunning = true;
 startTimer();
 requestAnimationFrame(processVideoFrame);
