@@ -157,45 +157,57 @@ border-radius: 4px;
 
 <!-- Groupe 1 : Oculaire & Cognitif -->
 <div class="space-y-2">
-<div class="text-[11px] font-bold text-blue-300">Oculaire & Cognitif</div>
+<div class="text-[11px] font-bold text-blue-300 flex items-center justify-between">
+  <span>Oculaire & Cognitif</span>
+  <span id="ind-grp1" class="w-2 h-2 rounded-full bg-slate-600" title="Statut Module"></span>
+</div>
 <div class="bg-slate-900/50 p-2.5 rounded-xl border border-slate-800/80 space-y-2 text-xs font-mono">
-<div class="flex justify-between"><span>Pupille (Dilatation):</span><span id="m-pupil" class="text-slate-200">--</span></div>
-<div class="flex justify-between"><span>Fréquence Clignement:</span><span id="m-blink" class="text-slate-200">-- /min</span></div>
-<div class="flex justify-between"><span>Vecteur Regard 3D:</span><span id="m-gaze" class="text-slate-200">[X:0.0, Y:0.0]</span></div>
-<div class="flex justify-between"><span>Charge Cognitive:</span><span id="m-cognitive" class="text-emerald-400 font-bold">0%</span></div>
+<div class="flex justify-between items-center"><span>Pupille (Dilatation):</span><div class="flex items-center space-x-2"><span id="m-pupil" class="text-slate-200">--</span><span id="st-pupil" class="w-1.5 h-1.5 rounded-full bg-slate-600"></span></div></div>
+<div class="flex justify-between items-center"><span>Fréquence Clignement:</span><div class="flex items-center space-x-2"><span id="m-blink" class="text-slate-200">-- /min</span><span id="st-blink" class="w-1.5 h-1.5 rounded-full bg-slate-600"></span></div></div>
+<div class="flex justify-between items-center"><span>Vecteur Regard 3D:</span><div class="flex items-center space-x-2"><span id="m-gaze" class="text-slate-200">[X:0.0, Y:0.0]</span><span id="st-gaze" class="w-1.5 h-1.5 rounded-full bg-slate-600"></span></div></div>
+<div class="flex justify-between items-center"><span>Charge Cognitive:</span><div class="flex items-center space-x-2"><span id="m-cognitive" class="text-emerald-400 font-bold">0%</span><span id="st-cognitive" class="w-1.5 h-1.5 rounded-full bg-slate-600"></span></div></div>
 </div>
 </div> 
 
 <!-- Groupe 2 : Cardiaque & Végétatif (rPPG & GSR) -->
 <div class="space-y-2">
-<div class="text-[11px] font-bold text-red-400">Physiologie Involontaire (rPPG / GSR)</div>
+<div class="text-[11px] font-bold text-red-400 flex items-center justify-between">
+  <span>Physiologie Involontaire (rPPG / GSR)</span>
+  <span id="ind-grp2" class="w-2 h-2 rounded-full bg-slate-600" title="Statut Module"></span>
+</div>
 <div class="bg-slate-900/50 p-2.5 rounded-xl border border-slate-800/80 space-y-2 text-xs font-mono">
-<div class="flex justify-between"><span>Fréquence Cardiaque (HR):</span><span id="m-hr" class="text-red-400 font-bold">-- bpm</span></div>
-<div class="flex justify-between"><span>GSR Optique (Sueur):</span><span id="m-gsr" class="text-slate-200">Stable</span></div>
-<div class="flex justify-between"><span>Vasomotion Nasale:</span><span id="m-vaso" class="text-slate-200">Normale</span></div>
-<div class="flex justify-between"><span>Respiration (RPM):</span><span id="m-rpm" class="text-slate-200">-- rpm</span></div>
+<div class="flex justify-between items-center"><span>Fréquence Cardiaque (HR):</span><div class="flex items-center space-x-2"><span id="m-hr" class="text-red-400 font-bold">-- bpm</span><span id="st-hr" class="w-1.5 h-1.5 rounded-full bg-slate-600"></span></div></div>
+<div class="flex justify-between items-center"><span>GSR Optique (Sueur):</span><div class="flex items-center space-x-2"><span id="m-gsr" class="text-slate-200">Stable</span><span id="st-gsr" class="w-1.5 h-1.5 rounded-full bg-slate-600"></span></div></div>
+<div class="flex justify-between items-center"><span>Vasomotion Nasale:</span><div class="flex items-center space-x-2"><span id="m-vaso" class="text-slate-200">Normale</span><span id="st-vaso" class="w-1.5 h-1.5 rounded-full bg-slate-600"></span></div></div>
+<div class="flex justify-between items-center"><span>Respiration (RPM):</span><div class="flex items-center space-x-2"><span id="m-rpm" class="text-slate-200">-- rpm</span><span id="st-rpm" class="w-1.5 h-1.5 rounded-full bg-slate-600"></span></div></div>
 </div>
 </div> 
 
 <!-- Groupe 3 : FACS & Émotions -->
 <div class="space-y-2">
-<div class="text-[11px] font-bold text-amber-400">Micro-expressions & FACS</div>
+<div class="text-[11px] font-bold text-amber-400 flex items-center justify-between">
+  <span>Micro-expressions & FACS</span>
+  <span id="ind-grp3" class="w-2 h-2 rounded-full bg-slate-600" title="Statut Module"></span>
+</div>
 <div class="bg-slate-900/50 p-2.5 rounded-xl border border-slate-800/80 space-y-2 text-xs font-mono">
-<div class="flex justify-between"><span>Valence / Arousal:</span><span id="m-va" class="text-slate-200">V: 0.0 / A: 0.0</span></div>
-<div class="flex justify-between"><span>Action Units Clés:</span><span id="m-au" class="text-slate-200">AU1, AU4, AU12</span></div>
-<div class="flex justify-between"><span>Asymétrie Faciale:</span><span id="m-asymmetry" class="text-emerald-300 font-bold">0%</span></div>
-<div class="flex justify-between"><span>Macro-expression:</span><span id="m-macro-name" class="text-emerald-400 font-bold">Neutre</span></div>
-<div class="flex justify-between"><span>Micro-expression:</span><span id="m-micro-name" class="text-yellow-400 font-bold">Aucune</span></div>
+<div class="flex justify-between items-center"><span>Valence / Arousal:</span><div class="flex items-center space-x-2"><span id="m-va" class="text-slate-200">V: 0.0 / A: 0.0</span><span id="st-va" class="w-1.5 h-1.5 rounded-full bg-slate-600"></span></div></div>
+<div class="flex justify-between items-center"><span>Action Units Clés:</span><div class="flex items-center space-x-2"><span id="m-au" class="text-slate-200">AU1, AU4, AU12</span><span id="st-au" class="w-1.5 h-1.5 rounded-full bg-slate-600"></span></div></div>
+<div class="flex justify-between items-center"><span>Asymétrie Faciale:</span><div class="flex items-center space-x-2"><span id="m-asymmetry" class="text-emerald-300 font-bold">0%</span><span id="st-asymmetry" class="w-1.5 h-1.5 rounded-full bg-slate-600"></span></div></div>
+<div class="flex justify-between items-center"><span>Macro-expression:</span><div class="flex items-center space-x-2"><span id="m-macro-name" class="text-emerald-400 font-bold">Neutre</span><span id="st-macro-name" class="w-1.5 h-1.5 rounded-full bg-slate-600"></span></div></div>
+<div class="flex justify-between items-center"><span>Micro-expression:</span><div class="flex items-center space-x-2"><span id="m-micro-name" class="text-yellow-400 font-bold">Aucune</span><span id="st-micro-name" class="w-1.5 h-1.5 rounded-full bg-slate-600"></span></div></div>
 </div>
 </div> 
 
 <!-- Groupe 4 : vEEG & Dissonance -->
 <div class="space-y-2">
-<div class="text-[11px] font-bold text-purple-400">vEEG & Score de Dissonance</div>
+<div class="text-[11px] font-bold text-purple-400 flex items-center justify-between">
+  <span>vEEG & Score de Dissonance</span>
+  <span id="ind-grp4" class="w-2 h-2 rounded-full bg-slate-600" title="Statut Module"></span>
+</div>
 <div class="bg-slate-900/50 p-2.5 rounded-xl border border-slate-800/80 space-y-2 text-xs font-mono">
-<div class="flex justify-between"><span>Ondes Alpha (Relax):</span><span id="m-alpha" class="text-purple-300">0%</span></div>
-<div class="flex justify-between"><span>Ondes Beta (Focus):</span><span id="m-beta" class="text-purple-300">0%</span></div>
-<div class="flex justify-between"><span>Score de Dissonance:</span><span id="m-dissonance" class="text-emerald-400 font-bold">0.0%</span></div>
+<div class="flex justify-between items-center"><span>Ondes Alpha (Relax):</span><div class="flex items-center space-x-2"><span id="m-alpha" class="text-purple-300">0%</span><span id="st-alpha" class="w-1.5 h-1.5 rounded-full bg-slate-600"></span></div></div>
+<div class="flex justify-between items-center"><span>Ondes Beta (Focus):</span><div class="flex items-center space-x-2"><span id="m-beta" class="text-purple-300">0%</span><span id="st-beta" class="w-1.5 h-1.5 rounded-full bg-slate-600"></span></div></div>
+<div class="flex justify-between items-center"><span>Score de Dissonance:</span><div class="flex items-center space-x-2"><span id="m-dissonance" class="text-emerald-400 font-bold">0.0%</span><span id="st-dissonance" class="w-1.5 h-1.5 rounded-full bg-slate-600"></span></div></div>
 </div>
 </div> 
 
@@ -203,7 +215,10 @@ border-radius: 4px;
 <div class="space-y-2">
 <div class="text-[11px] font-bold text-cyan-400 flex items-center justify-between">
 <span>WebNN SLM Neural Co-Pilot</span>
-<span class="text-[9px] bg-cyan-950 text-cyan-300 px-1.5 py-0.5 rounded border border-cyan-800">ONNX Worker</span>
+<div class="flex items-center space-x-1.5">
+  <span id="ind-grp5" class="w-2 h-2 rounded-full bg-slate-600" title="Statut Module"></span>
+  <span class="text-[9px] bg-cyan-950 text-cyan-300 px-1.5 py-0.5 rounded border border-cyan-800">ONNX Worker</span>
+</div>
 </div>
 <div class="bg-slate-900/50 p-2.5 rounded-xl border border-slate-800/80 space-y-2 text-xs font-mono">
 <div id="slm-stream-text" class="text-cyan-200/90 italic min-h-[45px] leading-relaxed">En attente de l'activation du flux neural...</div>
@@ -816,10 +831,26 @@ document.getElementById('m-micro-name').innerText = micros[Math.floor(Math.rando
 updateSLMCoPilot(); 
 
 if (parseFloat(dissonanceScore) > 30) {
+document.getElementById('dissonance-alert').classList.add('hidden'); // Corrigé ici par rapport au code d'origine si besoin mais gardé tel quel
 document.getElementById('dissonance-alert').classList.remove('hidden');
 } else {
 document.getElementById('dissonance-alert').classList.add('hidden');
 } 
+
+// Mise à jour visuelle des indicateurs d'activité des paramètres (Actif / Vert clignotant)
+const indicatorIds = [
+  'st-pupil', 'st-blink', 'st-gaze', 'st-cognitive',
+  'st-hr', 'st-gsr', 'st-vaso', 'st-rpm',
+  'st-va', 'st-au', 'st-asymmetry', 'st-macro-name', 'st-micro-name',
+  'st-alpha', 'st-beta', 'st-dissonance',
+  'ind-grp1', 'ind-grp2', 'ind-grp3', 'ind-grp4', 'ind-grp5'
+];
+indicatorIds.forEach(id => {
+  const el = document.getElementById(id);
+  if (el) {
+    el.className = el.className.replace(/bg-slate-600|bg-emerald-500 animate-pulse/g, '') + ' bg-emerald-500 animate-pulse';
+  }
+});
 
 setTimeout(simulateGeneralTelemetry, 1500);
 } 
