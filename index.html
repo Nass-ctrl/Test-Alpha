@@ -2,7 +2,7 @@
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
-<title>EgoLens Apex Spectra x Spectrum - Full Industrial Suite (v24.03)</title>
+<title>EgoLens Apex Spectra x Spectrum - Full Industrial Suite (v24.04)</title>
 <style>
 body { margin: 0; background: #020617; color: #f8fafc; font-family: monospace; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; overflow: hidden; }
 #viewfinder { position: relative; width: 1280px; height: 720px; max-width: 95vw; max-height: 75vh; border-radius: 10px; overflow: hidden; border: 1px solid #334155; background: #000; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.9); }
@@ -24,7 +24,10 @@ button:disabled { background: #475569; cursor: not-allowed; color: #94a3b8; }
 
 #hud-slm-text { font-size: 8px; color: #94a3b8; margin-top: 3px; max-height: 35px; overflow-y: auto; border-top: 1px solid #1e293b; padding-top: 2px; line-height: 1.1; }
 #rppg-graph { width: 100%; height: 20px; background: #020617; border: 1px solid #1e293b; margin-top: 3px; border-radius: 3px; display: block; }
-#calibration-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(2, 6, 23, 0.97); z-index: 50; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 20px; }
+
+#calibration-overlay, #report-modal { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(2, 6, 23, 0.97); z-index: 50; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 20px; }
+#report-modal { display: none; z-index: 100; text-align: left; }
+.report-card { background: #090d16; border: 1px solid #38bdf8; border-radius: 8px; padding: 20px; width: 600px; max-width: 90vw; max-height: 85vh; overflow-y: auto; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.8); }
 </style>
 </head>
 <body> 
@@ -35,13 +38,26 @@ button:disabled { background: #475569; cursor: not-allowed; color: #94a3b8; }
 
 <!-- CALIBRAGE INITIAL -->
 <div id="calibration-overlay">
-<h2 style="color: #38bdf8; margin-bottom: 10px;">APEX SPECTRA x SPECTRUM // v24.03</h2>
+<h2 style="color: #38bdf8; margin-bottom: 10px;">APEX SPECTRA x SPECTRUM // v24.04</h2>
 <p style="color: #94a3b8; max-width: 520px; font-size: 11px; margin-bottom: 20px;">
 Initialisation des modèles de vision et des flux biométriques.<br><br>
 <span id="loading-indicator" style="color: #f43f5e;">CHARGEMENT DES MODÈLES MEDIAPIPE EN COURS...</span>
 </p>
 <button id="btn-start" onclick="startCalibration()" style="padding: 8px 16px; font-size: 10px;" disabled>LANCER LE PIPELINE</button>
 </div> 
+
+<!-- FENÊTRE MODALE : COMPTE RENDU FINAL -->
+<div id="report-modal">
+<div class="report-card">
+<h2 style="color: #38bdf8; margin-top: 0; border-bottom: 1px solid #334155; padding-bottom: 8px; font-size: 14px;">COMPTE RENDU FINAL DE SESSION // EGOLENS APEX</h2>
+<div id="report-content" style="font-size: 11px; line-height: 1.5; color: #cbd5e1; margin: 15px 0;">
+<!-- Injecté dynamiquement -->
+</div>
+<div style="text-align: right; margin-top: 20px;">
+<button onclick="closeReport()" style="background: #10b981; padding: 8px 14px; font-size: 10px;">REPRENDRE / FERMER</button>
+</div>
+</div>
+</div>
 
 <!-- HUD GAUCHE -->
 <div id="hud-left">
@@ -82,18 +98,32 @@ Initialisation des modèles de vision et des flux biométriques.<br><br>
 
 <!-- HUD BAS -->
 <div id="hud-bottom">
-<div style="width: 70%;">
-<div style="color: #38bdf8; font-weight: bold; margin-bottom: 2px;">SLM WEBNN CO-PILOT // v24.03</div>
+<div style="width: 60%;">
+<div style="color: #38bdf8; font-weight: bold; margin-bottom: 2px;">SLM WEBNN CO-PILOT // v24.04</div>
 <div>STATE: <span id="st-state" class="val">STANDBY</span> | CONGRUENCE: <span id="st-congruence" class="val">100%</span></div>
 <div id="hud-slm-text">Système prêt pour l'analyse multi-modale...</div>
 </div>
 <div>
 <button id="btn-ir" onclick="toggleIRMode()">IR/RGB</button>
+<button id="btn-report" onclick="openReport()" style="background: #10b981;" disabled>RAPPORT FINAL</button>
 </div>
 </div>
 </div> 
 
 <script>
+// --- STATISTIQUES DE SESSION ---
+let sessionDataTracker = {
+    startTime: null,
+    endTime: null,
+    totalFrames: 0,
+    bpmSum: 0,
+    bpmMin: 999,
+    bpmMax: 0,
+    microSpikesTotal: 0,
+    congruenceSum: 0,
+    statesCount: {}
+};
+
 // --- 1. WORKER VISION ---
 const visionWorkerCode = `
 importScripts("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.12/vision_bundle.js"); 
@@ -171,8 +201,8 @@ onmessage = function (e) {
             if (currentTimestampMs <= lastTimestampMs) currentTimestampMs = lastTimestampMs + 1;
             lastTimestampMs = currentTimestampMs;
 
-            const faceResults = faceLandmarker.detectForVideo(imageBitmap, currentTimestampMs);
-            const poseResults = poseLandmarker.detectForVideo(imageBitmap, currentTimestampMs); 
+            const faceResults = faceLandmarker.detectForVideo(imageBitmap, { timestampInMs: currentTimestampMs });
+            const poseResults = poseLandmarker.detectForVideo(imageBitmap, { timestampInMs: currentTimestampMs }); 
             imageBitmap.close();
 
             let data = {
@@ -341,6 +371,8 @@ let isModelsLoaded = false;
 let rppgHistory = new Array(60).fill(0);
 let lastProcessingTime = 0;
 const processingInterval = 33; 
+let latestSlmState = "STANDBY";
+let latestCongruence = 100;
 
 async function initSystem() {
     try {
@@ -360,6 +392,7 @@ async function initSystem() {
         const freqData = new Uint8Array(analyzer.frequencyBinCount); 
 
         setInterval(() => {
+            if (!systemReady) return;
             analyzer.getFloatTimeDomainData(timeData);
             analyzer.getByteFrequencyData(freqData);
             audioWorker.postMessage({ type: 'PROCESS_AUDIO', timeData: timeData, freqData: freqData });
@@ -382,6 +415,18 @@ function startCalibration() {
     document.getElementById('calibration-overlay').style.display = 'none';
     visionWorker.postMessage({ type: 'CALIBRATE' });
     systemReady = true;
+    
+    // Initialisation des données de suivi de session
+    sessionDataTracker.startTime = Date.now();
+    sessionDataTracker.totalFrames = 0;
+    sessionDataTracker.bpmSum = 0;
+    sessionDataTracker.bpmMin = 999;
+    sessionDataTracker.bpmMax = 0;
+    sessionDataTracker.microSpikesTotal = 0;
+    sessionDataTracker.congruenceSum = 0;
+    sessionDataTracker.statesCount = {};
+
+    document.getElementById('btn-report').disabled = false;
     startPipeline();
 } 
 
@@ -397,8 +442,20 @@ visionWorker.onmessage = (e) => {
         document.getElementById('loading-indicator').textContent = "ERREUR DE CHARGEMENT : " + e.data.message;
     } else if (e.data.type === 'RESULT') {
         currentMetrics = e.data.data;
-        const au = currentMetrics.aus || {}; 
+        if (!systemReady) return;
 
+        // Mise à jour des stats de session
+        sessionDataTracker.totalFrames++;
+        let bpm = currentMetrics.rppgBpm || 72;
+        sessionDataTracker.bpmSum += bpm;
+        if (bpm < sessionDataTracker.bpmMin) sessionDataTracker.bpmMin = bpm;
+        if (bpm > sessionDataTracker.bpmMax) sessionDataTracker.bpmMax = bpm;
+        sessionDataTracker.microSpikesTotal = currentMetrics.microSpikeCount || 0;
+        sessionDataTracker.congruenceSum += latestCongruence;
+        
+        sessionDataTracker.statesCount[latestSlmState] = (sessionDataTracker.statesCount[latestSlmState] || 0) + 1;
+
+        const au = currentMetrics.aus || {}; 
         document.getElementById('au-1').textContent = au.au1?.toFixed(2) || '0.00';
         document.getElementById('au-2').textContent = au.au2?.toFixed(2) || '0.00';
         document.getElementById('au-4').textContent = au.au4?.toFixed(2) || '0.00';
@@ -439,6 +496,8 @@ audioWorker.onmessage = (e) => {
 
 slmWorker.onmessage = (e) => {
     if (e.data.state) {
+        latestSlmState = e.data.state;
+        latestCongruence = e.data.congruence;
         document.getElementById('st-state').textContent = e.data.state;
         document.getElementById('st-congruence').textContent = e.data.congruence + "%";
     }
@@ -458,7 +517,9 @@ async function startPipeline() {
                 }).catch(() => {});
             }
         }
-        requestAnimationFrame(loop);
+        if (systemReady) {
+            requestAnimationFrame(loop);
+        }
     }
     requestAnimationFrame(loop);
 } 
@@ -492,7 +553,48 @@ function toggleIRMode() {
     isInfrared = !isInfrared;
     video.style.filter = isInfrared ? 'invert(1) hue-rotate(180deg) contrast(160%)' : 'none';
     document.getElementById('btn-ir').style.background = isInfrared ? '#f43f5e' : '#0284c7';
-} 
+}
+
+// --- FONCTIONS DE COMPTE RENDU FINAL ---
+function openReport() {
+    systemReady = false; // Pause l'analyse en arrière-plan
+    sessionDataTracker.endTime = Date.now();
+    
+    let durationSec = Math.round((sessionDataTracker.endTime - sessionDataTracker.startTime) / 1000);
+    let avgBpm = sessionDataTracker.totalFrames > 0 ? (sessionDataTracker.bpmSum / sessionDataTracker.totalFrames).toFixed(1) : 0;
+    let avgCongruence = sessionDataTracker.totalFrames > 0 ? (sessionDataTracker.congruenceSum / sessionDataTracker.totalFrames).toFixed(1) : 100;
+    
+    // Trouver l'état dominant
+    let dominantState = "BASELINE_CONGRUENT";
+    let maxCount = -1;
+    for (let state in sessionDataTracker.statesCount) {
+        if (sessionDataTracker.statesCount[state] > maxCount) {
+            maxCount = sessionDataTracker.statesCount[state];
+            dominantState = state;
+        }
+    }
+
+    let reportHTML = `
+        <p><b>Durée totale de la session :</b> ${durationSec} secondes</p>
+        <p><b>Échantillons analysés :</b> ${sessionDataTracker.totalFrames} frames</p>
+        <hr style="border-color: #334155;">
+        <p><b>Fréquence Cardiaque (rPPG) Moyenne :</b> <span style="color: #38bdf8;">${avgBpm} BPM</span> (Min: ${sessionDataTracker.bpmMin === 999 ? 0 : sessionDataTracker.bpmMin} / Max: ${sessionDataTracker.bpmMax})</p>
+        <p><b>Total Micro-Sursauts (Stress/Faux-fuyants) :</b> <span style="color: #f43f5e;">${sessionDataTracker.microSpikesTotal} détectés</span></p>
+        <p><b>Indice de Congruence Comportementale Moyen :</b> <span style="color: #10b981;">${avgCongruence}%</span></p>
+        <p><b>État Cognitif Dominant :</b> <span style="color: #38bdf8;">${dominantState}</span></p>
+        <hr style="border-color: #334155;">
+        <p style="font-size: 10px; color: #94a3b8;">Analyse générée par la suite EgoLens Apex Spectra v24.04. Toutes les métriques ont été calculées localement via les pipelines WebNN et MediaPipe.</p>
+    `;
+
+    document.getElementById('report-content').innerHTML = reportHTML;
+    document.getElementById('report-modal').style.display = 'flex';
+}
+
+function closeReport() {
+    document.getElementById('report-modal').style.display = 'none';
+    systemReady = true;
+    startPipeline();
+}
 
 initSystem();
 </script>
