@@ -3,14 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>EgoLens - Suite Analytique TFJS Stable</title>
+    <title>EgoLens - Suite Analytique TFJS Direct</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <!-- Chargement de TensorFlow.js et du modèle de repères faciaux -->
+    <!-- Chargement de TensorFlow.js -->
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-core"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-converter"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgl"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/face-landmarks-detection"></script>
+    <!-- Chargement direct du modèle BlazeFace (plus léger, robuste et compatible natif TFJS) -->
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/blazeface"></script>
     <style>
         #output-canvas {
             width: 100%;
@@ -33,7 +34,7 @@
     <header class="bg-slate-900 border-b border-slate-800 px-4 sm:px-6 py-3 flex flex-wrap justify-between items-center gap-3 shadow-lg">
         <div class="flex items-center space-x-3">
             <div id="global-dot" class="h-3 w-3 bg-amber-500 rounded-full animate-pulse"></div>
-            <h1 class="text-lg sm:text-xl font-bold tracking-wider text-white">EGOLENS <span class="text-xs text-emerald-400 font-mono">v16.08-TFJS</span></h1>
+            <h1 class="text-lg sm:text-xl font-bold tracking-wider text-white">EGOLENS <span class="text-xs text-emerald-400 font-mono">v16.08-BLAZEFACE</span></h1>
         </div>
         
         <div class="flex items-center gap-2">
@@ -52,7 +53,7 @@
         <!-- Colonne Gauche : Flux Vidéo & Infos -->
         <div class="lg:col-span-4 flex flex-col gap-4">
             <section class="bg-slate-900 border border-slate-800 rounded-xl p-4 flex flex-col shadow-xl min-h-[280px]">
-                <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-3">Flux Morpho-Facial (TensorFlow.js)</h2>
+                <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-3">Flux Morpho-Facial (BlazeFace)</h2>
                 <div class="relative flex-1 bg-black rounded-lg overflow-hidden border border-slate-800 flex items-center justify-center aspect-video sm:aspect-auto">
                     <video id="input-video" class="hidden" autoplay playsinline muted></video>
                     <canvas id="output-canvas" class="w-full h-full object-contain"></canvas>
@@ -86,26 +87,20 @@
 
     </main>
 
-    <!-- Thread Principal JavaScript (TensorFlow.js étanche & Canvas IA stabilisé) -->
+    <!-- Thread Principal JavaScript (BlazeFace Natif + WebGL étanche) -->
     <script>
         let isRunning = false;
         let isProcessing = false;
         let currentVelocity = 0; 
         let lastExpression = "Neutre";
         let mediaStream = null;
-        let detector = null;
+        let model = null;
         let analysisInterval = null;
 
         const videoElement = document.getElementById('input-video');
         const canvasElement = document.getElementById('output-canvas');
         const canvasCtx = canvasElement.getContext('2d', { alpha: false });
         
-        // Canvas intermédiaire pour stabiliser l'entrée du modèle TFJS
-        const aiCanvas = document.createElement('canvas');
-        aiCanvas.width = 320;
-        aiCanvas.height = 240;
-        const aiCtx = aiCanvas.getContext('2d', { alpha: false, willReadFrequently: true });
-
         const valFacsEl = document.getElementById('val-facs');
         const valDiagEl = document.getElementById('val-diag');
 
@@ -116,7 +111,6 @@
         const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: "high-performance" });
         renderer.setSize(container.clientWidth || 400, container.clientHeight || 300);
         container.appendChild(renderer.domElement);
-        camera.path = null;
         camera.position.z = 3;
 
         const particlesCnt = 300;
@@ -145,19 +139,11 @@
             }
         });
 
-        // --- Initialisation du modèle TensorFlow.js Face Landmarks Detection ---
-        async function initTFJSModel() {
+        // --- Chargement du modèle BlazeFace (Léger et ultra-stable) ---
+        async function initModel() {
             await tf.setBackend('webgl');
             await tf.ready();
-            
-            detector = await faceLandmarksDetection.createDetector(
-                faceLandmarksDetection.SupportedModels.MediaPipeFaceMesh, 
-                {
-                    runtime: 'tfjs',
-                    refineLandmarks: true,
-                    maxFaces: 1
-                }
-            );
+            model = await blazeface.load();
         }
 
         function updateReport(type, meaning) {
@@ -190,49 +176,48 @@
             requestAnimationFrame(renderVideoLoop);
         }
 
-        // --- Analyse IA Sécurisée avec Canvas intermédiaire et tf.tidy ---
-        async function runTFJSAnalysis() {
-            if (!isRunning || !detector || isProcessing) return;
+        // --- Analyse IA Directe via BlazeFace (Sans blocage de tenseur) ---
+        async function runAnalysis() {
+            if (!isRunning || !model || isProcessing) return;
             isProcessing = true;
 
             try {
                 if (videoElement.readyState >= 2 && videoElement.videoWidth > 0) {
-                    // Dessin sur le canvas IA pour stabiliser l'entrée du modèle
-                    aiCtx.drawImage(videoElement, 0, 0, aiCanvas.width, aiCanvas.height);
-
-                    await tf.tidy(async () => {
-                        const faces = await detector.estimateFaces(aiCanvas, { flipHorizontal: false });
+                    // BlazeFace accepte directement l'élément vidéo et retourne la boîte faciale ainsi que les points clés (yeux, nez, bouche)
+                    const predictions = await model.estimateFaces(videoElement, false);
+                    
+                    if (predictions && predictions.length > 0) {
+                        const face = predictions[0];
+                        const landmarks = face.landmarks; // [rightEye, leftEye, nose, mouth, rightEar, leftEar]
                         
-                        if (faces && faces.length > 0) {
-                            const keypoints = faces[0].keypoints;
-                            const upperLip = keypoints[13];
-                            const lowerLip = keypoints[14];
+                        if (landmarks && landmarks.length >= 4) {
+                            const nose = landmarks[2];
+                            const mouth = landmarks[3];
                             
-                            if (upperLip && lowerLip) {
-                                const mouthOpenness = Math.abs(upperLip.y - lowerLip.y) / aiCanvas.height;
-                                
-                                valDiagEl.textContent = "Suivi TFJS Actif ✔";
-                                valDiagEl.className = "text-emerald-400 font-bold";
-                                currentVelocity = mouthOpenness;
+                            // Calcul cinématique basé sur la distance relative nez-bouche (suivi des micro-mouvements de la mâchoire)
+                            const mouthOffset = Math.abs(mouth[1] - nose[1]) / videoElement.videoHeight;
+                            
+                            valDiagEl.textContent = "Suivi BlazeFace Actif ✔";
+                            valDiagEl.className = "text-emerald-400 font-bold";
+                            currentVelocity = mouthOffset;
 
-                                if (mouthOpenness > 0.03) {
-                                    valFacsEl.style.color = "#10b981";
-                                    valFacsEl.textContent = mouthOpenness.toFixed(3) + " (Ouverture)";
-                                    updateReport("FACS Labial", "Mouvement significatif détecté chez la patiente.");
-                                } else {
-                                    valFacsEl.style.color = "#94a3b8";
-                                    valFacsEl.textContent = "0.00 (Calme)";
-                                }
+                            if (mouthOffset > 0.22) {
+                                valFacsEl.style.color = "#10b981";
+                                valFacsEl.textContent = mouthOffset.toFixed(3) + " (Variation active)";
+                                updateReport("Cinématique Faciale", "Mouvement significatif détecté chez la patiente.");
+                            } else {
+                                valFacsEl.style.color = "#94a3b8";
+                                valFacsEl.textContent = "0.00 (Calme)";
                             }
-                        } else {
-                            valDiagEl.textContent = "Recherche de la patiente...";
-                            valDiagEl.className = "text-rose-400 font-bold";
-                            currentVelocity = 0;
                         }
-                    });
+                    } else {
+                        valDiagEl.textContent = "Recherche de la patiente...";
+                        valDiagEl.className = "text-rose-400 font-bold";
+                        currentVelocity = 0;
+                    }
                 }
             } catch (err) {
-                console.warn("Erreur d'estimation TFJS :", err);
+                console.warn("Erreur d'estimation BlazeFace :", err);
             } finally {
                 isProcessing = false;
             }
@@ -248,8 +233,8 @@
             try {
                 btnPlay.disabled = true;
                 
-                document.getElementById('system-status').textContent = "Chargement du modèle TFJS...";
-                await initTFJSModel();
+                document.getElementById('system-status').textContent = "Chargement du modèle d'IA...";
+                await initModel();
 
                 mediaStream = await navigator.mediaDevices.getUserMedia({ 
                     video: { width: 640, height: 480, facingMode: "user" } 
@@ -261,20 +246,19 @@
                 isRunning = true;
                 isProcessing = false;
                 document.getElementById('video-overlay').classList.add('hidden');
-                document.getElementById('system-status').textContent = "Pipeline TFJS Stable Actif";
+                document.getElementById('system-status').textContent = "Pipeline Actif & Étanche";
                 document.getElementById('system-status').className = "text-xs font-mono bg-slate-800 px-3 py-1.5 rounded-md border border-slate-700 text-emerald-400";
                 
                 btnStop.disabled = false;
                 
-                // Rendu UI fluide et analyse cadencée étanche
                 renderVideoLoop();
-                analysisInterval = setInterval(runTFJSAnalysis, 150); // Cadencé à ~6-7 FPS
+                analysisInterval = setInterval(runAnalysis, 120); // Analyse fluide et constante
 
             } catch (err) {
                 isRunning = false;
                 btnPlay.disabled = false;
                 console.error("Erreur d'initialisation :", err);
-                alert("Impossible d'initialiser TensorFlow.js ou la caméra.");
+                alert("Impossible d'initialiser l'IA ou la caméra.");
                 document.getElementById('video-overlay').classList.remove('hidden');
                 document.getElementById('system-status').textContent = "Erreur Système";
             }
