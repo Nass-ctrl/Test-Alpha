@@ -3,14 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>EgoLens - Suite Analytique TFJS Direct</title>
+    <title>EgoLens - Suite Analytique Prête</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <!-- Chargement de TensorFlow.js -->
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-core"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-converter"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgl"></script>
-    <!-- Chargement direct du modèle BlazeFace (plus léger, robuste et compatible natif TFJS) -->
+    <!-- Chargement de BlazeFace -->
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/blazeface"></script>
     <style>
         #output-canvas {
@@ -34,7 +34,7 @@
     <header class="bg-slate-900 border-b border-slate-800 px-4 sm:px-6 py-3 flex flex-wrap justify-between items-center gap-3 shadow-lg">
         <div class="flex items-center space-x-3">
             <div id="global-dot" class="h-3 w-3 bg-amber-500 rounded-full animate-pulse"></div>
-            <h1 class="text-lg sm:text-xl font-bold tracking-wider text-white">EGOLENS <span class="text-xs text-emerald-400 font-mono">v16.08-BLAZEFACE</span></h1>
+            <h1 class="text-lg sm:text-xl font-bold tracking-wider text-white">EGOLENS <span class="text-xs text-emerald-400 font-mono">v16.08-READY</span></h1>
         </div>
         
         <div class="flex items-center gap-2">
@@ -53,7 +53,7 @@
         <!-- Colonne Gauche : Flux Vidéo & Infos -->
         <div class="lg:col-span-4 flex flex-col gap-4">
             <section class="bg-slate-900 border border-slate-800 rounded-xl p-4 flex flex-col shadow-xl min-h-[280px]">
-                <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-3">Flux Morpho-Facial (BlazeFace)</h2>
+                <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-3">Flux Morpho-Facial (Actif)</h2>
                 <div class="relative flex-1 bg-black rounded-lg overflow-hidden border border-slate-800 flex items-center justify-center aspect-video sm:aspect-auto">
                     <video id="input-video" class="hidden" autoplay playsinline muted></video>
                     <canvas id="output-canvas" class="w-full h-full object-contain"></canvas>
@@ -87,7 +87,7 @@
 
     </main>
 
-    <!-- Thread Principal JavaScript (BlazeFace Natif + WebGL étanche) -->
+    <!-- Thread Principal JavaScript -->
     <script>
         let isRunning = false;
         let isProcessing = false;
@@ -103,6 +103,18 @@
         
         const valFacsEl = document.getElementById('val-facs');
         const valDiagEl = document.getElementById('val-diag');
+        const logConsole = document.getElementById('log-console');
+
+        function logSystem(msg, isError = false) {
+            console.log(msg);
+            if (logConsole) {
+                const p = document.createElement('p');
+                p.className = isError ? "text-rose-400 font-bold mb-1" : "text-emerald-400 font-bold mb-1";
+                p.textContent = `[SYSTEM] ${msg}`;
+                logConsole.prepend(p);
+                if (logConsole.childElementCount > 12) logConsole.removeChild(logConsole.lastChild);
+            }
+        }
 
         // --- Initialisation Three.js ---
         const container = document.getElementById('three-container');
@@ -139,23 +151,27 @@
             }
         });
 
-        // --- Chargement du modèle BlazeFace (Léger et ultra-stable) ---
+        // --- Chargement sécurisé du modèle BlazeFace ---
         async function initModel() {
+            if (model) return; // Déjà chargé
+            logSystem("Initialisation du backend WebGL...");
             await tf.setBackend('webgl');
             await tf.ready();
+            
+            logSystem("Chargement du modèle d'IA BlazeFace...");
             model = await blazeface.load();
+            logSystem("Modèle chargé et prêt ✔");
         }
 
         function updateReport(type, meaning) {
             if (lastExpression !== type) {
                 const logEntry = `[ANALYSE] Type: ${type} | Signification: ${meaning}`;
-                const logConsole = document.getElementById('log-console');
                 if (logConsole) {
                     const p = document.createElement('p');
                     p.className = "text-emerald-400 font-bold mb-1";
                     p.textContent = logEntry;
                     logConsole.prepend(p);
-                    if (logConsole.childElementCount > 10) logConsole.removeChild(logConsole.lastChild);
+                    if (logConsole.childElementCount > 12) logConsole.removeChild(logConsole.lastChild);
                 }
                 lastExpression = type;
             }
@@ -176,14 +192,13 @@
             requestAnimationFrame(renderVideoLoop);
         }
 
-        // --- Analyse IA Directe via BlazeFace (Sans blocage de tenseur) ---
+        // --- Boucle d'Analyse IA ---
         async function runAnalysis() {
             if (!isRunning || !model || isProcessing) return;
             isProcessing = true;
 
             try {
                 if (videoElement.readyState >= 2 && videoElement.videoWidth > 0) {
-                    // BlazeFace accepte directement l'élément vidéo et retourne la boîte faciale ainsi que les points clés (yeux, nez, bouche)
                     const predictions = await model.estimateFaces(videoElement, false);
                     
                     if (predictions && predictions.length > 0) {
@@ -194,14 +209,13 @@
                             const nose = landmarks[2];
                             const mouth = landmarks[3];
                             
-                            // Calcul cinématique basé sur la distance relative nez-bouche (suivi des micro-mouvements de la mâchoire)
                             const mouthOffset = Math.abs(mouth[1] - nose[1]) / videoElement.videoHeight;
                             
-                            valDiagEl.textContent = "Suivi BlazeFace Actif ✔";
+                            valDiagEl.textContent = "Suivi en cours ✔";
                             valDiagEl.className = "text-emerald-400 font-bold";
                             currentVelocity = mouthOffset;
 
-                            if (mouthOffset > 0.22) {
+                            if (mouthOffset > 0.18) {
                                 valFacsEl.style.color = "#10b981";
                                 valFacsEl.textContent = mouthOffset.toFixed(3) + " (Variation active)";
                                 updateReport("Cinématique Faciale", "Mouvement significatif détecté chez la patiente.");
@@ -217,13 +231,13 @@
                     }
                 }
             } catch (err) {
-                console.warn("Erreur d'estimation BlazeFace :", err);
+                console.warn("Erreur d'estimation :", err);
             } finally {
                 isProcessing = false;
             }
         }
 
-        // --- Contrôles de la caméra ---
+        // --- Contrôles ---
         document.getElementById('btn-play').addEventListener('click', async () => {
             if (isRunning) return;
 
@@ -232,10 +246,13 @@
 
             try {
                 btnPlay.disabled = true;
-                
-                document.getElementById('system-status').textContent = "Chargement du modèle d'IA...";
+                document.getElementById('system-status').textContent = "Démarrage en cours...";
+
+                // 1. Charger l'IA
                 await initModel();
 
+                // 2. Activer la caméra
+                logSystem("Activation de la webcam...");
                 mediaStream = await navigator.mediaDevices.getUserMedia({ 
                     video: { width: 640, height: 480, facingMode: "user" } 
                 });
@@ -246,19 +263,21 @@
                 isRunning = true;
                 isProcessing = false;
                 document.getElementById('video-overlay').classList.add('hidden');
-                document.getElementById('system-status').textContent = "Pipeline Actif & Étanche";
+                document.getElementById('system-status').textContent = "Analyse Clinique Active";
                 document.getElementById('system-status').className = "text-xs font-mono bg-slate-800 px-3 py-1.5 rounded-md border border-slate-700 text-emerald-400";
                 
                 btnStop.disabled = false;
+                logSystem("Pipeline vidéo et IA synchronisé.");
                 
+                // 3. Lancer les boucles
                 renderVideoLoop();
-                analysisInterval = setInterval(runAnalysis, 120); // Analyse fluide et constante
+                analysisInterval = setInterval(runAnalysis, 100); // 10 FPS pour une réactivité immédiate
 
             } catch (err) {
                 isRunning = false;
                 btnPlay.disabled = false;
-                console.error("Erreur d'initialisation :", err);
-                alert("Impossible d'initialiser l'IA ou la caméra.");
+                logSystem("Erreur critique : " + err.message, true);
+                alert("Impossible d'initialiser le système : " + err.message);
                 document.getElementById('video-overlay').classList.remove('hidden');
                 document.getElementById('system-status').textContent = "Erreur Système";
             }
@@ -287,6 +306,7 @@
             document.getElementById('system-status').className = "text-xs font-mono bg-slate-800 px-3 py-1.5 rounded-md border border-slate-700 text-amber-400";
             valFacsEl.textContent = "0.00 (Calme)";
             valDiagEl.textContent = "En attente";
+            logSystem("Système arrêté par l'opérateur.");
         });
     </script>
 </body>
