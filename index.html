@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>EgoLens - Suite Analytique Responsive & Switch Caméra</title>
+    <title>EgoLens - Suite Analytique Optimisée</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js" crossorigin="anonymous"></script>
@@ -15,12 +15,11 @@
     <header class="bg-slate-900 border-b border-slate-800 px-4 sm:px-6 py-3 flex flex-wrap justify-between items-center gap-3 z-10 shadow-lg">
         <div class="flex items-center space-x-3">
             <div id="global-dot" class="h-3 w-3 bg-amber-500 rounded-full animate-pulse"></div>
-            <h1 class="text-lg sm:text-xl font-bold tracking-wider text-white">EGOLENS <span class="text-xs text-emerald-400 font-mono">v16.08-SWITCH</span></h1>
+            <h1 class="text-lg sm:text-xl font-bold tracking-wider text-white">EGOLENS <span class="text-xs text-emerald-400 font-mono">v16.08-FIXED</span></h1>
         </div>
         
         <!-- Contrôles, Switch Caméra & Play/Stop -->
         <div class="flex flex-wrap items-center gap-2">
-            <!-- Bouton Switch Caméra -->
             <button id="btn-switch" onclick="switchCamera()" title="Basculer de caméra" class="flex items-center space-x-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 px-3 py-1.5 rounded-lg font-medium text-xs transition shadow-md">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
                 <span class="hidden sm:inline">Switch Cam</span>
@@ -46,7 +45,7 @@
         
         <!-- Colonne Gauche : Flux Vidéo & Status Paramètres -->
         <div class="lg:col-span-4 flex flex-col gap-4">
-            <!-- Flux Vidéo -->
+            <!-- Flux Vidéo (Correction du rendu avec object-fit: contain pour préserver les proportions) -->
             <section class="bg-slate-900 border border-slate-800 rounded-xl p-4 flex flex-col shadow-xl min-h-[280px]">
                 <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-3 flex items-center justify-between">
                     <span>Flux Morpho-Facial</span>
@@ -54,7 +53,8 @@
                 </h2>
                 <div class="relative flex-1 bg-black rounded-lg overflow-hidden border border-slate-800 flex items-center justify-center aspect-video sm:aspect-auto">
                     <video id="input-video" class="hidden" playsinline></video>
-                    <canvas id="output-canvas" class="w-full h-full object-cover"></canvas>
+                    <!-- Utilisation de object-contain pour éviter toute déformation ou coupe indésirable -->
+                    <canvas id="output-canvas" class="w-full h-full object-contain"></canvas>
                     <div id="video-overlay" class="absolute inset-0 bg-slate-950/85 flex flex-col items-center justify-center text-slate-400 text-xs font-mono p-4 text-center">
                         <svg class="w-8 h-8 mb-2 text-slate-600 animate-bounce" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
                         Cliquez sur "Démarrer" pour activer la caméra
@@ -113,7 +113,7 @@
     <script>
         let cameraUtils = null;
         let isRunning = false;
-        let currentFacingMode = 'user'; // 'user' (frontal) ou 'environment' (arrière / infrarouge)
+        let currentFacingMode = 'user';
 
         // --- Three.js Setup & Resize Handler ---
         const container = document.getElementById('three-container');
@@ -178,6 +178,8 @@
 
         function onResults(results) {
             if (!isRunning) return;
+            
+            // Synchronisation dynamique de la résolution interne du canvas avec son affichage réel
             if (canvasElement.width !== canvasElement.clientWidth || canvasElement.height !== canvasElement.clientHeight) {
                 canvasElement.width = canvasElement.clientWidth;
                 canvasElement.height = canvasElement.clientHeight;
@@ -214,7 +216,6 @@
 
         // --- Logique Switch Caméra ---
         async function switchCamera() {
-            // Alterne entre 'user' (frontal) et 'environment' (arrière / infrarouge)
             currentFacingMode = (currentFacingMode === 'user') ? 'environment' : 'user';
             const modeName = (currentFacingMode === 'user') ? 'Frontal (RVB)' : 'Arrière / Infrarouge';
             
@@ -222,7 +223,6 @@
             addLog(`Basculement de la source vers : ${modeName}`);
 
             if (isRunning) {
-                // Redémarre le flux à chaud avec le nouveau paramètre de caméra
                 if (cameraUtils && videoElement.srcObject) {
                     const stream = videoElement.srcObject;
                     stream.getTracks().forEach(track => track.stop());
