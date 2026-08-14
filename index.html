@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>EgoLens - Suite Analytique Clinique Avancée</title>
+    <title>EgoLens - Suite Analytique Clinique Rigoureuse</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-core@3.21.0/dist/tf-core.min.js"></script>
@@ -14,7 +14,7 @@
 <body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col">
 
     <header class="bg-slate-900 border-b border-slate-800 p-4 flex justify-between items-center">
-        <h1 class="text-xl font-bold">EGOLENS <span class="text-xs text-emerald-400">v16.08-CLINICAL-FULL</span></h1>
+        <h1 class="text-xl font-bold">EGOLENS <span class="text-xs text-emerald-400">v16.08-CLINICAL-STRICT</span></h1>
         <div class="flex gap-2">
             <button id="btn-play" class="bg-emerald-600 px-4 py-1 rounded">Démarrer</button>
             <button id="btn-stop" class="bg-rose-600 px-4 py-1 rounded" disabled>Arrêter</button>
@@ -23,18 +23,19 @@
     </header>
 
     <main class="p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-        <!-- Flux Vidéo -->
+        <!-- Flux Vidéo & Infos -->
         <section class="bg-slate-900 p-4 rounded-xl border border-slate-800 flex flex-col">
             <video id="input-video" class="w-full h-auto rounded border border-slate-700 mb-4" autoplay playsinline muted></video>
-            <div class="bg-slate-950 p-3 rounded border border-slate-800 text-xs font-mono flex-1">
-                <p class="text-slate-400 uppercase font-bold mb-2">Télémétrie Instantanée :</p>
-                <p>Mesh Status : <span id="val-diag" class="text-amber-400 font-bold">En attente</span></p>
-                <p>Micro-Expression Active : <span id="val-micro" class="text-cyan-400 font-bold">Aucune</span></p>
-                <p>Macro-Expression Tendancielle : <span id="val-macro" class="text-emerald-400 font-bold">Neutre</span></p>
+            <div class="bg-slate-950 p-3 rounded border border-slate-800 text-xs font-mono flex-1 space-y-1">
+                <p class="text-slate-400 uppercase font-bold mb-2">Télémétrie Clinique & Étalonnage :</p>
+                <p>Statut Pipeline : <span id="val-diag" class="text-amber-400 font-bold">En attente</span></p>
+                <p>État d'Étalonnage : <span id="val-calibration" class="text-slate-400 font-bold">Non initialisé</span></p>
+                <p>Micro-Action (Instantanée) : <span id="val-micro" class="text-cyan-400 font-bold">0.000</span></p>
+                <p>Macro-Tendance (Glissante) : <span id="val-macro" class="text-emerald-400 font-bold">0.000</span></p>
             </div>
         </section>
         
-        <!-- Analyse & Rapport Final -->
+        <!-- Convergence & Rapport Final -->
         <section class="bg-slate-900 p-4 rounded-xl border border-slate-800 flex flex-col justify-between space-y-4">
             <div class="bg-slate-950 p-4 rounded-xl border border-slate-700">
                 <span class="text-xs uppercase tracking-wider text-slate-400 block mb-1">Convergence Analytique (Live)</span>
@@ -44,7 +45,7 @@
             <div class="bg-slate-950 p-4 rounded-xl border border-slate-800 flex-1 flex flex-col">
                 <h2 class="text-xs uppercase tracking-wider text-slate-400 mb-2">Rapport d'Analyse Final & Significations</h2>
                 <div id="final-report" class="font-mono text-xs text-slate-300 space-y-2 overflow-y-auto max-h-60 p-2 bg-slate-900 rounded border border-slate-800 flex-1">
-                    <p class="text-slate-500">[SYSTEM] En attente de données cliniques...</p>
+                    <p class="text-slate-500">[SYSTEM] En attente de l'étalonnage de la patiente...</p>
                 </div>
             </div>
         </section>
@@ -54,10 +55,17 @@
         let isRunning = false;
         let isProcessing = false;
         let model = null;
-        let historyBuffer = []; // Tampon pour l'analyse macro
         
+        // Variables d'étalonnage rigoureux (Baseline)
+        let isCalibrated = false;
+        let calibrationFrames = [];
+        let baseline = { mouthOpen: 0, mouthWidth: 0, browDist: 0 };
+        
+        let historyBuffer = []; // Tampon macro-expression
+
         const videoElement = document.getElementById('input-video');
         const valDiagEl = document.getElementById('val-diag');
+        const valCalibrationEl = document.getElementById('val-calibration');
         const valMicroEl = document.getElementById('val-micro');
         const valMacroEl = document.getElementById('val-macro');
         const valConvergenceEl = document.getElementById('val-convergence');
@@ -71,40 +79,21 @@
             );
         }
 
-        // Dictionnaire des significations cliniques des expressions
-        const meanings = {
-            "Joie": "Activation zygomatique (Sourire franc) : Bien-être, accord, valence positive.",
-            "Tristesse": "Affaissement des commissures et des paupières : Douleur morale, déception, repli.",
-            "Colère": "Foncement des sourcils et tension labiale : Frustration, obstacle, menace perçue.",
-            "Surprise": "Ouverture oculaire et mandibulaire maximale : Événement inattendu, saisissement.",
-            "Peur": "Étirement des lèvres et tension des sourcils : Inquiétude, menace imminente, alerte.",
-            "Dégoût": "haussement du nez et plissement supérieur : Rejet, aversion, stricts oraux.",
-            "Mépris": "Rétraction asymétrique d'une commissure : Supériorité perçue, jugement négatif.",
-            "Neutre": "Baseline stable : Absence de tension émotionnelle apparente."
+        const clinicalMeanings = {
+            "AU12 (Sourire / Zygomatique)": "Activation unilatérale ou bilatérale des commissures : Bien-être, valence positive, accord.",
+            "AU25/26 (Ouverture / Bâillement)": "Ouverture mandibulaire active : Sursaut, surprise, ou engagement verbal.",
+            "AU4 (Froncement sourciliier)": "Contraction du corrugateur : Tension, concentration intense, frustration ou menace perçue.",
+            "AU15 (Affaissement labial)": "Abaissement des commissures : Tristesse, déception ou repli émotionnel.",
+            "Baseline Stable": "Cohérence morphologique alignée avec la ligne de base de la patiente."
         };
 
-        function evaluateExpressions(mesh) {
-            // Repères clés normalisés
+        function extractMetrics(mesh) {
             const eyeDist = Math.hypot(mesh[33][0] - mesh[263][0], mesh[33][1] - mesh[263][1]);
-            
-            // Ratios morphologiques
-            const mouthOpen = Math.abs(mesh[13][1] - mesh[14][1]) / eyeDist;
-            const mouthWidth = Math.abs(mesh[61][0] - mesh[291][0]) / eyeDist;
-            const browDistance = Math.abs(mesh[70][0] - mesh[300][0]) / eyeDist;
-            const leftEyeOpen = Math.abs(mesh[159][1] - mesh[145][1]) / eyeDist;
-            const rightEyeOpen = Math.abs(mesh[386][1] - mesh[374][1]) / eyeDist;
-
-            // Classification heuristique multi-zones
-            let expr = "Neutre";
-            if (mouthWidth > 0.55 && mouthOpen > 0.15) expr = "Joie";
-            else if (mouthOpen > 0.25) expr = "Surprise";
-            else if (browDistance < 0.32 && mouthOpen < 0.08) expr = "Colère";
-            else if (leftEyeOpen < 0.08 && rightEyeOpen < 0.08 && mouthOpen < 0.05) expr = "Tristesse";
-            else if (mouthWidth < 0.45 && mouthOpen > 0.12) expr = "Peur";
-            else if (mouthOpen < 0.07 && browDistance < 0.34) expr = "Dégoût";
-            else if (Math.abs(mesh[61][1] - mesh[291][1]) > 5 * eyeDist/100) expr = "Mépris";
-
-            return { expr, score: mouthOpen + mouthWidth };
+            return {
+                mouthOpen: Math.abs(mesh[13][1] - mesh[14][1]) / eyeDist,
+                mouthWidth: Math.abs(mesh[61][0] - mesh[291][0]) / eyeDist,
+                browDist: Math.abs(mesh[70][0] - mesh[300][0]) / eyeDist
+            };
         }
 
         async function runAnalysis() {
@@ -120,37 +109,69 @@
 
                 if (predictions && predictions.length > 0) {
                     const mesh = predictions[0].scaledMesh;
-                    valDiagEl.textContent = "Mesh Actif (468 pts) ✔";
-                    valDiagEl.className = "text-emerald-400 font-bold";
+                    const current = extractMetrics(mesh);
 
-                    // Analyse instantanée (Micro)
-                    const currentEval = evaluateExpressions(mesh);
-                    valMicroEl.textContent = currentEval.expr;
-
-                    // Analyse tendancielle (Macro - Moyenne glissante sur 15 frames)
-                    historyBuffer.push(currentEval.score);
-                    if (historyBuffer.length > 15) historyBuffer.shift();
-                    const macroAvg = historyBuffer.reduce((a, b) => a + b, 0) / historyBuffer.length;
-                    
-                    let macroState = "Neutre stable";
-                    if (macroAvg > 0.7) macroState = "Macro-Expression Active Forte";
-                    else if (macroAvg < 0.4) macroState = "Macro-Tension / Rétraction";
-                    valMacroEl.textContent = macroState;
-
-                    // Convergence Analytique
-                    let convergenceText = `🎯 Convergence : État de fond cohérent (${currentEval.expr})`;
-                    let convergenceClass = "font-bold text-slate-300 text-sm";
-
-                    if (currentEval.expr !== "Neutre") {
-                        convergenceText = `⚡ CONVERGENCE ACTIVE : ${currentEval.expr} détectée.`;
-                        convergenceClass = "font-bold text-cyan-400 text-sm";
+                    // 1. PHASE D'ÉTALONNAGE RIGOREUX (3 secondes / ~30 frames)
+                    if (!isCalibrated) {
+                        valDiagEl.textContent = "Étalonnage en cours...";
+                        valDiagEl.className = "text-amber-400 font-bold";
+                        valCalibrationEl.textContent = `Capture baseline (${calibrationFrames.length}/30)`;
                         
-                        // Mise à jour dynamique du rapport final
-                        updateFinalReport(currentEval.expr);
+                        calibrationFrames.push(current);
+                        if (calibrationFrames.length >= 30) {
+                            baseline.mouthOpen = calibrationFrames.reduce((a,b) => a + b.mouthOpen, 0) / 30;
+                            baseline.mouthWidth = calibrationFrames.reduce((a,b) => a + b.mouthWidth, 0) / 30;
+                            baseline.browDist = calibrationFrames.reduce((a,b) => a + b.browDist, 0) / 30;
+                            isCalibrated = true;
+                            valCalibrationEl.textContent = "Étalonné (Baseline active) ✔";
+                            valCalibrationEl.className = "text-emerald-400 font-bold";
+                        }
+                        isProcessing = false;
+                        return;
                     }
 
-                    valConvergenceEl.textContent = convergenceText;
+                    valDiagEl.textContent = "Analyse Clinique Active ✔";
+                    valDiagEl.className = "text-emerald-400 font-bold";
+
+                    // 2. CALCULS RELATIFS (Écarts par rapport à la baseline personnelle)
+                    const deltaMouthOpen = current.mouthOpen - baseline.mouthOpen;
+                    const deltaMouthWidth = current.mouthWidth - baseline.mouthWidth;
+                    const deltaBrow = baseline.browDist - current.browDist; // Positif si rapprochement
+
+                    // A. Analyse Micro (Instantanée sur l'écart relatif)
+                    const microScore = deltaMouthOpen + deltaMouthWidth;
+                    valMicroEl.textContent = microScore.toFixed(3);
+
+                    // B. Analyse Macro (Moyenne glissante sur 15 frames)
+                    historyBuffer.push(microScore);
+                    if (historyBuffer.length > 15) historyBuffer.shift();
+                    const macroAvg = historyBuffer.reduce((a, b) => a + b, 0) / historyBuffer.length;
+                    valMacroEl.textContent = macroAvg.toFixed(3);
+
+                    // C. Convergence & Classification par Action Units (FACS)
+                    let detectedAU = "Baseline Stable";
+                    let convergenceClass = "font-bold text-slate-300 text-sm";
+
+                    if (deltaMouthWidth > 0.04 && deltaMouthOpen > 0.02) {
+                        detectedAU = "AU12 (Sourire / Zygomatique)";
+                        convergenceClass = "font-bold text-emerald-400 text-sm";
+                    } else if (deltaMouthOpen > 0.06) {
+                        detectedAU = "AU25/26 (Ouverture / Bâillement)";
+                        convergenceClass = "font-bold text-cyan-400 text-sm";
+                    } else if (deltaBrow > 0.03) {
+                        detectedAU = "AU4 (Froncement sourciliier)";
+                        convergenceClass = "font-bold text-amber-400 text-sm";
+                    } else if (deltaMouthOpen < -0.02) {
+                        detectedAU = "AU15 (Affaissement labial)";
+                        convergenceClass = "font-bold text-rose-400 text-sm";
+                    }
+
+                    valConvergenceEl.textContent = `🎯 Convergence : ${detectedAU}`;
                     valConvergenceEl.className = convergenceClass;
+
+                    if (detectedAU !== "Baseline Stable") {
+                        appendReport(detectedAU);
+                    }
 
                 } else {
                     valDiagEl.textContent = "Visage non détecté...";
@@ -163,16 +184,15 @@
             }
         }
 
-        let lastLoggedExpr = "";
-        function updateFinalReport(expr) {
-            if (expr === lastLoggedExpr) evitaDuplicate = true;
-            lastLoggedExpr = expr;
-            
+        let lastLoggedAU = "";
+        function appendReport(au) {
+            if (au === lastLoggedAU) return;
+            lastLoggedAU = au;
+
             const timestamp = new Date().toLocaleTimeString();
             const p = document.createElement('p');
-            p.innerHTML = `<span class="text-slate-500">[${timestamp}]</span> <strong class="text-emerald-400">${expr}</strong> : ${meanings[expr]}`;
+            p.innerHTML = `<span class="text-slate-500">[${timestamp}]</span> <strong class="text-cyan-400">${au}</strong> : ${clinicalMeanings[au]}`;
             
-            // Nettoyer le message d'attente initial si présent
             if (finalReportEl.querySelector('.text-slate-500') && finalReportEl.children.length === 1) {
                 finalReportEl.innerHTML = '';
             }
@@ -185,6 +205,8 @@
             const stream = await navigator.mediaDevices.getUserMedia({ video: true });
             videoElement.srcObject = stream;
             isRunning = true;
+            isCalibrated = false;
+            calibrationFrames = [];
             document.getElementById('btn-play').disabled = true;
             document.getElementById('btn-stop').disabled = false;
             document.getElementById('system-status').textContent = "Pipeline Actif";
