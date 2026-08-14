@@ -14,7 +14,7 @@
 <body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col">
 
     <header class="bg-slate-900 border-b border-slate-800 p-4 flex justify-between items-center">
-        <h1 class="text-xl font-bold">EGOLENS <span class="text-xs text-emerald-400">v16.13-CLINICAL-DUAL-ENGINE-DISSONANCE</span></h1>
+        <h1 class="text-xl font-bold">EGOLENS <span class="text-xs text-emerald-400">v16.14-CLINICAL-DUAL-ENGINE-FULL-MICRO</span></h1>
         <div class="flex gap-2">
             <button id="btn-play" class="bg-emerald-600 px-4 py-1 rounded text-sm">Démarrer</button>
             <button id="btn-stop" class="bg-rose-600 px-4 py-1 rounded text-sm" disabled>Arrêter & Rapport Final</button>
@@ -121,9 +121,13 @@
             "Baseline Stable": "Cohérence morphologique alignée avec la ligne de base."
         };
 
+        // Banque exhaustive des significations micro-expressives
         const microMeanings = {
             "Mandibulaire": "Ouverture/fermeture brusque de la mâchoire : Sursaut, rupture de flux, hésitation ou réactivité émotionnelle soudaine.",
-            "Sourcilière": "Contraction ou élévation fugitive des sourcils : Alerte cognitive, micro-frustration, doute ou appréhension subite."
+            "Sourcilière": "Contraction ou élévation fugitive des sourcils : Alerte cognitive, micro-frustration, doute ou appréhension subite.",
+            "Asymétrie Labiale (Mépris/Sourire forcé)": "Torsion unilatérale soudaine de la commissure : Dissimulation, ironie latente, jugement critique ou micro-mépris fugace.",
+            "Plissement Nasal (Dégoût instantané)": "Élévation subite du nez et de la lèvre supérieure : Rejet instinctif, aversion soudaine ou désapprobation intériorisée.",
+            "Écartement Buccal (Sursaut/Joie Fugace)": "Élargissement rapide et bref de la bouche : Surprise positive, accord inattendu ou soulagement instantané."
         };
 
         function estimateHeadPose(mesh) {
@@ -221,16 +225,30 @@
                     if (historyBuffer.length > 20) historyBuffer.shift();
 
                     const macroMouthOpen = historyBuffer.reduce((a, b) => a + b.mouthOpen, 0) / historyBuffer.length;
+                    const macroMouthWidth = historyBuffer.reduce((a, b) => a + b.mouthWidth, 0) / historyBuffer.length;
                     const macroBrowDist = historyBuffer.reduce((a, b) => a + b.browDist, 0) / historyBuffer.length;
+                    const macroNoseWrinkle = historyBuffer.reduce((a, b) => a + b.noseWrinkle, 0) / historyBuffer.length;
 
-                    const isMicroMouth = Math.abs(current.mouthOpen - macroMouthOpen) > 0.04;
+                    // Détection granulaire multi-micro-expressions
+                    const isMicroMouthOpen = Math.abs(current.mouthOpen - macroMouthOpen) > 0.04;
                     const isMicroBrow = Math.abs(current.browDist - macroBrowDist) > 0.02;
-                    const isMicroActive = (isMicroMouth || isMicroBrow);
+                    const isMicroAsymmetry = Math.abs(current.asymmetryScore - historyBuffer.reduce((a,b)=>a+b.asymmetryScore,0)/historyBuffer.length) > 0.025;
+                    const isMicroNose = Math.abs(current.noseWrinkle - macroNoseWrinkle) > 0.02;
+                    const isMicroMouthWidth = Math.abs(current.mouthWidth - macroMouthWidth) > 0.035;
+
+                    const isMicroActive = (isMicroMouthOpen || isMicroBrow || isMicroAsymmetry || isMicroNose || isMicroMouthWidth);
 
                     if (isMicroActive) {
                         valMicroEl.textContent = "⚠️ MICRO-PIC";
                         microStatsCount++;
-                        let microType = isMicroMouth ? "Mandibulaire" : "Sourcilière";
+                        
+                        // Sélection prioritaire du type de micro-expression détectée
+                        let microType = "Mandibulaire";
+                        if (isMicroAsymmetry) microType = "Asymétrie Labiale (Mépris/Sourire forcé)";
+                        else if (isMicroNose) microType = "Plissement Nasal (Dégoût instantané)";
+                        else if (isMicroMouthWidth) microType = "Écartement Buccal (Sursaut/Joie Fugace)";
+                        else if (isMicroBrow) microType = "Sourcilière";
+
                         appendMicroReport(microType);
                     } else {
                         valMicroEl.textContent = "Stabilité";
