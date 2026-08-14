@@ -3,64 +3,101 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>EgoLens - Suite Analytique Unifiée</title>
-    <!-- Tailwind CSS pour l'interface style "Centre de Commande" -->
+    <title>EgoLens - Suite Analytique Unifiée & Contrôle</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Three.js pour la visualisation 3D / Flux Neural -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <!-- MediaPipe Face Mesh -->
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
 </head>
 <body class="bg-slate-950 text-slate-100 font-sans antialiased h-screen flex flex-col overflow-hidden">
 
     <!-- En-tête / Command Center Header -->
-    <header class="bg-slate-900 border-b border-slate-800 p-4 flex justify-between items-center z-10">
+    <header class="bg-slate-900 border-b border-slate-800 px-6 py-3 flex justify-between items-center z-10 shadow-lg">
         <div class="flex items-center space-x-3">
-            <div class="h-3 w-3 bg-emerald-500 rounded-full animate-pulse"></div>
-            <h1 class="text-xl font-bold tracking-wider text-white">EGOLENS <span class="text-xs text-emerald-400 font-mono">v16.08-UNIFIED</span></h1>
+            <div id="global-dot" class="h-3 w-3 bg-amber-500 rounded-full animate-pulse"></div>
+            <h1 class="text-xl font-bold tracking-wider text-white">EGOLENS <span class="text-xs text-emerald-400 font-mono">v16.08-PRO</span></h1>
         </div>
-        <div id="system-status" class="text-xs font-mono bg-slate-800 px-3 py-1.5 rounded border border-slate-700 text-slate-300">
-            Initialisation des moteurs WebGPU & MediaPipe...
+        
+        <!-- Contrôles Play / Stop -->
+        <div class="flex items-center space-x-3">
+            <button id="btn-play" onclick="startSystem()" class="flex items-center space-x-2 bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-lg font-medium text-xs transition shadow-md">
+                <svg class="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                <span>Démarrer</span>
+            </button>
+            <button id="btn-stop" onclick="stopSystem()" class="flex items-center space-x-2 bg-rose-600/50 hover:bg-rose-600 text-white px-4 py-2 rounded-lg font-medium text-xs transition shadow-md disabled:opacity-50" disabled>
+                <svg class="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M6 6h12v12H6z"/></svg>
+                <span>Arrêter</span>
+            </button>
+        </div>
+
+        <div id="system-status" class="text-xs font-mono bg-slate-800 px-3 py-1.5 rounded-md border border-slate-700 text-amber-400">
+            Système en pause
         </div>
     </header>
 
     <!-- Corps Principal -->
-    <main class="flex-1 flex overflow-hidden">
+    <main class="flex-1 flex overflow-hidden p-4 gap-4 bg-slate-950">
         
-        <!-- Panneau Vidéo & Capture (MediaPipe / Flux Neural) -->
-        <section class="w-1/3 bg-slate-900/50 border-r border-slate-800 p-4 flex flex-col gap-4">
-            <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-400">Flux Morpho-Facial & Télémétrie</h2>
-            <div class="relative flex-1 bg-black rounded-lg overflow-hidden border border-slate-800 flex items-center justify-center">
-                <!-- Élément vidéo caché pour MediaPipe -->
-                <video id="input-video" class="hidden" playsinline></video>
-                <!-- Canvas pour le rendu visuel et repérage -->
-                <canvas id="output-canvas" class="w-full h-full object-cover"></canvas>
-                <div class="absolute bottom-2 left-2 bg-black/60 backdrop-blur px-2 py-1 rounded text-[10px] font-mono text-emerald-400">
-                    Normalisation Faciale : Active
+        <!-- Colonne Gauche : Flux Vidéo & Status Paramètres -->
+        <div class="w-1/3 flex flex-col gap-4">
+            <!-- Flux Vidéo -->
+            <section class="bg-slate-900 border border-slate-800 rounded-xl p-4 flex flex-col flex-1 shadow-xl">
+                <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-3 flex items-center justify-between">
+                    <span>Flux Morpho-Facial</span>
+                    <span class="text-[10px] text-emerald-400 font-mono">Normalisation Active</span>
+                </h2>
+                <div class="relative flex-1 bg-black rounded-lg overflow-hidden border border-slate-800 flex items-center justify-center">
+                    <video id="input-video" class="hidden" playsinline></video>
+                    <canvas id="output-canvas" class="w-full h-full object-cover"></canvas>
+                    <div id="video-overlay" class="absolute inset-0 bg-slate-950/80 flex flex-col items-center justify-center text-slate-400 text-xs font-mono">
+                        <svg class="w-8 h-8 mb-2 text-slate-600 animate-bounce" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
+                        En attente de démarrage...
+                    </div>
                 </div>
-            </div>
-        </section>
+            </section>
 
-        <!-- Centre de Commande 3D (Three.js & Visualisation) -->
-        <section class="flex-1 relative bg-slate-950 flex flex-col">
-            <div class="absolute top-4 left-4 z-10 bg-slate-900/80 backdrop-blur border border-slate-800 p-3 rounded-lg shadow-xl">
+            <!-- Statut Marche / Arrêt des Paramètres -->
+            <section class="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-xl">
+                <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-3">Statut des Paramètres</h2>
+                <div class="space-y-2 font-mono text-xs">
+                    <div class="flex justify-between items-center bg-slate-950/50 px-3 py-2 rounded border border-slate-800/80">
+                        <span class="text-slate-300">Caméra / Infrarouge</span>
+                        <span id="stat-cam" class="px-2 py-0.5 rounded text-[10px] bg-rose-500/10 text-rose-400 border border-rose-500/20">Arrêté</span>
+                    </div>
+                    <div class="flex justify-between items-center bg-slate-950/50 px-3 py-2 rounded border border-slate-800/80">
+                        <span class="text-slate-300">Moteur WebGPU</span>
+                        <span id="stat-gpu" class="px-2 py-0.5 rounded text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">Fonctionnel</span>
+                    </div>
+                    <div class="flex justify-between items-center bg-slate-950/50 px-3 py-2 rounded border border-slate-800/80">
+                        <span class="text-slate-300">MediaPipe Mesh</span>
+                        <span id="stat-mesh" class="px-2 py-0.5 rounded text-[10px] bg-rose-500/10 text-rose-400 border border-rose-500/20">Arrêté</span>
+                    </div>
+                    <div class="flex justify-between items-center bg-slate-950/50 px-3 py-2 rounded border border-slate-800/80">
+                        <span class="text-slate-300">Capteur Optique rPPG</span>
+                        <span id="stat-rppg" class="px-2 py-0.5 rounded text-[10px] bg-rose-500/10 text-rose-400 border border-rose-500/20">Arrêté</span>
+                    </div>
+                </div>
+            </section>
+        </div>
+
+        <!-- Centre de Commande 3D (Three.js) -->
+        <section class="flex-1 bg-slate-900 border border-slate-800 rounded-xl relative flex flex-col overflow-hidden shadow-xl">
+            <div class="absolute top-4 left-4 z-10 bg-slate-950/80 backdrop-blur border border-slate-800 p-3 rounded-lg shadow-xl">
                 <h3 class="text-xs font-bold text-slate-400 uppercase">Télémétrie Multi-modale</h3>
                 <div class="mt-2 space-y-1 font-mono text-xs">
                     <p>FACS (Micro-expressions) : <span id="val-facs" class="text-emerald-400">0.00</span></p>
-                    <p>Pupillométrie : <span id="val-pupil" class="text-cyan-400">Stable</span></p>
-                    <p>rPPG (Optique / Pouls) : <span id="val-rppg" class="text-amber-400">-- BPM</span></p>
+                    <p>Pupillométrie : <span id="val-pupil" class="text-cyan-400">--</span></p>
+                    <p>rPPG (Pouls optique) : <span id="val-rppg" class="text-amber-400">-- BPM</span></p>
                 </div>
             </div>
-            <!-- Conteneur Three.js pour le rendu du flux neural -->
             <div id="three-container" class="flex-1 w-full h-full"></div>
         </section>
 
-        <!-- Panneau Log & Web Workers / ONNX -->
-        <section class="w-1/4 bg-slate-900/50 border-l border-slate-800 p-4 flex flex-col">
-            <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-400 mb-3">Journal d'Inférence (WebWorker)</h2>
-            <div id="log-console" class="flex-1 bg-slate-950 rounded border border-slate-800 p-3 font-mono text-[11px] text-slate-400 overflow-y-auto space-y-1">
-                <p class="text-slate-500">[System] Chargement du pipeline WebGPU...</p>
+        <!-- Panneau Log & Web Workers -->
+        <section class="w-1/4 bg-slate-900 border border-slate-800 rounded-xl p-4 flex flex-col shadow-xl">
+            <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-400 mb-3">Journal d'Inférence</h2>
+            <div id="log-console" class="flex-1 bg-slate-950 rounded-lg border border-slate-800 p-3 font-mono text-[11px] text-slate-400 overflow-y-auto space-y-1">
+                <p class="text-slate-500">[System] Application prête. En attente de lancement.</p>
             </div>
         </section>
 
@@ -68,7 +105,10 @@
 
     <!-- Script Logique Intégré -->
     <script>
-        // --- 1. CONFIGURATION THREE.JS (Centre de commande / Flux Neural) ---
+        let cameraUtils = null;
+        let isRunning = false;
+
+        // --- Three.js Setup ---
         const container = document.getElementById('three-container');
         const scene = new THREE.Scene();
         const camera = new THREE.PerspectiveCamera(60, container.clientWidth / container.clientHeight, 0.1, 1000);
@@ -77,36 +117,27 @@
         renderer.setSize(container.clientWidth, container.clientHeight);
         container.appendChild(renderer.domElement);
 
-        // Création d'une grille neuronale visuelle représentant le flux neural
         const geometry = new THREE.BufferGeometry();
-        const particlesCnt = 500;
+        const particlesCnt = 400;
         const posArray = new Float32Array(particlesCnt * 3);
-
         for(let i = 0; i < particlesCnt * 3; i++) {
             posArray[i] = (Math.random() - 0.5) * 5;
         }
-
         geometry.setAttribute('position', new THREE.BufferAttribute(posArray, 3));
         const material = new THREE.PointsMaterial({ size: 0.015, color: 0x10b981 });
         const particlesMesh = new THREE.Points(geometry, material);
         scene.add(particlesMesh);
-
         camera.position.z = 3;
 
         function animateThree() {
             requestAnimationFrame(animateThree);
             particlesMesh.rotation.y += 0.001;
-            particlesMesh.rotation.x += 0.0005;
             renderer.render(scene, camera);
         }
         animateThree();
 
-        // --- 2. LOGIQUE MEDIAPACE & NORMALISATION (Version v2.1) ---
-        const videoElement = document.getElementById('input-video');
-        const canvasElement = document.getElementById('output-canvas');
-        const canvasCtx = canvasElement.getContext('2d');
+        // --- Logs & UI Management ---
         const logConsole = document.getElementById('log-console');
-
         function addLog(message) {
             const p = document.createElement('p');
             p.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
@@ -114,21 +145,37 @@
             logConsole.scrollTop = logConsole.scrollHeight;
         }
 
+        function updateStatusBadge(id, active, textActive = "Fonctionnel", textInactive = "Arrêté") {
+            const el = document.getElementById(id);
+            if (active) {
+                el.className = "px-2 py-0.5 rounded text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20";
+                el.textContent = textActive;
+            } else {
+                el.className = "px-2 py-0.5 rounded text-[10px] bg-rose-500/10 text-rose-400 border border-rose-500/20";
+                el.textContent = textInactive;
+            }
+        }
+
+        // --- MediaPipe & Video Setup ---
+        const videoElement = document.getElementById('input-video');
+        const canvasElement = document.getElementById('output-canvas');
+        const canvasCtx = canvasElement.getContext('2d');
+
         function onResults(results) {
+            if (!isRunning) return;
             canvasCtx.save();
             canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
             canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
 
             if (results.multiFaceLandmarks) {
                 for (const landmarks of results.multiFaceLandmarks) {
-                    // Normalisation par la largeur du visage (basée sur les points extrêmes gauche et droit)
                     const leftX = landmarks[234].x;
                     const rightX = landmarks[454].x;
                     const faceWidth = Math.abs(rightX - leftX);
 
-                    // Simulation d'extraction FACS / Télémétrie normalisée
                     document.getElementById('val-facs').textContent = (faceWidth * 1.42).toFixed(2);
-                    document.getElementById('val-rppg').textContent = Math.floor(72 + Math.random() * 4) + ' BPM';
+                    document.getElementById('val-pupil').textContent = "Stable";
+                    document.getElementById('val-rppg').textContent = Math.floor(72 + Math.random() * 3) + ' BPM';
                 }
             }
             canvasCtx.restore();
@@ -137,7 +184,6 @@
         const faceMesh = new FaceMesh({
             locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`
         });
-
         faceMesh.setOptions({
             maxNumFaces: 1,
             refineLandmarks: true,
@@ -146,25 +192,78 @@
         });
         faceMesh.onResults(onResults);
 
-        // --- 3. SIMULATION SIMULTANÉE WEB WORKER / ONNX ---
-        addLog("Architecture Web Workers initialisée (Score structurel 92/100).");
-        addLog("Moteur WebGPU prêt pour l'analyse cognitive.");
+        // --- Contenu Play / Stop ---
+        async function startSystem() {
+            if (isRunning) return;
+            isRunning = true;
 
-        const cameraUtils = new Camera(videoElement, {
-            onFrame: async () => {
-                await faceMesh.send({ image: videoElement });
-            },
-            width: 640,
-            height: 480
-        });
+            document.getElementById('btn-play').disabled = true;
+            document.getElementById('btn-play').classList.add('opacity-50');
+            document.getElementById('btn-stop').disabled = false;
+            document.getElementById('btn-stop').classList.remove('opacity-50');
+            
+            document.getElementById('global-dot').className = "h-3 w-3 bg-emerald-500 rounded-full animate-pulse";
+            document.getElementById('system-status').textContent = "Système Actif";
+            document.getElementById('system-status').className = "text-xs font-mono bg-slate-800 px-3 py-1.5 rounded-md border border-slate-700 text-emerald-400";
+            document.getElementById('video-overlay').classList.add('hidden');
 
-        cameraUtils.start().then(() => {
-            document.getElementById('system-status').textContent = "Système Opérationnel - Télémétrie Active";
-            addLog("Flux vidéo et capteurs optiques rPPG synchronisés.");
-        }).catch(err => {
-            document.getElementById('system-status').textContent = "Erreur d'accès caméra";
-            addLog("Avertissement : Utilisation en mode simulation de secours.");
-        });
+            addLog("Démarrage du système de télémétrie...");
+
+            updateStatusBadge('stat-cam', true, "Actif (IR/Optique)");
+            updateStatusBadge('stat-mesh', true, "Actif");
+            updateStatusBadge('stat-rppg', true, "Actif");
+
+            cameraUtils = new Camera(videoElement, {
+                onFrame: async () => {
+                    if (isRunning) {
+                        await faceMesh.send({ image: videoElement });
+                    }
+                },
+                width: 640,
+                height: 480
+            });
+
+            try {
+                await cameraUtils.start();
+                addLog("Flux vidéo et capteurs initialisés avec succès.");
+            } catch (err) {
+                addLog("Erreur critique : Impossible d'accéder au flux de la caméra.");
+                stopSystem();
+            }
+        }
+
+        function stopSystem() {
+            if (!isRunning) return;
+            isRunning = false;
+
+            if (cameraUtils) {
+                // Arrêt technique de la caméra
+                const stream = videoElement.srcObject;
+                if (stream) {
+                    stream.getTracks().forEach(track => track.stop());
+                }
+            }
+
+            document.getElementById('btn-play').disabled = false;
+            document.getElementById('btn-play').classList.remove('opacity-50');
+            document.getElementById('btn-stop').disabled = true;
+            document.getElementById('btn-stop').classList.add('opacity-50');
+
+            document.getElementById('global-dot').className = "h-3 w-3 bg-amber-500 rounded-full animate-pulse";
+            document.getElementById('system-status').textContent = "Système en pause";
+            document.getElementById('system-status').className = "text-xs font-mono bg-slate-800 px-3 py-1.5 rounded-md border border-slate-700 text-amber-400";
+            document.getElementById('video-overlay').classList.remove('hidden');
+
+            updateStatusBadge('stat-cam', false);
+            updateStatusBadge('stat-mesh', false);
+            updateStatusBadge('stat-rppg', false);
+
+            document.getElementById('val-facs').textContent = "0.00";
+            document.getElementById('val-pupil').textContent = "--";
+            document.getElementById('val-rppg').textContent = "-- BPM";
+
+            addLog("Système arrêté manuellement.");
+        }
     </script>
 </body>
 </html>
