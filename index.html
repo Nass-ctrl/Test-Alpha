@@ -1,118 +1,252 @@
-// --- Initialisation des variables globales ---
-let isRunning = false;
-let cameraUtils = null;
-let currentVelocity = 0; 
-let lastExpression = "Neutre";
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EgoLens - Suite Analytique Avancée</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Librairies externes -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <style>
+        /* Personnalisation du rendu vidéo et effet miroir */
+        #output-canvas {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            transform: scaleX(-1);
+        }
 
-const videoElement = document.getElementById('input-video');
-const canvasElement = document.getElementById('output-canvas');
-const canvasCtx = canvasElement.getContext('2d');
-const valFacsEl = document.getElementById('val-facs');
+        /* Scrollbar personnalisée pour le journal de rapport */
+        #log-console::-webkit-scrollbar {
+            width: 6px;
+        }
+        #log-console::-webkit-scrollbar-thumb {
+            background: #334155;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-100 font-sans min-h-screen flex flex-col">
 
-// --- Initialisation Three.js ---
-const container = document.getElementById('three-container');
-const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(60, container.clientWidth / container.clientHeight, 0.1, 1000);
-const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-renderer.setSize(container.clientWidth, container.clientHeight);
-container.appendChild(renderer.domElement);
-camera.position.z = 3;
+    <!-- En-tête -->
+    <header class="bg-slate-900 border-b border-slate-800 px-4 sm:px-6 py-3 flex flex-wrap justify-between items-center gap-3 shadow-lg">
+        <div class="flex items-center space-x-3">
+            <div id="global-dot" class="h-3 w-3 bg-amber-500 rounded-full animate-pulse"></div>
+            <h1 class="text-lg sm:text-xl font-bold tracking-wider text-white">EGOLENS <span class="text-xs text-emerald-400 font-mono">v16.08-HYBRID</span></h1>
+        </div>
+        
+        <div class="flex items-center gap-2">
+            <button id="btn-play" class="bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-1.5 rounded-lg font-medium text-xs transition shadow-md">Démarrer</button>
+            <button id="btn-stop" class="bg-rose-600/50 hover:bg-rose-600 text-white px-4 py-1.5 rounded-lg font-medium text-xs transition shadow-md disabled:opacity-50" disabled>Arrêter</button>
+        </div>
 
-const particlesCnt = 500;
-const geometry = new THREE.BufferGeometry();
-const posArray = new Float32Array(particlesCnt * 3);
-for(let i = 0; i < particlesCnt * 3; i++) posArray[i] = (Math.random() - 0.5) * 5;
-geometry.setAttribute('position', new THREE.BufferAttribute(posArray, 3));
-const material = new THREE.PointsMaterial({ size: 0.015, color: 0x10b981 });
-const particlesMesh = new THREE.Points(geometry, material);
-scene.add(particlesMesh);
+        <div id="system-status" class="text-xs font-mono bg-slate-800 px-3 py-1.5 rounded-md border border-slate-700 text-amber-400">
+            Système en pause
+        </div>
+    </header>
 
-function animate() {
-    requestAnimationFrame(animate);
-    const dynamicFactor = 1 + (currentVelocity * 200);
-    particlesMesh.rotation.y += 0.001 * dynamicFactor;
-    particlesMesh.rotation.x += 0.0005 * dynamicFactor;
-    renderer.render(scene, camera);
-}
-animate();
+    <!-- Corps Principal -->
+    <main class="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-4 p-4 overflow-hidden">
+        
+        <!-- Colonne Gauche : Flux Vidéo & Infos -->
+        <div class="lg:col-span-4 flex flex-col gap-4">
+            <section class="bg-slate-900 border border-slate-800 rounded-xl p-4 flex flex-col shadow-xl min-h-[280px]">
+                <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-3">Flux Morpho-Facial</h2>
+                <div class="relative flex-1 bg-black rounded-lg overflow-hidden border border-slate-800 flex items-center justify-center aspect-video sm:aspect-auto">
+                    <video id="input-video" class="hidden" playsinline></video>
+                    <canvas id="output-canvas" class="w-full h-full object-contain"></canvas>
+                    <div id="video-overlay" class="absolute inset-0 bg-slate-950/85 flex items-center justify-center text-slate-400 text-xs font-mono p-4 text-center">
+                        Cliquez sur "Démarrer" pour activer la caméra
+                    </div>
+                </div>
+            </section>
 
-// --- Logique MediaPipe & Analyse ---
-let expressionBuffer = [];
-const BUFFER_SIZE = 5;
+            <!-- Télémétrie Instantanée -->
+            <section class="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-xl">
+                <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">Télémétrie Actuelle</h2>
+                <div class="font-mono text-xs bg-slate-950 p-3 rounded border border-slate-800">
+                    <p>État Expression : <span id="val-facs" class="text-slate-400 font-bold">0.00</span></p>
+                </div>
+            </section>
+        </div>
 
-const faceMesh = new FaceMesh({
-    locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`
-});
+        <!-- Centre 3D -->
+        <section id="three-container" class="lg:col-span-5 bg-slate-900 border border-slate-800 rounded-xl relative overflow-hidden shadow-xl min-h-[300px]">
+        </section>
 
-faceMesh.setOptions({ maxNumFaces: 1, refineLandmarks: true, minDetectionConfidence: 0.5, minTrackingConfidence: 0.5 });
+        <!-- Journal de Rapport -->
+        <section class="lg:col-span-3 bg-slate-900 border border-slate-800 rounded-xl p-4 flex flex-col shadow-xl h-48 lg:h-auto">
+            <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-400 mb-3">Rapport d'Analyse Final</h2>
+            <div id="log-console" class="flex-1 bg-slate-950 rounded-lg border border-slate-800 p-3 font-mono text-[11px] text-slate-400 overflow-y-auto space-y-1">
+                <p class="text-slate-500">[System] En attente de lancement...</p>
+            </div>
+        </section>
 
-faceMesh.onResults((results) => {
-    if (!isRunning) return;
+    </main>
 
-    canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
-    canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
+    <!-- Logique JavaScript -->
+    <script>
+        // --- Initialisation des variables globales ---
+        let isRunning = false;
+        let cameraUtils = null;
+        let currentVelocity = 0; 
+        let lastExpression = "Neutre";
 
-    if (results.multiFaceLandmarks) {
-        const landmarks = results.multiFaceLandmarks[0];
-        const upperLip = landmarks[13];
-        const lowerLip = landmarks[14];
-        const mouthOpenness = Math.abs(upperLip.y - lowerLip.y);
+        const videoElement = document.getElementById('input-video');
+        const canvasElement = document.getElementById('output-canvas');
+        const canvasCtx = canvasElement.getContext('2d');
+        const valFacsEl = document.getElementById('val-facs');
 
-        expressionBuffer.push(mouthOpenness);
-        if (expressionBuffer.length > BUFFER_SIZE) expressionBuffer.shift();
+        // --- Initialisation Three.js ---
+        const container = document.getElementById('three-container');
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(60, container.clientWidth / container.clientHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setSize(container.clientWidth, container.clientHeight);
+        container.appendChild(renderer.domElement);
+        camera.position.z = 3;
 
-        if (expressionBuffer.length === BUFFER_SIZE) {
-            currentVelocity = Math.abs(expressionBuffer[BUFFER_SIZE - 1] - expressionBuffer[0]);
-            
-            // LOGIQUE DE DÉTECTION
-            if (mouthOpenness > 0.05) {
-                // MACRO-EXPRESSION
-                valFacsEl.style.color = "#10b981";
-                valFacsEl.textContent = "Macro Active";
-                updateReport("Expression Ouverte", "Action intentionnelle détectée (parole ou rire).");
-            } else if (currentVelocity > 0.002) {
-                // MICRO-EXPRESSION
-                valFacsEl.style.color = "#fbbf24";
-                valFacsEl.textContent = (currentVelocity * 1000).toFixed(2);
-                updateReport("Micro-Variation", "Réaction subconsciente ou stress émotionnel.");
+        const particlesCnt = 500;
+        const geometry = new THREE.BufferGeometry();
+        const posArray = new Float32Array(particlesCnt * 3);
+        for(let i = 0; i < particlesCnt * 3; i++) posArray[i] = (Math.random() - 0.5) * 5;
+        geometry.setAttribute('position', new THREE.BufferAttribute(posArray, 3));
+        const material = new THREE.PointsMaterial({ size: 0.015, color: 0x10b981 });
+        const particlesMesh = new THREE.Points(geometry, material);
+        scene.add(particlesMesh);
+
+        function animate() {
+            requestAnimationFrame(animate);
+            const dynamicFactor = 1 + (currentVelocity * 200);
+            particlesMesh.rotation.y += 0.001 * dynamicFactor;
+            particlesMesh.rotation.x += 0.0005 * dynamicFactor;
+            renderer.render(scene, camera);
+        }
+        animate();
+
+        // Redimensionnement de la fenêtre 3D
+        window.addEventListener('resize', () => {
+            if (container) {
+                camera.aspect = container.clientWidth / container.clientHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(container.clientWidth, container.clientHeight);
+            }
+        });
+
+        // --- Logique MediaPipe & Analyse Hybride ---
+        let expressionBuffer = [];
+        const BUFFER_SIZE = 5;
+
+        const faceMesh = new FaceMesh({
+            locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`
+        });
+
+        faceMesh.setOptions({ 
+            maxNumFaces: 1, 
+            refineLandmarks: true, 
+            minDetectionConfidence: 0.5, 
+            minTrackingConfidence: 0.5 
+        });
+
+        faceMesh.onResults((results) => {
+            if (!isRunning) return;
+
+            if (canvasElement.width !== canvasElement.clientWidth || canvasElement.height !== canvasElement.clientHeight) {
+                canvasElement.width = canvasElement.clientWidth;
+                canvasElement.height = canvasElement.clientHeight;
+            }
+
+            canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+            canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
+
+            if (results.multiFaceLandmarks) {
+                const landmarks = results.multiFaceLandmarks[0];
+                const upperLip = landmarks[13];
+                const lowerLip = landmarks[14];
+                const mouthOpenness = Math.abs(upperLip.y - lowerLip.y);
+
+                expressionBuffer.push(mouthOpenness);
+                if (expressionBuffer.length > BUFFER_SIZE) expressionBuffer.shift();
+
+                if (expressionBuffer.length === BUFFER_SIZE) {
+                    currentVelocity = Math.abs(expressionBuffer[BUFFER_SIZE - 1] - expressionBuffer[0]);
+                    
+                    // LOGIQUE DE DÉTECTION (Macro vs Micro)
+                    if (mouthOpenness > 0.05) {
+                        valFacsEl.style.color = "#10b981";
+                        valFacsEl.textContent = "Macro Active";
+                        updateReport("Expression Ouverte", "Action intentionnelle détectée (parole ou rire).");
+                    } else if (currentVelocity > 0.002) {
+                        valFacsEl.style.color = "#fbbf24";
+                        valFacsEl.textContent = (currentVelocity * 1000).toFixed(2);
+                        updateReport("Micro-Variation", "Réaction subconsciente ou stress émotionnel.");
+                    } else {
+                        valFacsEl.style.color = "#94a3b8";
+                        valFacsEl.textContent = "0.00";
+                    }
+                }
             } else {
-                valFacsEl.style.color = "#94a3b8";
-                valFacsEl.textContent = "0.00";
+                currentVelocity = 0;
+            }
+        });
+
+        // --- Fonction de rapport final en temps réel ---
+        function updateReport(type, meaning) {
+            if (lastExpression !== type) {
+                const logEntry = `[ANALYSE] Type: ${type} | Signification: ${meaning}`;
+                const logConsole = document.getElementById('log-console');
+                if (logConsole) {
+                    const p = document.createElement('p');
+                    p.className = "text-emerald-400 font-bold";
+                    p.textContent = logEntry;
+                    logConsole.prepend(p);
+                }
+                lastExpression = type;
             }
         }
-    }
-});
 
-// --- Fonction de rapport final en temps réel ---
-function updateReport(type, meaning) {
-    if (lastExpression !== type) {
-        const logEntry = `[ANALYSE] Type: ${type} | Signification: ${meaning}`;
-        const logConsole = document.getElementById('log-console');
-        const p = document.createElement('p');
-        p.className = "text-emerald-400 font-bold";
-        p.textContent = logEntry;
-        logConsole.prepend(p); // Ajoute en haut
-        lastExpression = type;
-    }
-}
+        // --- Contrôles ---
+        document.getElementById('btn-play').addEventListener('click', async () => {
+            if (isRunning) return;
+            isRunning = true;
 
-// --- Contrôles ---
-document.getElementById('btn-play').addEventListener('click', async () => {
-    isRunning = true;
-    document.getElementById('video-overlay').classList.add('hidden');
-    cameraUtils = new Camera(videoElement, {
-        onFrame: async () => { if (isRunning) await faceMesh.send({ image: videoElement }); },
-        width: 640, height: 480
-    });
-    await cameraUtils.start();
-});
+            document.getElementById('video-overlay').classList.add('hidden');
+            document.getElementById('system-status').textContent = "Système Actif";
+            document.getElementById('system-status').className = "text-xs font-mono bg-slate-800 px-3 py-1.5 rounded-md border border-slate-700 text-emerald-400";
 
-document.getElementById('btn-stop').addEventListener('click', () => {
-    isRunning = false;
-    if (cameraUtils) {
-        const stream = videoElement.srcObject;
-        stream.getTracks().forEach(t => t.stop());
-    }
-    document.getElementById('video-overlay').classList.remove('hidden');
-    valFacsEl.textContent = "0.00";
-});
+            cameraUtils = new Camera(videoElement, {
+                onFrame: async () => { 
+                    if (isRunning) {
+                        await faceMesh.send({ image: videoElement }); 
+                    }
+                },
+                width: 640, 
+                height: 480
+            });
+
+            try {
+                await cameraUtils.start();
+            } catch (err) {
+                isRunning = false;
+            }
+        });
+
+        document.getElementById('btn-stop').addEventListener('click', () => {
+            isRunning = false;
+            currentVelocity = 0;
+
+            if (cameraUtils && videoElement.srcObject) {
+                const stream = videoElement.srcObject;
+                stream.getTracks().forEach(t => t.stop());
+            }
+
+            document.getElementById('video-overlay').classList.remove('hidden');
+            document.getElementById('system-status').textContent = "Système en pause";
+            document.getElementById('system-status').className = "text-xs font-mono bg-slate-800 px-3 py-1.5 rounded-md border border-slate-700 text-amber-400";
+            valFacsEl.textContent = "0.00";
+        });
+    </script>
+</body>
+</html>
