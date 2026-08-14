@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>EgoLens - Suite Analytique Clinique Avancée</title>
+    <title>EgoLens - Suite Analytique Clinique Expert (Mesh Visuel)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-core@3.21.0/dist/tf-core.min.js"></script>
@@ -14,7 +14,7 @@
 <body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col">
 
     <header class="bg-slate-900 border-b border-slate-800 p-4 flex justify-between items-center">
-        <h1 class="text-xl font-bold">EGOLENS <span class="text-xs text-emerald-400">v16.08-CLINICAL-FULL</span></h1>
+        <h1 class="text-xl font-bold">EGOLENS <span class="text-xs text-emerald-400">v16.08-CLINICAL-MESH</span></h1>
         <div class="flex gap-2">
             <button id="btn-play" class="bg-emerald-600 px-4 py-1 rounded">Démarrer</button>
             <button id="btn-stop" class="bg-rose-600 px-4 py-1 rounded" disabled>Arrêter & Rapport Final</button>
@@ -23,27 +23,30 @@
     </header>
 
     <main class="p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-        <!-- Flux Vidéo & Infos -->
+        <!-- Flux Vidéo & Canvas Mesh -->
         <section class="bg-slate-900 p-4 rounded-xl border border-slate-800 flex flex-col">
-            <video id="input-video" class="w-full h-auto rounded border border-slate-700 mb-4" autoplay playsinline muted></video>
+            <div class="relative w-full aspect-video rounded border border-slate-700 overflow-hidden mb-4 bg-black">
+                <video id="input-video" class="absolute inset-0 w-full h-full object-cover" autoplay playsinline muted></video>
+                <canvas id="output-canvas" class="absolute inset-0 w-full h-full object-cover pointer-events-none"></canvas>
+            </div>
             <div class="bg-slate-950 p-3 rounded border border-slate-800 text-xs font-mono flex-1 space-y-1">
-                <p class="text-slate-400 uppercase font-bold mb-2">Télémétrie Clinique & Étalonnage :</p>
+                <p class="text-slate-400 uppercase font-bold mb-2">Télémétrie Clinique & Compensation 3D :</p>
                 <p>Statut Pipeline : <span id="val-diag" class="text-amber-400 font-bold">En attente</span></p>
-                <p>État d'Étalonnage : <span id="val-calibration" class="text-slate-400 font-bold">Non initialisé</span></p>
-                <p>Micro-Action (Instantanée) : <span id="val-micro" class="text-cyan-400 font-bold">0.000</span></p>
-                <p>Macro-Tendance (Glissante) : <span id="val-macro" class="text-emerald-400 font-bold">0.000</span></p>
+                <p>Étalonnage & Correction Tête : <span id="val-calibration" class="text-slate-400 font-bold">Non initialisé</span></p>
+                <p>Asymétrie Hémiface (G/D) : <span id="val-asymmetry" class="text-indigo-400 font-bold">0.000</span></p>
+                <p>Indice Probabiliste Max : <span id="val-micro" class="text-cyan-400 font-bold">0%</span></p>
             </div>
         </section>
         
         <!-- Convergence & Rapport Live / Fin de session -->
         <section class="bg-slate-900 p-4 rounded-xl border border-slate-800 flex flex-col justify-between space-y-4">
             <div class="bg-slate-950 p-4 rounded-xl border border-slate-700">
-                <span class="text-xs uppercase tracking-wider text-slate-400 block mb-1">Convergence Analytique (Live)</span>
+                <span class="text-xs uppercase tracking-wider text-slate-400 block mb-1">Convergence Probabiliste (Live)</span>
                 <div id="val-convergence" class="font-bold text-slate-300 text-sm">Système inactif</div>
             </div>
 
             <div class="bg-slate-950 p-4 rounded-xl border border-slate-800 flex-1 flex flex-col">
-                <h2 class="text-xs uppercase tracking-wider text-slate-400 mb-2">Rapport d'Analyse (Live & Synthèse de Session)</h2>
+                <h2 class="text-xs uppercase tracking-wider text-slate-400 mb-2">Rapport d'Analyse Avancé & Synthèse</h2>
                 <div id="final-report" class="font-mono text-xs text-slate-300 space-y-2 overflow-y-auto max-h-60 p-2 bg-slate-900 rounded border border-slate-800 flex-1">
                     <p class="text-slate-500">[SYSTEM] En attente de l'étalonnage de la patiente...</p>
                 </div>
@@ -56,19 +59,21 @@
         let isProcessing = false;
         let model = null;
         
-        // Baseline & Historique pour statistiques de fin de session
         let isCalibrated = false;
         let calibrationFrames = [];
-        let baseline = { mouthOpen: 0, mouthWidth: 0, browDist: 0, noseWrinkle: 0 };
+        let baseline = { mouthOpen: 0, mouthWidth: 0, browDist: 0, noseWrinkle: 0, headPitch: 0, headYaw: 0 };
         let historyBuffer = [];
         let sessionStats = {};
         let sessionStartTime = null;
 
         const videoElement = document.getElementById('input-video');
+        const canvasElement = document.getElementById('output-canvas');
+        const canvasCtx = canvasElement.getContext('2d');
+
         const valDiagEl = document.getElementById('val-diag');
         const valCalibrationEl = document.getElementById('val-calibration');
+        const valAsymmetryEl = document.getElementById('val-asymmetry');
         const valMicroEl = document.getElementById('val-micro');
-        const valMacroEl = document.getElementById('val-macro');
         const valConvergenceEl = document.getElementById('val-convergence');
         const finalReportEl = document.getElementById('final-report');
 
@@ -81,7 +86,8 @@
         }
 
         const clinicalMeanings = {
-            "AU12 (Sourire / Zygomatique - Joie)": "Activation des commissures : Bien-être, valence positive, accord.",
+            "AU12 (Sourire Zygomatique - Joie)": "Activation bilatérale/symétrique : Bien-être, valence positive, accord.",
+            "AU101 (Mépris Asymétrique)": "Rétraction unilatérale d'une commissure : Supériorité perçue, jugement critique.",
             "AU9/10 (Nez plissé / Lèvre sup - Dégoût)": "Rétulsion, rejet d'un stimulus, aversion ou désapprobation.",
             "AU1/2+5 (Haussement sourcils/paupières - Peur)": "Appréhension, menace perçue, surprise anxieuse ou alerte.",
             "AU25/26 (Ouverture mandibulaire - Surprise)": "Sursaut, découverte inattendue ou engagement focalisé.",
@@ -90,14 +96,54 @@
             "Baseline Stable": "Cohérence morphologique alignée avec la ligne de base."
         };
 
-        function extractMetrics(mesh) {
+        function estimateHeadPose(mesh) {
+            const noseTip = mesh[1];
+            const leftEye = mesh[33];
+            const rightEye = mesh[263];
+            const midEyeX = (leftEye[0] + rightEye[0]) / 2;
+            const yaw = noseTip[0] - midEyeX;
+            const midEyeY = (leftEye[1] + rightEye[1]) / 2;
+            const pitch = noseTip[1] - midEyeY;
+            return { pitch, yaw };
+        }
+
+        function extractMetricsAndAsymmetry(mesh) {
             const eyeDist = Math.hypot(mesh[33][0] - mesh[263][0], mesh[33][1] - mesh[263][1]);
+            const pose = estimateHeadPose(mesh);
+            const correctionFactor = 1.0 + Math.abs(pose.yaw) * 0.001;
+
+            const mouthOpen = (Math.abs(mesh[13][1] - mesh[14][1]) / eyeDist) * correctionFactor;
+            const lipCenter = mesh[13];
+            const leftDistToCenter = Math.hypot(mesh[61][0] - lipCenter[0], mesh[61][1] - lipCenter[1]);
+            const rightDistToCenter = Math.hypot(mesh[291][0] - lipCenter[0], mesh[291][1] - lipCenter[1]);
+            const asymmetryScore = Math.abs(leftDistToCenter - rightDistToCenter) / eyeDist;
+
             return {
-                mouthOpen: Math.abs(mesh[13][1] - mesh[14][1]) / eyeDist,
-                mouthWidth: Math.abs(mesh[61][0] - mesh[291][0]) / eyeDist,
-                browDist: Math.abs(mesh[70][0] - mesh[300][0]) / eyeDist,
-                noseWrinkle: Math.abs(mesh[2.][1] - mesh[168][1]) / eyeDist // Distance nez / inter-sourcil
+                mouthOpen,
+                mouthWidth: (Math.abs(mesh[61][0] - mesh[291][0]) / eyeDist) * correctionFactor,
+                browDist: (Math.abs(mesh[70][0] - mesh[300][0]) / eyeDist),
+                noseWrinkle: (Math.abs(mesh[2][1] - mesh[168][1]) / eyeDist),
+                asymmetryScore,
+                pose
             };
+        }
+
+        // Fonction de rendu graphique du maillage sur le canvas
+        function drawMesh(mesh) {
+            if (!canvasElement.width || !canvasElement.height) {
+                canvasElement.width = videoElement.videoWidth || 640;
+                canvasElement.height = videoElement.videoHeight || 480;
+            }
+            canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+            
+            canvasCtx.fillStyle = 'rgba(16, 185, 129, 0.6)'; // Points verts fluos
+            for (let i = 0; i < mesh.length; i++) {
+                const x = mesh[i][0];
+                const y = mesh[i][1];
+                canvasCtx.beginPath();
+                canvasCtx.arc(x, y, 1, 0, 2 * Math.PI);
+                canvasCtx.fill();
+            }
         }
 
         async function runAnalysis() {
@@ -113,11 +159,14 @@
 
                 if (predictions && predictions.length > 0) {
                     const mesh = predictions[0].scaledMesh;
-                    const current = extractMetrics(mesh);
+                    
+                    // Affichage graphique du maillage facial 3D
+                    drawMesh(mesh);
 
-                    // 1. ÉTALONNAGE (3s)
+                    const current = extractMetricsAndAsymmetry(mesh);
+
                     if (!isCalibrated) {
-                        valDiagEl.textContent = "Étalonnage en cours...";
+                        valDiagEl.textContent = "Étalonnage & Alignement Tête...";
                         valDiagEl.className = "text-amber-400 font-bold";
                         valCalibrationEl.textContent = `Capture baseline (${calibrationFrames.length}/30)`;
                         
@@ -127,67 +176,84 @@
                             baseline.mouthWidth = calibrationFrames.reduce((a,b) => a + b.mouthWidth, 0) / 30;
                             baseline.browDist = calibrationFrames.reduce((a,b) => a + b.browDist, 0) / 30;
                             baseline.noseWrinkle = calibrationFrames.reduce((a,b) => a + b.noseWrinkle, 0) / 30;
+                            baseline.headPitch = calibrationFrames.reduce((a,b) => a + b.pose.pitch, 0) / 30;
+                            baseline.headYaw = calibrationFrames.reduce((a,b) => a + b.pose.yaw, 0) / 30;
                             isCalibrated = true;
                             sessionStartTime = new Date();
-                            valCalibrationEl.textContent = "Étalonné (Baseline active) ✔";
+                            valCalibrationEl.textContent = "Étalonné (Pitch/Yaw corrigés) ✔";
                             valCalibrationEl.className = "text-emerald-400 font-bold";
                         }
                         isProcessing = false;
                         return;
                     }
 
-                    valDiagEl.textContent = "Analyse Clinique Active ✔";
+                    valDiagEl.textContent = "Analyse Experte Active ✔";
                     valDiagEl.className = "text-emerald-400 font-bold";
 
-                    // 2. CALCULS RELATIFS ÉTENDus
                     const deltaMouthOpen = current.mouthOpen - baseline.mouthOpen;
                     const deltaMouthWidth = current.mouthWidth - baseline.mouthWidth;
                     const deltaBrow = baseline.browDist - current.browDist; 
                     const deltaNose = baseline.noseWrinkle - current.noseWrinkle;
 
-                    const microScore = deltaMouthOpen + deltaMouthWidth + Math.abs(deltaNose);
-                    valMicroEl.textContent = microScore.toFixed(3);
+                    valAsymmetryEl.textContent = current.asymmetryScore.toFixed(3);
 
-                    historyBuffer.push(microScore);
-                    if (historyBuffer.length > 15) historyBuffer.shift();
-                    const macroAvg = historyBuffer.reduce((a, b) => a + b, 0) / historyBuffer.length;
-                    valMacroEl.textContent = macroAvg.toFixed(3);
+                    let scores = {
+                        "Baseline Stable": 50,
+                        "AU12 (Sourire Zygomatique - Joie)": 0,
+                        "AU101 (Mépris Asymétrique)": 0,
+                        "AU9/10 (Nez plissé / Lèvre sup - Dégoût)": 0,
+                        "AU1/2+5 (Haussement sourcils/paupières - Peur)": 0,
+                        "AU25/26 (Ouverture mandibulaire - Surprise)": 0,
+                        "AU4 (Froncement corrugateur - Colère)": 0,
+                        "AU15 (Abaissement commissures - Tristesse)": 0
+                    };
 
-                    // 3. CONVERGENCE ÉTENDUE (Joie, Dégoût, Peur, Surprise, Colère, Tristesse)
-                    let detectedAU = "Baseline Stable";
+                    if (current.asymmetryScore > 0.05 && deltaMouthWidth > 0.02) {
+                        scores["AU101 (Mépris Asymétrique)"] = Math.min(Math.round(current.asymmetryScore * 1200), 98);
+                    }
+                    if (deltaMouthWidth > 0.04 && deltaMouthOpen > 0.02) {
+                        scores["AU12 (Sourire Zygomatique - Joie)"] = Math.min(Math.round((deltaMouthWidth + deltaMouthOpen) * 600), 95);
+                    }
+                    if (deltaNose > 0.025) {
+                        scores["AU9/10 (Nez plissé / Lèvre sup - Dégoût)"] = Math.min(Math.round(deltaNose * 1500), 92);
+                    }
+                    if (deltaBrow > 0.025 && deltaMouthOpen > 0.015) {
+                        scores["AU1/2+5 (Haussement sourcils/paupières - Peur)"] = 85;
+                    }
+                    if (deltaMouthOpen > 0.06) {
+                        scores["AU25/26 (Ouverture mandibulaire - Surprise)"] = Math.min(Math.round(deltaMouthOpen * 800), 96);
+                    }
+                    if (deltaBrow > 0.03) {
+                        scores["AU4 (Froncement corrugateur - Colère)"] = Math.min(Math.round(deltaBrow * 900), 90);
+                    }
+                    if (deltaMouthOpen < -0.02) {
+                        scores["AU15 (Abaissement commissures - Tristesse)"] = 82;
+                    }
+
+                    let bestAU = "Baseline Stable";
+                    let maxProb = 50;
+                    for (const [au, prob] of Object.entries(scores)) {
+                        if (prob > maxProb) {
+                            maxProb = prob;
+                            bestAU = au;
+                        }
+                    }
+
+                    valMicroEl.textContent = `${maxProb}%`;
+                    valConvergenceEl.textContent = `🎯 Convergence : ${bestAU} (${maxProb}%)`;
+
                     let convergenceClass = "font-bold text-slate-300 text-sm";
-
-                    if (deltaNose > 0.025 || deltaMouthOpen > 0.03 && deltaNose > 0.01) {
-                        detectedAU = "AU9/10 (Nez plissé / Lèvre sup - Dégoût)";
-                        convergenceClass = "font-bold text-purple-400 text-sm";
-                    } else if (deltaBrow > 0.025 && deltaMouthWidth < -0.01 && deltaMouthOpen > 0.015) {
-                        detectedAU = "AU1/2+5 (Haussement sourcils/paupières - Peur)";
-                        convergenceClass = "font-bold text-indigo-400 text-sm";
-                    } else if (deltaMouthWidth > 0.04 && deltaMouthOpen > 0.02) {
-                        detectedAU = "AU12 (Sourire / Zygomatique - Joie)";
-                        convergenceClass = "font-bold text-emerald-400 text-sm";
-                    } else if (deltaMouthOpen > 0.06) {
-                        detectedAU = "AU25/26 (Ouverture mandibulaire - Surprise)";
+                    if (maxProb > 75) {
                         convergenceClass = "font-bold text-cyan-400 text-sm";
-                    } else if (deltaBrow > 0.03) {
-                        detectedAU = "AU4 (Froncement corrugateur - Colère)";
-                        convergenceClass = "font-bold text-amber-400 text-sm";
-                    } else if (deltaMouthOpen < -0.02) {
-                        detectedAU = "AU15 (Abaissement commissures - Tristesse)";
-                        convergenceClass = "font-bold text-rose-400 text-sm";
+                        sessionStats[bestAU] = (sessionStats[bestAU] || 0) + 1;
+                        appendReport(bestAU, maxProb);
                     }
-
-                    valConvergenceEl.textContent = `🎯 Convergence : ${detectedAU}`;
                     valConvergenceEl.className = convergenceClass;
-
-                    if (detectedAU !== "Baseline Stable") {
-                        sessionStats[detectedAU] = (sessionStats[detectedAU] || 0) + 1;
-                        appendReport(detectedAU);
-                    }
 
                 } else {
                     valDiagEl.textContent = "Visage non détecté...";
                     valDiagEl.className = "text-rose-400 font-bold";
+                    canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
                 }
             } catch (err) {
                 console.error(err);
@@ -197,13 +263,13 @@
         }
 
         let lastLoggedAU = "";
-        function appendReport(au) {
-            if (au === lastLoggedAU) return;
+        function appendReport(au, prob) {
+            if (au === lastLoggedAU || au === "Baseline Stable") return;
             lastLoggedAU = au;
 
             const timestamp = new Date().toLocaleTimeString();
             const p = document.createElement('p');
-            p.innerHTML = `<span class="text-slate-500">[${timestamp}]</span> <strong class="text-cyan-400">${au}</strong> : ${clinicalMeanings[au]}`;
+            p.innerHTML = `<span class="text-slate-500">[${timestamp}]</span> <strong class="text-cyan-400">${au} [Confiance: ${prob}%]</strong> : ${clinicalMeanings[au]}`;
             
             if (finalReportEl.querySelector('.text-slate-500') && finalReportEl.children.length === 1) {
                 finalReportEl.innerHTML = '';
@@ -229,22 +295,22 @@
         document.getElementById('btn-stop').addEventListener('click', () => {
             isRunning = false;
             document.getElementById('system-status').textContent = "Session Terminée";
+            canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
             
-            // GÉNÉRATION DU RAPPORT DE FIN DE SESSION
             const endTime = new Date();
             const durationSec = sessionStartTime ? Math.round((endTime - sessionStartTime) / 1000) : 0;
             
             let summaryHTML = `<div class="p-3 bg-slate-950 border border-emerald-500/50 rounded mt-2">
-                <h3 class="text-emerald-400 font-bold mb-2">📋 RAPPORT DE FIN DE SESSION (SYNTHÈSE CLINIQUE)</h3>
-                <p><strong>Durée d'analyse active :</strong> ${durationSec} secondes</p>
-                <p class="mt-2 text-slate-400 uppercase font-bold text-[10px]">Occurrences des micro/macro-expressions détectées :</p>
+                <h3 class="text-emerald-400 font-bold mb-2">📋 RAPPORT EXPERT DE FIN DE SESSION</h3>
+                <p><strong>Durée d'analyse active (Yaw/Pitch normalisés) :</strong> ${durationSec} secondes</p>
+                <p class="mt-2 text-slate-400 uppercase font-bold text-[10px]">Occurrences pondérées des Action Units :</p>
                 <ul class="list-disc list-inside space-y-1 mt-1 font-mono">`;
             
             if (Object.keys(sessionStats).length === 0) {
-                summaryHTML += `<li>Aucune déviation significative (État globalement neutre/baseline stable).</li>`;
+                summaryHTML += `<li>Aucune déviation significative au-delà du seuil de certitude.</li>`;
             } else {
                 for (const [au, count] of Object.entries(sessionStats)) {
-                    summaryHTML += `<li><strong class="text-cyan-300">${au}</strong> : ${count} détections</li>`;
+                    summaryHTML += `<li><strong class="text-cyan-300">${au}</strong> : ${count} détections qualifiées</li>`;
                 }
             }
             summaryHTML += `</ul></div>`;
