@@ -14,7 +14,7 @@
 <body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col">
 
     <header class="bg-slate-900 border-b border-slate-800 p-4 flex justify-between items-center">
-        <h1 class="text-xl font-bold">EGOLENS <span class="text-xs text-emerald-400">v16.12-CLINICAL-DUAL-ENGINE-DISSONANCE</span></h1>
+        <h1 class="text-xl font-bold">EGOLENS <span class="text-xs text-emerald-400">v16.13-CLINICAL-DUAL-ENGINE-DISSONANCE</span></h1>
         <div class="flex gap-2">
             <button id="btn-play" class="bg-emerald-600 px-4 py-1 rounded text-sm">Démarrer</button>
             <button id="btn-stop" class="bg-rose-600 px-4 py-1 rounded text-sm" disabled>Arrêter & Rapport Final</button>
@@ -82,6 +82,7 @@
         let historyBuffer = [];
         let sessionStats = {};
         let microStatsCount = 0;
+        let microDetailsList = []; // Stockage détaillé pour le rapport final
         let sessionStartTime = null;
 
         // Suivi de la Dissonance
@@ -118,6 +119,11 @@
             "AU4 (Froncement corrugateur - Colère)": "Tension, concentration intense, frustration, hostilité ou menace.",
             "AU15 (Abaissement commissures - Tristesse)": "Repli émotionnel, déception, mélancolie.",
             "Baseline Stable": "Cohérence morphologique alignée avec la ligne de base."
+        };
+
+        const microMeanings = {
+            "Mandibulaire": "Ouverture/fermeture brusque de la mâchoire : Sursaut, rupture de flux, hésitation ou réactivité émotionnelle soudaine.",
+            "Sourcilière": "Contraction ou élévation fugitive des sourcils : Alerte cognitive, micro-frustration, doute ou appréhension subite."
         };
 
         function estimateHeadPose(mesh) {
@@ -224,7 +230,8 @@
                     if (isMicroActive) {
                         valMicroEl.textContent = "⚠️ MICRO-PIC";
                         microStatsCount++;
-                        appendMicroReport();
+                        let microType = isMicroMouth ? "Mandibulaire" : "Sourcilière";
+                        appendMicroReport(microType);
                     } else {
                         valMicroEl.textContent = "Stabilité";
                     }
@@ -338,14 +345,16 @@
         }
 
         let lastMicroLogTime = 0;
-        function appendMicroReport() {
+        function appendMicroReport(type) {
             const now = Date.now();
             if (now - lastMicroLogTime < 1500) return;
             lastMicroLogTime = now;
 
             const timestamp = new Date().toLocaleTimeString();
+            microDetailsList.push({ timestamp, type, meaning: microMeanings[type] });
+
             const p = document.createElement('p');
-            p.innerHTML = `<span class="text-slate-500">[${timestamp}]</span> <strong class="text-rose-400">⚡ MICRO-EXPRESSION FUGACE (Pic instantané)</strong>`;
+            p.innerHTML = `<span class="text-slate-500">[${timestamp}]</span> <strong class="text-rose-400">⚡ MICRO-EXPRESSION (${type})</strong> : ${microMeanings[type]}`;
             
             if (finalReportEl.querySelector('.text-slate-500') && finalReportEl.children.length === 1) {
                 finalReportEl.innerHTML = '';
@@ -363,6 +372,7 @@
             calibrationFrames = [];
             sessionStats = {};
             microStatsCount = 0;
+            microDetailsList = [];
             totalDissonanceScore = 0;
             dissonanceCount = 0;
             document.getElementById('btn-play').disabled = true;
@@ -380,13 +390,23 @@
             const durationSec = sessionStartTime ? Math.round((endTime - sessionStartTime) / 1000) : 0;
             const avgDissonance = dissonanceCount > 0 ? (totalDissonanceScore / dissonanceCount).toFixed(2) : "0.00";
             
-            let summaryHTML = `<div class="p-3 bg-slate-950 border border-emerald-500/50 rounded mt-2">
+            let summaryHTML = `<div class="p-3 bg-slate-950 border border-emerald-500/50 rounded mt-2 space-y-2">
                 <h3 class="text-emerald-400 font-bold mb-2">📋 RAPPORT EXPERT DE FIN DE SESSION</h3>
                 <p><strong>Durée d'analyse active (Yaw/Pitch normalisés) :</strong> ${durationSec} secondes</p>
                 <p><strong>Total Micro-expressions fugaces (Pics) :</strong> <span class="text-rose-400 font-bold">${microStatsCount}</span> détectées</p>
-                <p><strong>Score Moyen de Dissonance (Macro vs Micro) :</strong> <span class="text-amber-400 font-bold">${avgDissonance} / 10</span></p>
-                <p class="mt-2 text-slate-400 uppercase font-bold text-[10px]">Occurrences pondérées des Action Units :</p>
-                <ul class="list-disc list-inside space-y-1 mt-1 font-mono">`;
+                <p><strong>Score Moyen de Dissonance (Macro vs Micro) :</strong> <span class="text-amber-400 font-bold">${avgDissonance} / 10</span></p>`;
+            
+            if (microDetailsList.length > 0) {
+                summaryHTML += `<p class="text-slate-400 uppercase font-bold text-[10px] mt-2">Journal & Signification des Micro-expressions :</p>
+                <ul class="list-disc list-inside space-y-1 font-mono text-[11px]">`;
+                microDetailsList.forEach(item => {
+                    summaryHTML += `<li><span class="text-slate-500">[${item.timestamp}]</span> <strong class="text-rose-400">${item.type}</strong> : ${item.meaning}</li>`;
+                });
+                summaryHTML += `</ul>`;
+            }
+
+            summaryHTML += `<p class="text-slate-400 uppercase font-bold text-[10px] mt-2">Occurrences pondérées des Action Units (Macro) :</p>
+                <ul class="list-disc list-inside space-y-1 font-mono">`;
             
             if (Object.keys(sessionStats).length === 0) {
                 summaryHTML += `<li>Aucune déviation significative au-delà du seuil de certitude.</li>`;
