@@ -6,12 +6,12 @@
     <title>EgoLens - Suite Analytique Clinique (FACS Rigoureux)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <!-- TensorFlow.js Core, Converter et Backend WebGL (versions stables) -->
+    <!-- TensorFlow.js Core, Converter et Backend WebGL -->
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-core@3.21.0/dist/tf-core.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-converter@3.21.0/dist/tf-converter.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgl@3.21.0/dist/tf-backend-webgl.min.js"></script>
-    <!-- MediaPipe Face Mesh officiel (version stable compatible) -->
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/face-landmarks-detection@0.0.3/dist/face-landmarks-detection.min.js"></script>
+    <!-- MediaPipe Face Landmarks Detection (v1.0.3 stable) -->
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/face-landmarks-detection@1.0.3/dist/face-landmarks-detection.min.js"></script>
     <style>
         #output-canvas {
             width: 100%;
@@ -207,10 +207,8 @@
 
             try {
                 if (videoElement.readyState >= 2 && videoElement.videoWidth > 0) {
-                    // Alimentation du canvas intermédiaire standardisé
                     aiCtx.drawImage(videoElement, 0, 0, aiCvWidth = 320, aiCvHeight = 240);
 
-                    // Utilisation de tf.tidy pour garantir une étanchéité VRAM parfaite sans fuite mémoire
                     await tf.tidy(async () => {
                         const faces = await detector.estimateFaces(aiCanvas, { flipHorizontal: false });
 
@@ -218,13 +216,11 @@
                             const keypoints = faces[0].keypoints;
 
                             if (keypoints && keypoints.length > 400) {
-                                // Repères officiels FACS : Lèvre supérieure (13) et lèvre inférieure (14)
                                 const lipUpper = keypoints[13];
                                 const lipLower = keypoints[14];
                                 const leftEyeOuter = keypoints[33];
                                 const rightEyeOuter = keypoints[263];
 
-                                // Normalisation par la distance inter-oculaire pour s'affranchir de la distance de la caméra
                                 const eyeDist = Math.hypot(leftEyeOuter.x - rightEyeOuter.x, leftEyeOuter.y - rightEyeOuter.y);
                                 const lipDistance = Math.hypot(lipUpper.x - lipLower.x, lipUpper.y - lipLower.y);
                                 
