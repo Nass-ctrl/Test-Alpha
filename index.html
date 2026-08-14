@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>EgoLens - Suite Analytique Optimisée</title>
+    <title>EgoLens - Suite Analytique Ultimate</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js" crossorigin="anonymous"></script>
@@ -29,7 +29,7 @@
     <header class="bg-slate-900 border-b border-slate-800 px-4 sm:px-6 py-3 flex flex-wrap justify-between items-center gap-3 shadow-lg">
         <div class="flex items-center space-x-3">
             <div id="global-dot" class="h-3 w-3 bg-amber-500 rounded-full animate-pulse"></div>
-            <h1 class="text-lg sm:text-xl font-bold tracking-wider text-white">EGOLENS <span class="text-xs text-emerald-400 font-mono">v16.08-STABLE</span></h1>
+            <h1 class="text-lg sm:text-xl font-bold tracking-wider text-white">EGOLENS <span class="text-xs text-emerald-400 font-mono">v16.08-FLUSH</span></h1>
         </div>
         
         <div class="flex items-center gap-2">
@@ -53,7 +53,7 @@
                     <video id="input-video" class="hidden" autoplay playsinline muted></video>
                     <canvas id="output-canvas" class="w-full h-full object-contain"></canvas>
                     <div id="video-overlay" class="absolute inset-0 bg-slate-950/85 flex items-center justify-center text-slate-400 text-xs font-mono p-4 text-center">
-                        Cliquez sur "Démarrer" pour activer l'analyse
+                        Cliquez sur "Démarrer" pour lancer l'analyse
                     </div>
                 </div>
             </section>
@@ -82,7 +82,7 @@
 
     </main>
 
-    <!-- Logique JavaScript Directe & Ultra-Fluide -->
+    <!-- Logique JavaScript avec Purge Mémoire Intégrée -->
     <script>
         let isRunning = false;
         let isProcessing = false;
@@ -90,10 +90,11 @@
         let lastExpression = "Neutre";
         let faceMesh = null;
         let mediaStream = null;
+        let flushInterval = null;
 
         const videoElement = document.getElementById('input-video');
         const canvasElement = document.getElementById('output-canvas');
-        const canvasCtx = canvasElement.getContext('2d');
+        const canvasCtx = canvasElement.getContext('2d', { alpha: false });
         const valFacsEl = document.getElementById('val-facs');
         const valDiagEl = document.getElementById('val-diag');
 
@@ -101,12 +102,12 @@
         const container = document.getElementById('three-container');
         const scene = new THREE.Scene();
         const camera = new THREE.PerspectiveCamera(60, container.clientWidth || 400, 0.1, 1000);
-        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: "high-performance" });
         renderer.setSize(container.clientWidth || 400, container.clientHeight || 300);
         container.appendChild(renderer.domElement);
         camera.position.z = 3;
 
-        const particlesCnt = 400;
+        const particlesCnt = 300;
         const geometry = new THREE.BufferGeometry();
         const posArray = new Float32Array(particlesCnt * 3);
         for(let i = 0; i < particlesCnt * 3; i++) posArray[i] = (Math.random() - 0.5) * 5;
@@ -132,66 +133,67 @@
             }
         });
 
-        // --- Initialisation de MediaPipe FaceMesh ---
-        async function initFaceMeshSystem() {
-            try {
-                faceMesh = new FaceMesh({
-                    locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`
-                });
+        // --- Configuration MediaPipe FaceMesh avec Callbacks sécurisés ---
+        function createFaceMeshInstance() {
+            const fm = new FaceMesh({
+                locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`
+            });
 
-                faceMesh.setOptions({ 
-                    maxNumFaces: 1, 
-                    refineLandmarks: true, 
-                    minDetectionConfidence: 0.5, 
-                    minTrackingConfidence: 0.5 
-                });
+            fm.setOptions({ 
+                maxNumFaces: 1, 
+                refineLandmarks: false, 
+                minDetectionConfidence: 0.5, 
+                minTrackingConfidence: 0.5 
+            });
 
-                faceMesh.onResults((results) => {
-                    isProcessing = false;
-                    if (!isRunning) return;
+            fm.onResults((results) => {
+                isProcessing = false;
+                if (!isRunning) return;
 
-                    if (canvasElement.width !== canvasElement.clientWidth || canvasElement.height !== canvasElement.clientHeight) {
-                        canvasElement.width = canvasElement.clientWidth;
-                        canvasElement.height = canvasElement.clientHeight;
-                    }
+                if (canvasElement.width !== canvasElement.clientWidth || canvasElement.height !== canvasElement.clientHeight) {
+                    canvasElement.width = canvasElement.clientWidth;
+                    canvasElement.height = canvasElement.clientHeight;
+                }
 
-                    canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+                canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+                if (results && results.image) {
                     canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
+                }
 
-                    if (results.multiFaceLandmarks && results.multiFaceLandmarks.length > 0) {
-                        valDiagEl.textContent = "Visage Détecté ✔";
-                        valDiagEl.className = "text-emerald-400 font-bold";
+                if (results && results.multiFaceLandmarks && results.multiFaceLandmarks.length > 0) {
+                    valDiagEl.textContent = "Visage Détecté ✔";
+                    valDiagEl.className = "text-emerald-400 font-bold";
 
-                        const landmarks = results.multiFaceLandmarks[0];
-                        const upperLip = landmarks[13];
-                        const lowerLip = landmarks[14];
-                        const mouthOpenness = Math.abs(upperLip.y - lowerLip.y);
+                    const landmarks = results.multiFaceLandmarks[0];
+                    const upperLip = landmarks[13];
+                    const lowerLip = landmarks[14];
+                    const mouthOpenness = Math.abs(upperLip.y - lowerLip.y);
 
-                        currentVelocity = mouthOpenness;
+                    currentVelocity = mouthOpenness;
 
-                        if (mouthOpenness > 0.03) { 
-                            valFacsEl.style.color = "#10b981";
-                            valFacsEl.textContent = "Macro Active";
-                            updateReport("Expression Ouverte", "Action intentionnelle détectée.");
-                        } else {
-                            valFacsEl.style.color = "#94a3b8";
-                            valFacsEl.textContent = "0.00 (Calme)";
-                        }
+                    if (mouthOpenness > 0.03) { 
+                        valFacsEl.style.color = "#10b981";
+                        valFacsEl.textContent = "Macro Active";
+                        updateReport("Expression Ouverte", "Action intentionnelle détectée.");
                     } else {
-                        valDiagEl.textContent = "Visage non trouvé";
-                        valDiagEl.className = "text-rose-400 font-bold";
-                        currentVelocity = 0;
+                        valFacsEl.style.color = "#94a3b8";
+                        valFacsEl.textContent = "0.00 (Calme)";
                     }
-                });
+                } else {
+                    valDiagEl.textContent = "Visage non trouvé";
+                    valDiagEl.className = "text-rose-400 font-bold";
+                    currentVelocity = 0;
+                }
 
-                valDiagEl.textContent = "Module IA Prêt ✔";
-            } catch (e) {
-                console.error("Erreur d'initialisation FaceMesh :", e);
-                valDiagEl.textContent = "Erreur IA";
-            }
+                // Libération explicite des objets pour le Garbage Collector
+                results = null;
+            });
+
+            return fm;
         }
 
-        initFaceMeshSystem();
+        faceMesh = createFaceMeshInstance();
+        valDiagEl.textContent = "Module IA Prêt ✔";
 
         function updateReport(type, meaning) {
             if (lastExpression !== type) {
@@ -202,12 +204,16 @@
                     p.className = "text-emerald-400 font-bold mb-1";
                     p.textContent = logEntry;
                     logConsole.prepend(p);
+                    
+                    if (logConsole.childElementCount > 10) {
+                        logConsole.removeChild(logConsole.lastChild);
+                    }
                 }
                 lastExpression = type;
             }
         }
 
-        // --- Boucle de traitement fluide rythmée (Anti-Saturation) ---
+        // --- Boucle de cadencement avec réinitialisation périodique de l'IA ---
         async function analysisLoop() {
             if (!isRunning) return;
 
@@ -220,10 +226,9 @@
                 }
             }
 
-            // Espacement de 40ms (~25 FPS max) pour laisser respirer le CPU et éviter tout gel
             setTimeout(() => {
                 if (isRunning) requestAnimationFrame(analysisLoop);
-            }, 40);
+            }, 80); // Cadence ralentie à ~12-15 FPS pour un équilibre parfait sans fuite
         }
 
         // --- Contrôles de la caméra ---
@@ -245,11 +250,25 @@
                 isRunning = true;
                 isProcessing = false;
                 document.getElementById('video-overlay').classList.add('hidden');
-                document.getElementById('system-status').textContent = "Système Actif";
+                document.getElementById('system-status').textContent = "Système Actif (Anti-Fuite)";
                 document.getElementById('system-status').className = "text-xs font-mono bg-slate-800 px-3 py-1.5 rounded-md border border-slate-700 text-emerald-400";
                 
                 btnStop.disabled = false;
                 analysisLoop();
+
+                // SÉCURITÉ ANTI-SATURATION : Purge et recréation de l'objet FaceMesh toutes les 15 secondes
+                flushInterval = setInterval(async () => {
+                    if (!isRunning) return;
+                    isProcessing = true;
+                    try {
+                        if (faceMesh) {
+                            await faceMesh.close();
+                        }
+                    } catch (e) {}
+                    faceMesh = createFaceMeshInstance();
+                    isProcessing = false;
+                }, 15000);
+
             } catch (err) {
                 isRunning = false;
                 btnPlay.disabled = false;
@@ -260,10 +279,21 @@
             }
         });
 
-        document.getElementById('btn-stop').addEventListener('click', () => {
+        document.getElementById('btn-stop').addEventListener('click', async () => {
             isRunning = false;
             isProcessing = false;
             currentVelocity = 0;
+
+            if (flushInterval) {
+                clearInterval(flushInterval);
+                flushInterval = null;
+            }
+
+            try {
+                if (faceMesh) {
+                    await faceMesh.close();
+                }
+            } catch(e) {}
 
             if (mediaStream) {
                 mediaStream.getTracks().forEach(track => track.stop());
