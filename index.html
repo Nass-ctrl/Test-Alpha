@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>EgoLens - Suite Analytique Clinique</title>
+    <title>EgoLens - Suite Analytique Clinique Avancée</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-core@3.21.0/dist/tf-core.min.js"></script>
@@ -14,7 +14,7 @@
 <body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col">
 
     <header class="bg-slate-900 border-b border-slate-800 p-4 flex justify-between items-center">
-        <h1 class="text-xl font-bold">EGOLENS <span class="text-xs text-emerald-400">v16.08-CLINICAL</span></h1>
+        <h1 class="text-xl font-bold">EGOLENS <span class="text-xs text-emerald-400">v16.08-CLINICAL-FULL</span></h1>
         <div class="flex gap-2">
             <button id="btn-play" class="bg-emerald-600 px-4 py-1 rounded">Démarrer</button>
             <button id="btn-stop" class="bg-rose-600 px-4 py-1 rounded" disabled>Arrêter</button>
@@ -23,23 +23,29 @@
     </header>
 
     <main class="p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-        <section class="bg-slate-900 p-4 rounded-xl border border-slate-800">
-            <video id="input-video" class="w-full h-auto rounded border border-slate-700" autoplay playsinline muted></video>
+        <!-- Flux Vidéo -->
+        <section class="bg-slate-900 p-4 rounded-xl border border-slate-800 flex flex-col">
+            <video id="input-video" class="w-full h-auto rounded border border-slate-700 mb-4" autoplay playsinline muted></video>
+            <div class="bg-slate-950 p-3 rounded border border-slate-800 text-xs font-mono flex-1">
+                <p class="text-slate-400 uppercase font-bold mb-2">Télémétrie Instantanée :</p>
+                <p>Mesh Status : <span id="val-diag" class="text-amber-400 font-bold">En attente</span></p>
+                <p>Micro-Expression Active : <span id="val-micro" class="text-cyan-400 font-bold">Aucune</span></p>
+                <p>Macro-Expression Tendancielle : <span id="val-macro" class="text-emerald-400 font-bold">Neutre</span></p>
+            </div>
         </section>
         
+        <!-- Analyse & Rapport Final -->
         <section class="bg-slate-900 p-4 rounded-xl border border-slate-800 flex flex-col justify-between space-y-4">
-            <div>
-                <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-400 mb-3">Télémétrie Clinique</h2>
-                <div class="space-y-2 font-mono text-xs bg-slate-950 p-3 rounded border border-slate-800">
-                    <p>Mesh Status : <span id="val-diag" class="text-amber-400 font-bold">En attente</span></p>
-                    <p>Analyse Micro-Expression (Instantanée) : <span id="val-micro" class="text-cyan-400 font-bold">0.000</span></p>
-                    <p>Analyse Macro-Expression (Tendance) : <span id="val-macro" class="text-emerald-400 font-bold">Stabilité</span></p>
-                </div>
+            <div class="bg-slate-950 p-4 rounded-xl border border-slate-700">
+                <span class="text-xs uppercase tracking-wider text-slate-400 block mb-1">Convergence Analytique (Live)</span>
+                <div id="val-convergence" class="font-bold text-slate-300 text-sm">Système inactif</div>
             </div>
 
-            <div class="bg-slate-950 p-4 rounded-xl border border-slate-800">
-                <span class="text-xs uppercase tracking-wider text-slate-400 block mb-1">Convergence Analytique & Résultats</span>
-                <div id="val-convergence" class="font-bold text-slate-300 text-sm">Système inactif</div>
+            <div class="bg-slate-950 p-4 rounded-xl border border-slate-800 flex-1 flex flex-col">
+                <h2 class="text-xs uppercase tracking-wider text-slate-400 mb-2">Rapport d'Analyse Final & Significations</h2>
+                <div id="final-report" class="font-mono text-xs text-slate-300 space-y-2 overflow-y-auto max-h-60 p-2 bg-slate-900 rounded border border-slate-800 flex-1">
+                    <p class="text-slate-500">[SYSTEM] En attente de données cliniques...</p>
+                </div>
             </div>
         </section>
     </main>
@@ -48,13 +54,14 @@
         let isRunning = false;
         let isProcessing = false;
         let model = null;
-        let historyBuffer = []; // Tampon pour l'analyse macro (moyenne glissante)
+        let historyBuffer = []; // Tampon pour l'analyse macro
         
         const videoElement = document.getElementById('input-video');
         const valDiagEl = document.getElementById('val-diag');
         const valMicroEl = document.getElementById('val-micro');
         const valMacroEl = document.getElementById('val-macro');
         const valConvergenceEl = document.getElementById('val-convergence');
+        const finalReportEl = document.getElementById('final-report');
 
         async function initModel() {
             await tf.setBackend('webgl');
@@ -62,6 +69,42 @@
                 faceLandmarksDetection.SupportedPackages.mediapipeFacemesh,
                 { maxFaces: 1 }
             );
+        }
+
+        // Dictionnaire des significations cliniques des expressions
+        const meanings = {
+            "Joie": "Activation zygomatique (Sourire franc) : Bien-être, accord, valence positive.",
+            "Tristesse": "Affaissement des commissures et des paupières : Douleur morale, déception, repli.",
+            "Colère": "Foncement des sourcils et tension labiale : Frustration, obstacle, menace perçue.",
+            "Surprise": "Ouverture oculaire et mandibulaire maximale : Événement inattendu, saisissement.",
+            "Peur": "Étirement des lèvres et tension des sourcils : Inquiétude, menace imminente, alerte.",
+            "Dégoût": "haussement du nez et plissement supérieur : Rejet, aversion, stricts oraux.",
+            "Mépris": "Rétraction asymétrique d'une commissure : Supériorité perçue, jugement négatif.",
+            "Neutre": "Baseline stable : Absence de tension émotionnelle apparente."
+        };
+
+        function evaluateExpressions(mesh) {
+            // Repères clés normalisés
+            const eyeDist = Math.hypot(mesh[33][0] - mesh[263][0], mesh[33][1] - mesh[263][1]);
+            
+            // Ratios morphologiques
+            const mouthOpen = Math.abs(mesh[13][1] - mesh[14][1]) / eyeDist;
+            const mouthWidth = Math.abs(mesh[61][0] - mesh[291][0]) / eyeDist;
+            const browDistance = Math.abs(mesh[70][0] - mesh[300][0]) / eyeDist;
+            const leftEyeOpen = Math.abs(mesh[159][1] - mesh[145][1]) / eyeDist;
+            const rightEyeOpen = Math.abs(mesh[386][1] - mesh[374][1]) / eyeDist;
+
+            // Classification heuristique multi-zones
+            let expr = "Neutre";
+            if (mouthWidth > 0.55 && mouthOpen > 0.15) expr = "Joie";
+            else if (mouthOpen > 0.25) expr = "Surprise";
+            else if (browDistance < 0.32 && mouthOpen < 0.08) expr = "Colère";
+            else if (leftEyeOpen < 0.08 && rightEyeOpen < 0.08 && mouthOpen < 0.05) expr = "Tristesse";
+            else if (mouthWidth < 0.45 && mouthOpen > 0.12) expr = "Peur";
+            else if (mouthOpen < 0.07 && browDistance < 0.34) expr = "Dégoût";
+            else if (Math.abs(mesh[61][1] - mesh[291][1]) > 5 * eyeDist/100) expr = "Mépris";
+
+            return { expr, score: mouthOpen + mouthWidth };
         }
 
         async function runAnalysis() {
@@ -76,48 +119,34 @@
                 });
 
                 if (predictions && predictions.length > 0) {
-                    const keypoints = predictions[0].scaledMesh;
+                    const mesh = predictions[0].scaledMesh;
                     valDiagEl.textContent = "Mesh Actif (468 pts) ✔";
                     valDiagEl.className = "text-emerald-400 font-bold";
 
-                    // Calculs géométriques de référence
-                    const lipUpper = keypoints[13];
-                    const lipLower = keypoints[14];
-                    const eyeDist = Math.hypot(keypoints[33][0] - keypoints[263][0], keypoints[33][1] - keypoints[263][1]);
-                    const lipDistance = Math.hypot(lipUpper[0] - lipLower[0], lipUpper[1] - lipLower[1]);
-                    
-                    const currentScore = lipDistance / eyeDist;
+                    // Analyse instantanée (Micro)
+                    const currentEval = evaluateExpressions(mesh);
+                    valMicroEl.textContent = currentEval.expr;
 
-                    // 1. ANALYSE MICRO-EXPRESSION (Instantanée / Haute Fréquence)
-                    valMicroEl.textContent = currentScore.toFixed(3);
-
-                    // 2. ANALYSE MACRO-EXPRESSION (Moyenne glissante sur 15 échantillons)
-                    historyBuffer.push(currentScore);
+                    // Analyse tendancielle (Macro - Moyenne glissante sur 15 frames)
+                    historyBuffer.push(currentEval.score);
                     if (historyBuffer.length > 15) historyBuffer.shift();
-                    const macroAverage = historyBuffer.reduce((a, b) => a + b, 0) / historyBuffer.length;
+                    const macroAvg = historyBuffer.reduce((a, b) => a + b, 0) / historyBuffer.length;
                     
-                    let macroState = "Stabilité / Baseline";
-                    if (macroAverage > 0.16) macroState = "Macro-Ouverture prolongée";
-                    else if (macroAverage < 0.10) macroState = "Macro-Fermeture / Tension";
+                    let macroState = "Neutre stable";
+                    if (macroAvg > 0.7) macroState = "Macro-Expression Active Forte";
+                    else if (macroAvg < 0.4) macroState = "Macro-Tension / Rétraction";
                     valMacroEl.textContent = macroState;
 
-                    // 3. CONVERGENCE ANALYTIQUE ET RÉSULTATS CROISÉS
-                    const delta = currentScore - macroAverage;
-                    let convergenceText = "État neutre concordant";
+                    // Convergence Analytique
+                    let convergenceText = `🎯 Convergence : État de fond cohérent (${currentEval.expr})`;
                     let convergenceClass = "font-bold text-slate-300 text-sm";
 
-                    if (delta > 0.035) {
-                        convergenceText = "⚡ CONVERGENCE : Pic Micro-réactif détecté (Sursaut / Activation soudaine)";
+                    if (currentEval.expr !== "Neutre") {
+                        convergenceText = `⚡ CONVERGENCE ACTIVE : ${currentEval.expr} détectée.`;
                         convergenceClass = "font-bold text-cyan-400 text-sm";
-                    } else if (delta < -0.035) {
-                        convergenceText = "⚡ CONVERGENCE : Rétraction micro-expressive rapide";
-                        convergenceClass = "font-bold text-rose-400 text-sm";
-                    } else if (macroAverage > 0.16) {
-                        convergenceText = "🎯 CONVERGENCE : Macro-expression soutenue (État stable actif)";
-                        convergenceClass = "font-bold text-emerald-400 text-sm";
-                    } else {
-                        convergenceText = "🎯 CONVERGENCE : Cohérence morphologique stable";
-                        convergenceClass = "font-bold text-slate-400 text-sm";
+                        
+                        // Mise à jour dynamique du rapport final
+                        updateFinalReport(currentEval.expr);
                     }
 
                     valConvergenceEl.textContent = convergenceText;
@@ -126,13 +155,28 @@
                 } else {
                     valDiagEl.textContent = "Visage non détecté...";
                     valDiagEl.className = "text-rose-400 font-bold";
-                    valConvergenceEl.textContent = "En attente de repères faciaux...";
                 }
             } catch (err) {
                 console.error(err);
             } finally {
                 isProcessing = false;
             }
+        }
+
+        let lastLoggedExpr = "";
+        function updateFinalReport(expr) {
+            if (expr === lastLoggedExpr) evitaDuplicate = true;
+            lastLoggedExpr = expr;
+            
+            const timestamp = new Date().toLocaleTimeString();
+            const p = document.createElement('p');
+            p.innerHTML = `<span class="text-slate-500">[${timestamp}]</span> <strong class="text-emerald-400">${expr}</strong> : ${meanings[expr]}`;
+            
+            // Nettoyer le message d'attente initial si présent
+            if (finalReportEl.querySelector('.text-slate-500') && finalReportEl.children.length === 1) {
+                finalReportEl.innerHTML = '';
+            }
+            finalReportEl.prepend(p);
         }
 
         document.getElementById('btn-play').addEventListener('click', async () => {
@@ -144,7 +188,6 @@
             document.getElementById('btn-play').disabled = true;
             document.getElementById('btn-stop').disabled = false;
             document.getElementById('system-status').textContent = "Pipeline Actif";
-            // Intervalle réduit à 50ms pour capturer précisément la dynamique des micro-expressions
             setInterval(runAnalysis, 50);
         });
 
