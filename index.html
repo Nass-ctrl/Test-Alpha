@@ -14,7 +14,7 @@
 <body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col">
 
     <header class="bg-slate-900 border-b border-slate-800 p-4 flex justify-between items-center">
-        <h1 class="text-xl font-bold">EGOLENS <span class="text-xs text-emerald-400">v16.10-CLINICAL-DUAL-ENGINE</span></h1>
+        <h1 class="text-xl font-bold">EGOLENS <span class="text-xs text-emerald-400">v16.11-CLINICAL-DUAL-ENGINE</span></h1>
         <div class="flex gap-2">
             <button id="btn-play" class="bg-emerald-600 px-4 py-1 rounded text-sm">Démarrer</button>
             <button id="btn-stop" class="bg-rose-600 px-4 py-1 rounded text-sm" disabled>Arrêter & Rapport Final</button>
@@ -25,9 +25,9 @@
     <main class="p-4 grid grid-cols-1 lg:grid-cols-2 gap-4">
         <!-- Flux Vidéo & Canvas Mesh -->
         <section class="bg-slate-900 p-4 rounded-xl border border-slate-800 flex flex-col">
-            <div class="relative w-full aspect-video rounded border border-slate-700 overflow-hidden mb-4 bg-black">
+            <div class="relative w-full aspect-video rounded border border-slate-700 overflow-hidden mb-4 bg-black flex items-center justify-center">
                 <video id="input-video" class="absolute inset-0 w-full h-full object-cover" autoplay playsinline muted></video>
-                <canvas id="output-canvas" class="absolute inset-0 w-full h-full object-cover pointer-events-none"></canvas>
+                <canvas id="output-canvas" class="absolute inset-0 w-full h-full object-cover z-10 pointer-events-none"></canvas>
             </div>
             <div class="bg-slate-950 p-3 rounded border border-slate-800 text-xs font-mono flex-1 space-y-1">
                 <p class="text-slate-400 uppercase font-bold mb-2">Télémétrie Clinique & Compensation 3D :</p>
@@ -77,6 +77,7 @@
         let baseline = { mouthOpen: 0, mouthWidth: 0, browDist: 0, noseWrinkle: 0, headPitch: 0, headYaw: 0 };
         let historyBuffer = [];
         let sessionStats = {};
+        let microStatsCount = 0;
         let sessionStartTime = null;
 
         const videoElement = document.getElementById('input-video');
@@ -143,18 +144,18 @@
         }
 
         function drawMesh(mesh) {
-            if (!canvasElement.width || !canvasElement.height) {
+            if (canvasElement.width !== videoElement.videoWidth || canvasElement.height !== videoElement.videoHeight) {
                 canvasElement.width = videoElement.videoWidth || 640;
                 canvasElement.height = videoElement.videoHeight || 480;
             }
             canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
             
-            canvasCtx.fillStyle = 'rgba(16, 185, 129, 0.6)';
+            canvasCtx.fillStyle = 'rgba(16, 185, 129, 0.8)';
             for (let i = 0; i < mesh.length; i++) {
                 const x = mesh[i][0];
                 const y = mesh[i][1];
                 canvasCtx.beginPath();
-                canvasCtx.arc(x, y, 1, 0, 2 * Math.PI);
+                canvasCtx.arc(x, y, 1.2, 0, 2 * Math.PI);
                 canvasCtx.fill();
             }
         }
@@ -201,19 +202,23 @@
                     valDiagEl.textContent = "Analyse Experte Active ✔";
                     valDiagEl.className = "text-emerald-400 font-bold";
 
-                    // Buffer temporel pour Macro vs Micro
                     historyBuffer.push(current);
                     if (historyBuffer.length > 20) historyBuffer.shift();
 
-                    // Calcul Macro (Moyenne glissante sur 20 frames)
                     const macroMouthOpen = historyBuffer.reduce((a, b) => a + b.mouthOpen, 0) / historyBuffer.length;
                     const macroBrowDist = historyBuffer.reduce((a, b) => a + b.browDist, 0) / historyBuffer.length;
 
-                    // Détection Micro (Saut instantané brusque par rapport à la macro-tendance)
                     const isMicroMouth = Math.abs(current.mouthOpen - macroMouthOpen) > 0.04;
                     const isMicroBrow = Math.abs(current.browDist - macroBrowDist) > 0.02;
 
-                    valMicroEl.textContent = (isMicroMouth || isMicroBrow) ? "⚠️ MICRO-PIC" : "Stabilité";
+                    if (isMicroMouth || isMicroBrow) {
+                        valMicroEl.textContent = "⚠️ MICRO-PIC";
+                        microStatsCount++;
+                        appendMicroReport();
+                    } else {
+                        valMicroEl.textContent = "Stabilité";
+                    }
+
                     valMacroEl.textContent = macroMouthOpen > (baseline.mouthOpen + 0.02) ? "Ouverture (Actif)" : "Repos (Stable)";
 
                     const deltaMouthOpen = current.mouthOpen - baseline.mouthOpen;
@@ -302,6 +307,22 @@
             finalReportEl.prepend(p);
         }
 
+        let lastMicroLogTime = 0;
+        function appendMicroReport() {
+            const now = Date.now();
+            if (now - lastMicroLogTime < 1500) return;
+            lastMicroLogTime = now;
+
+            const timestamp = new Date().toLocaleTimeString();
+            const p = document.createElement('p');
+            p.innerHTML = `<span class="text-slate-500">[${timestamp}]</span> <strong class="text-rose-400">⚡ MICRO-EXPRESSION FUGACE (Pic instantané)</strong>`;
+            
+            if (finalReportEl.querySelector('.text-slate-500') && finalReportEl.children.length === 1) {
+                finalReportEl.innerHTML = '';
+            }
+            finalReportEl.prepend(p);
+        }
+
         document.getElementById('btn-play').addEventListener('click', async () => {
             document.getElementById('system-status').textContent = "Initialisation...";
             await initModel();
@@ -311,6 +332,7 @@
             isCalibrated = false;
             calibrationFrames = [];
             sessionStats = {};
+            microStatsCount = 0;
             document.getElementById('btn-play').disabled = true;
             document.getElementById('btn-stop').disabled = false;
             document.getElementById('system-status').textContent = "Pipeline Actif";
@@ -328,6 +350,7 @@
             let summaryHTML = `<div class="p-3 bg-slate-950 border border-emerald-500/50 rounded mt-2">
                 <h3 class="text-emerald-400 font-bold mb-2">📋 RAPPORT EXPERT DE FIN DE SESSION</h3>
                 <p><strong>Durée d'analyse active (Yaw/Pitch normalisés) :</strong> ${durationSec} secondes</p>
+                <p><strong>Total Micro-expressions fugaces (Pics) :</strong> <span class="text-rose-400 font-bold">${microStatsCount}</span> détectées</p>
                 <p class="mt-2 text-slate-400 uppercase font-bold text-[10px]">Occurrences pondérées des Action Units :</p>
                 <ul class="list-disc list-inside space-y-1 mt-1 font-mono">`;
             
