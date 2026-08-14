@@ -7,6 +7,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Librairies externes -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js" crossorigin="anonymous"></script>
     <style>
         #output-canvas {
@@ -30,7 +31,7 @@
     <header class="bg-slate-900 border-b border-slate-800 px-4 sm:px-6 py-3 flex flex-wrap justify-between items-center gap-3 shadow-lg">
         <div class="flex items-center space-x-3">
             <div id="global-dot" class="h-3 w-3 bg-amber-500 rounded-full animate-pulse"></div>
-            <h1 class="text-lg sm:text-xl font-bold tracking-wider text-white">EGOLENS <span class="text-xs text-emerald-400 font-mono">v16.08-STABLE</span></h1>
+            <h1 class="text-lg sm:text-xl font-bold tracking-wider text-white">EGOLENS <span class="text-xs text-emerald-400 font-mono">v16.08-DIAG</span></h1>
         </div>
         
         <div class="flex items-center gap-2">
@@ -62,8 +63,9 @@
             <!-- Télémétrie Instantanée -->
             <section class="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-xl">
                 <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">Télémétrie Actuelle</h2>
-                <div class="font-mono text-xs bg-slate-950 p-3 rounded border border-slate-800">
+                <div class="font-mono text-xs bg-slate-950 p-3 rounded border border-slate-800 space-y-1">
                     <p>État Expression : <span id="val-facs" class="text-slate-400 font-bold">0.00 (Calme)</span></p>
+                    <p>Diagnostic IA : <span id="val-diag" class="text-amber-400 font-bold">En attente</span></p>
                 </div>
             </section>
         </div>
@@ -82,19 +84,19 @@
 
     </main>
 
-    <!-- Logique JavaScript Stabilisée -->
+    <!-- Logique JavaScript avec Diagnostic Intégré -->
     <script>
         let isRunning = false;
-        let isProcessing = false; // Verrou anti-saturation
         let currentVelocity = 0; 
         let lastExpression = "Neutre";
         let faceMesh = null;
-        let mediaStream = null;
+        let cameraUtilsInstance = null;
 
         const videoElement = document.getElementById('input-video');
         const canvasElement = document.getElementById('output-canvas');
         const canvasCtx = canvasElement.getContext('2d');
         const valFacsEl = document.getElementById('val-facs');
+        const valDiagEl = document.getElementById('val-diag');
 
         // --- Initialisation Three.js ---
         const container = document.getElementById('three-container');
@@ -131,64 +133,76 @@
             }
         });
 
-        // --- Configuration MediaPipe ---
+        // --- Configuration MediaPipe FaceMesh & Camera Utils ---
         let expressionBuffer = [];
         const BUFFER_SIZE = 5;
 
-        faceMesh = new FaceMesh({
-            locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`
-        });
+        function initFaceMesh() {
+            try {
+                faceMesh = new FaceMesh({
+                    locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`
+                });
 
-        faceMesh.setOptions({ 
-            maxNumFaces: 1, 
-            refineLandmarks: true, 
-            minDetectionConfidence: 0.5, 
-            minTrackingConfidence: 0.5 
-        });
+                faceMesh.setOptions({ 
+                    maxNumFaces: 1, 
+                    refineLandmarks: true, 
+                    minDetectionConfidence: 0.3, 
+                    minTrackingConfidence: 0.3 
+                });
 
-        faceMesh.onResults((results) => {
-            // Libère le verrou une fois le traitement de cette image terminé
-            isProcessing = false;
+                faceMesh.onResults((results) => {
+                    if (!isRunning) return;
 
-            if (!isRunning) return;
-
-            if (canvasElement.width !== canvasElement.clientWidth || canvasElement.height !== canvasElement.clientHeight) {
-                canvasElement.width = canvasElement.clientWidth;
-                canvasElement.height = canvasElement.clientHeight;
-            }
-
-            canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
-            canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
-
-            if (results.multiFaceLandmarks && results.multiFaceLandmarks.length > 0) {
-                const landmarks = results.multiFaceLandmarks[0];
-                const upperLip = landmarks[13];
-                const lowerLip = landmarks[14];
-                const mouthOpenness = Math.abs(upperLip.y - lowerLip.y);
-
-                expressionBuffer.push(mouthOpenness);
-                if (expressionBuffer.length > BUFFER_SIZE) expressionBuffer.shift();
-
-                if (expressionBuffer.length === BUFFER_SIZE) {
-                    currentVelocity = Math.abs(expressionBuffer[BUFFER_SIZE - 1] - expressionBuffer[0]);
-                    
-                    if (mouthOpenness > 0.03) { 
-                        valFacsEl.style.color = "#10b981";
-                        valFacsEl.textContent = "Macro Active";
-                        updateReport("Expression Ouverte", "Action intentionnelle détectée (parole ou rire).");
-                    } else if (currentVelocity > 0.0005) { 
-                        valFacsEl.style.color = "#fbbf24";
-                        valFacsEl.textContent = (currentVelocity * 1000).toFixed(2);
-                        updateReport("Micro-Variation", "Réaction subconsciente ou stress émotionnel.");
-                    } else {
-                        valFacsEl.style.color = "#94a3b8";
-                        valFacsEl.textContent = "0.00 (Calme)";
+                    if (canvasElement.width !== canvasElement.clientWidth || canvasElement.height !== canvasElement.clientHeight) {
+                        canvasElement.width = canvasElement.clientWidth;
+                        canvasElement.height = canvasElement.clientHeight;
                     }
-                }
-            } else {
-                currentVelocity = 0;
+
+                    canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+                    canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
+
+                    if (results.multiFaceLandmarks && results.multiFaceLandmarks.length > 0) {
+                        valDiagEl.textContent = "Visage Détecté ✔";
+                        valDiagEl.className = "text-emerald-400 font-bold";
+
+                        const landmarks = results.multiFaceLandmarks[0];
+                        const upperLip = landmarks[13];
+                        const lowerLip = landmarks[14];
+                        const mouthOpenness = Math.abs(upperLip.y - lowerLip.y);
+
+                        expressionBuffer.push(mouthOpenness);
+                        if (expressionBuffer.length > BUFFER_SIZE) expressionBuffer.shift();
+
+                        if (expressionBuffer.length === BUFFER_SIZE) {
+                            currentVelocity = Math.abs(expressionBuffer[BUFFER_SIZE - 1] - expressionBuffer[0]);
+                            
+                            if (mouthOpenness > 0.03) { 
+                                valFacsEl.style.color = "#10b981";
+                                valFacsEl.textContent = "Macro Active";
+                                updateReport("Expression Ouverte", "Action intentionnelle détectée (parole ou rire).");
+                            } else if (currentVelocity > 0.0005) { 
+                                valFacsEl.style.color = "#fbbf24";
+                                valFacsEl.textContent = (currentVelocity * 1000).toFixed(2);
+                                updateReport("Micro-Variation", "Réaction subconsciente ou stress émotionnel.");
+                            } else {
+                                valFacsEl.style.color = "#94a3b8";
+                                valFacsEl.textContent = "0.00 (Calme)";
+                            }
+                        }
+                    } else {
+                        valDiagEl.textContent = "Visage non trouvé (rapprochez-vous)";
+                        valDiagEl.className = "text-rose-400 font-bold";
+                        currentVelocity = 0;
+                    }
+                });
+            } catch (e) {
+                console.error("Erreur d'instanciation FaceMesh :", e);
+                valDiagEl.textContent = "Erreur Chargement IA";
+                valDiagEl.className = "text-rose-500 font-bold";
             }
-        });
+        }
+
+        initFaceMesh();
 
         function updateReport(type, meaning) {
             if (lastExpression !== type) {
@@ -204,18 +218,7 @@
             }
         }
 
-        // --- Boucle de capture régulée par le verrou ---
-        async function processVideoFrame() {
-            if (!isRunning) return;
-            
-            if (videoElement.readyState === videoElement.HAVE_ENOUGH_DATA && !isProcessing) {
-                isProcessing = true;
-                await faceMesh.send({ image: videoElement });
-            }
-            requestAnimationFrame(processVideoFrame);
-        }
-
-        // --- Contrôles ---
+        // --- Contrôles via Camera Utils natif de MediaPipe ---
         document.getElementById('btn-play').addEventListener('click', async () => {
             if (isRunning) return;
 
@@ -224,39 +227,44 @@
 
             try {
                 btnPlay.disabled = true;
-                mediaStream = await navigator.mediaDevices.getUserMedia({ 
-                    video: { width: 640, height: 480, facingMode: "user" } 
-                });
-                
-                videoElement.srcObject = mediaStream;
-                await videoElement.play();
-
                 isRunning = true;
-                isProcessing = false;
+
                 document.getElementById('video-overlay').classList.add('hidden');
                 document.getElementById('system-status').textContent = "Système Actif";
                 document.getElementById('system-status').className = "text-xs font-mono bg-slate-800 px-3 py-1.5 rounded-md border border-slate-700 text-emerald-400";
                 
+                cameraUtilsInstance = new Camera(videoElement, {
+                    onFrame: async () => {
+                        if (isRunning && faceMesh) {
+                            await faceMesh.send({ image: videoElement });
+                        }
+                    },
+                    width: 640,
+                    height: 480
+                });
+
+                await cameraUtilsInstance.start();
                 btnStop.disabled = false;
-                processVideoFrame(); 
             } catch (err) {
                 isRunning = false;
                 btnPlay.disabled = false;
-                console.error("Erreur caméra :", err);
-                alert("Erreur d'accès à la webcam.");
+                console.error("Erreur d'accès à la caméra :", err);
+                alert("Impossible d'activer la caméra. Vérifiez qu'aucune autre application ne l'utilise.");
+                document.getElementById('video-overlay').classList.remove('hidden');
+                document.getElementById('system-status').textContent = "Erreur Système";
+                document.getElementById('system-status').className = "text-xs font-mono bg-slate-800 px-3 py-1.5 rounded-md border border-slate-700 text-rose-400";
             }
         });
 
         document.getElementById('btn-stop').addEventListener('click', () => {
             isRunning = false;
-            isProcessing = false;
             currentVelocity = 0;
 
-            if (mediaStream) {
-                mediaStream.getTracks().forEach(track => track.stop());
-                mediaStream = null;
+            if (videoElement && videoElement.srcObject) {
+                const stream = videoElement.srcObject;
+                stream.getTracks().forEach(track => track.stop());
+                videoElement.srcObject = null;
             }
-            videoElement.srcObject = null;
 
             document.getElementById('btn-play').disabled = false;
             document.getElementById('btn-stop').disabled = true;
@@ -264,6 +272,8 @@
             document.getElementById('system-status').textContent = "Système en pause";
             document.getElementById('system-status').className = "text-xs font-mono bg-slate-800 px-3 py-1.5 rounded-md border border-slate-700 text-amber-400";
             valFacsEl.textContent = "0.00 (Calme)";
+            valDiagEl.textContent = "En attente";
+            valDiagEl.className = "text-amber-400 font-bold";
         });
     </script>
 </body>
