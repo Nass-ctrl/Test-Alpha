@@ -10,8 +10,8 @@
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-core@3.21.0/dist/tf-core.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-converter@3.21.0/dist/tf-converter.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgl@3.21.0/dist/tf-backend-webgl.min.js"></script>
-    <!-- MediaPipe Face Landmarks Detection (v1.0.3 stable) -->
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/face-landmarks-detection@1.0.3/dist/face-landmarks-detection.min.js"></script>
+    <!-- MediaPipe Face Landmarks Detection (Version stable globale) -->
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/face-landmarks-detection@0.0.3/dist/face-landmarks-detection.js"></script>
     <style>
         #output-canvas {
             width: 100%;
@@ -97,7 +97,7 @@
         let currentVelocity = 0; 
         let lastExpression = "Neutre";
         let mediaStream = null;
-        let detector = null;
+        let model = null;
         let analysisInterval = null;
 
         const videoElement = document.getElementById('input-video');
@@ -156,21 +156,18 @@
             }
         });
 
-        // --- Chargement rigoureux du modèle MediaPipe Face Mesh via TensorFlow.js ---
+        // --- Chargement rigoureux du modèle MediaPipe Face Mesh (API v0.0.3 robuste) ---
         async function initModel() {
-            if (detector) return;
+            if (model) return;
             logSystem("Initialisation du backend WebGL...");
             await tf.setBackend('webgl');
             await tf.ready();
             
             logSystem("Chargement du modèle MediaPipe Face Mesh...");
-            const modelType = faceLandmarksDetection.SupportedModels.MediaPipeFaceMesh;
-            const detectorConfig = {
-                runtime: 'tfjs',
-                maxFaces: 1,
-                refineLandmarks: true
-            };
-            detector = await faceLandmarksDetection.createDetector(modelType, detectorConfig);
+            model = await faceLandmarksDetection.load(
+                faceLandmarksDetection.SupportedPackages.mediapipeFacemesh,
+                { maxFaces: 1 }
+            );
             logSystem("Modèle Mesh clinique chargé ✔");
         }
 
@@ -202,27 +199,32 @@
 
         // --- Analyse Étendue et Étanche (Purge automatique via tf.tidy) ---
         async function runAnalysis() {
-            if (!isRunning || !detector || isProcessing) return;
+            if (!isRunning || !model || isProcessing) return;
             isProcessing = true;
 
             try {
                 if (videoElement.readyState >= 2 && videoElement.videoWidth > 0) {
-                    aiCtx.drawImage(videoElement, 0, 0, aiCvWidth = 320, aiCvHeight = 240);
+                    aiCtx.drawImage(videoElement, 0, 0, 320, 240);
 
                     await tf.tidy(async () => {
-                        const faces = await detector.estimateFaces(aiCanvas, { flipHorizontal: false });
+                        const predictions = await model.estimateFaces({
+                            input: aiCanvas,
+                            returnTensors: false,
+                            flipHorizontal: false
+                        });
 
-                        if (faces && faces.length > 0) {
-                            const keypoints = faces[0].keypoints;
+                        if (predictions && predictions.length > 0) {
+                            const keypoints = predictions[0].scaledMesh;
 
                             if (keypoints && keypoints.length > 400) {
+                                // Repères officiels FACS : Lèvre supérieure (13) et lèvre inférieure (14)
                                 const lipUpper = keypoints[13];
                                 const lipLower = keypoints[14];
                                 const leftEyeOuter = keypoints[33];
                                 const rightEyeOuter = keypoints[263];
 
-                                const eyeDist = Math.hypot(leftEyeOuter.x - rightEyeOuter.x, leftEyeOuter.y - rightEyeOuter.y);
-                                const lipDistance = Math.hypot(lipUpper.x - lipLower.x, lipUpper.y - lipLower.y);
+                                const eyeDist = Math.hypot(leftEyeOuter[0] - rightEyeOuter[0], leftEyeOuter[1] - rightEyeOuter[1]);
+                                const lipDistance = Math.hypot(lipUpper[0] - lipLower[0], lipUpper[1] - lipLower[1]);
                                 
                                 const normalizedRatio = lipDistance / eyeDist;
                                 currentVelocity = normalizedRatio;
