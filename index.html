@@ -22,13 +22,25 @@
         <div id="system-status" class="text-xs font-mono text-amber-400">En pause</div>
     </header>
 
-    <main class="p-4 grid grid-cols-1 gap-4">
+    <main class="p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
         <section class="bg-slate-900 p-4 rounded-xl border border-slate-800">
             <video id="input-video" class="w-full h-auto rounded border border-slate-700" autoplay playsinline muted></video>
         </section>
-        <section class="bg-slate-900 p-4 rounded-xl border border-slate-800">
-            <p>Écart Labial : <span id="val-facs" class="font-bold">0.000</span></p>
-            <p>Diagnostic IA : <span id="val-diag" class="text-amber-400 font-bold">En attente</span></p>
+        
+        <section class="bg-slate-900 p-4 rounded-xl border border-slate-800 flex flex-col justify-between space-y-4">
+            <div>
+                <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-400 mb-3">Télémétrie Clinique</h2>
+                <div class="space-y-2 font-mono text-xs bg-slate-950 p-3 rounded border border-slate-800">
+                    <p>Mesh Status : <span id="val-diag" class="text-amber-400 font-bold">En attente</span></p>
+                    <p>Analyse Micro-Expression (Instantanée) : <span id="val-micro" class="text-cyan-400 font-bold">0.000</span></p>
+                    <p>Analyse Macro-Expression (Tendance) : <span id="val-macro" class="text-emerald-400 font-bold">Stabilité</span></p>
+                </div>
+            </div>
+
+            <div class="bg-slate-950 p-4 rounded-xl border border-slate-800">
+                <span class="text-xs uppercase tracking-wider text-slate-400 block mb-1">Convergence Analytique & Résultats</span>
+                <div id="val-convergence" class="font-bold text-slate-300 text-sm">Système inactif</div>
+            </div>
         </section>
     </main>
 
@@ -36,9 +48,13 @@
         let isRunning = false;
         let isProcessing = false;
         let model = null;
+        let historyBuffer = []; // Tampon pour l'analyse macro (moyenne glissante)
+        
         const videoElement = document.getElementById('input-video');
-        const valFacsEl = document.getElementById('val-facs');
         const valDiagEl = document.getElementById('val-diag');
+        const valMicroEl = document.getElementById('val-micro');
+        const valMacroEl = document.getElementById('val-macro');
+        const valConvergenceEl = document.getElementById('val-convergence');
 
         async function initModel() {
             await tf.setBackend('webgl');
@@ -64,16 +80,53 @@
                     valDiagEl.textContent = "Mesh Actif (468 pts) ✔";
                     valDiagEl.className = "text-emerald-400 font-bold";
 
+                    // Calculs géométriques de référence
                     const lipUpper = keypoints[13];
                     const lipLower = keypoints[14];
                     const eyeDist = Math.hypot(keypoints[33][0] - keypoints[263][0], keypoints[33][1] - keypoints[263][1]);
                     const lipDistance = Math.hypot(lipUpper[0] - lipLower[0], lipUpper[1] - lipLower[1]);
                     
-                    const ratio = lipDistance / eyeDist;
-                    valFacsEl.textContent = ratio.toFixed(3) + (ratio > 0.15 ? " (Ouverture active)" : " (Calme)");
+                    const currentScore = lipDistance / eyeDist;
+
+                    // 1. ANALYSE MICRO-EXPRESSION (Instantanée / Haute Fréquence)
+                    valMicroEl.textContent = currentScore.toFixed(3);
+
+                    // 2. ANALYSE MACRO-EXPRESSION (Moyenne glissante sur 15 échantillons)
+                    historyBuffer.push(currentScore);
+                    if (historyBuffer.length > 15) historyBuffer.shift();
+                    const macroAverage = historyBuffer.reduce((a, b) => a + b, 0) / historyBuffer.length;
+                    
+                    let macroState = "Stabilité / Baseline";
+                    if (macroAverage > 0.16) macroState = "Macro-Ouverture prolongée";
+                    else if (macroAverage < 0.10) macroState = "Macro-Fermeture / Tension";
+                    valMacroEl.textContent = macroState;
+
+                    // 3. CONVERGENCE ANALYTIQUE ET RÉSULTATS CROISÉS
+                    const delta = currentScore - macroAverage;
+                    let convergenceText = "État neutre concordant";
+                    let convergenceClass = "font-bold text-slate-300 text-sm";
+
+                    if (delta > 0.035) {
+                        convergenceText = "⚡ CONVERGENCE : Pic Micro-réactif détecté (Sursaut / Activation soudaine)";
+                        convergenceClass = "font-bold text-cyan-400 text-sm";
+                    } else if (delta < -0.035) {
+                        convergenceText = "⚡ CONVERGENCE : Rétraction micro-expressive rapide";
+                        convergenceClass = "font-bold text-rose-400 text-sm";
+                    } else if (macroAverage > 0.16) {
+                        convergenceText = "🎯 CONVERGENCE : Macro-expression soutenue (État stable actif)";
+                        convergenceClass = "font-bold text-emerald-400 text-sm";
+                    } else {
+                        convergenceText = "🎯 CONVERGENCE : Cohérence morphologique stable";
+                        convergenceClass = "font-bold text-slate-400 text-sm";
+                    }
+
+                    valConvergenceEl.textContent = convergenceText;
+                    valConvergenceEl.className = convergenceClass;
+
                 } else {
                     valDiagEl.textContent = "Visage non détecté...";
                     valDiagEl.className = "text-rose-400 font-bold";
+                    valConvergenceEl.textContent = "En attente de repères faciaux...";
                 }
             } catch (err) {
                 console.error(err);
@@ -91,7 +144,8 @@
             document.getElementById('btn-play').disabled = true;
             document.getElementById('btn-stop').disabled = false;
             document.getElementById('system-status').textContent = "Pipeline Actif";
-            setInterval(runAnalysis, 100);
+            // Intervalle réduit à 50ms pour capturer précisément la dynamique des micro-expressions
+            setInterval(runAnalysis, 50);
         });
 
         document.getElementById('btn-stop').addEventListener('click', () => location.reload());
