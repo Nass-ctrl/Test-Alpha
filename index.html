@@ -86,7 +86,7 @@
 
     </main>
 
-    <!-- Thread Principal JavaScript (TensorFlow.js étanche) -->
+    <!-- Thread Principal JavaScript (TensorFlow.js étanche & Canvas IA stabilisé) -->
     <script>
         let isRunning = false;
         let isProcessing = false;
@@ -100,6 +100,12 @@
         const canvasElement = document.getElementById('output-canvas');
         const canvasCtx = canvasElement.getContext('2d', { alpha: false });
         
+        // Canvas intermédiaire pour stabiliser l'entrée du modèle TFJS
+        const aiCanvas = document.createElement('canvas');
+        aiCanvas.width = 320;
+        aiCanvas.height = 240;
+        const aiCtx = aiCanvas.getContext('2d', { alpha: false, willReadFrequently: true });
+
         const valFacsEl = document.getElementById('val-facs');
         const valDiagEl = document.getElementById('val-diag');
 
@@ -184,31 +190,32 @@
             requestAnimationFrame(renderVideoLoop);
         }
 
-        // --- Analyse IA Sécurisée avec tf.tidy (Zéro Fuite Mémoire Tenseur) ---
+        // --- Analyse IA Sécurisée avec Canvas intermédiaire et tf.tidy ---
         async function runTFJSAnalysis() {
             if (!isRunning || !detector || isProcessing) return;
             isProcessing = true;
 
             try {
-                if (videoElement.readyState >= 2) {
-                    // tf.tidy garantit que tous les tenseurs intermédiaires créés durant l'inférence sont purgés instantanément
+                if (videoElement.readyState >= 2 && videoElement.videoWidth > 0) {
+                    // Dessin sur le canvas IA pour stabiliser l'entrée du modèle
+                    aiCtx.drawImage(videoElement, 0, 0, aiCanvas.width, aiCanvas.height);
+
                     await tf.tidy(async () => {
-                        const faces = await detector.estimateFaces(videoElement, { flipHorizontal: false });
+                        const faces = await detector.estimateFaces(aiCanvas, { flipHorizontal: false });
                         
                         if (faces && faces.length > 0) {
                             const keypoints = faces[0].keypoints;
-                            // Points labiaux de référence (lèvre supérieure 13, lèvre inférieure 14 dans le standard MediaPipe mappé par TFJS)
                             const upperLip = keypoints[13];
                             const lowerLip = keypoints[14];
                             
                             if (upperLip && lowerLip) {
-                                const mouthOpenness = Math.abs(upperLip.y - lowerLip.y) / videoElement.videoHeight;
+                                const mouthOpenness = Math.abs(upperLip.y - lowerLip.y) / aiCanvas.height;
                                 
                                 valDiagEl.textContent = "Suivi TFJS Actif ✔";
                                 valDiagEl.className = "text-emerald-400 font-bold";
                                 currentVelocity = mouthOpenness;
 
-                                if (mouthOpenness > 0.015) {
+                                if (mouthOpenness > 0.03) {
                                     valFacsEl.style.color = "#10b981";
                                     valFacsEl.textContent = mouthOpenness.toFixed(3) + " (Ouverture)";
                                     updateReport("FACS Labial", "Mouvement significatif détecté chez la patiente.");
@@ -225,7 +232,7 @@
                     });
                 }
             } catch (err) {
-                console.warn("Erreur d'estimation TFJS:", err);
+                console.warn("Erreur d'estimation TFJS :", err);
             } finally {
                 isProcessing = false;
             }
@@ -261,7 +268,7 @@
                 
                 // Rendu UI fluide et analyse cadencée étanche
                 renderVideoLoop();
-                analysisInterval = setInterval(runTFJSAnalysis, 150); // Cadencé à ~6-7 FPS pour préserver les ressources
+                analysisInterval = setInterval(runTFJSAnalysis, 150); // Cadencé à ~6-7 FPS
 
             } catch (err) {
                 isRunning = false;
