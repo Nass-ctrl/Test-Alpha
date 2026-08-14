@@ -3,325 +3,98 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>EgoLens - Suite Analytique Clinique (FACS Rigoureux)</title>
+    <title>EgoLens - Suite Analytique Clinique</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <!-- TensorFlow.js Core, Converter et Backend WebGL -->
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-core@3.21.0/dist/tf-core.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-converter@3.21.0/dist/tf-converter.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgl@3.21.0/dist/tf-backend-webgl.min.js"></script>
-    <!-- MediaPipe Face Landmarks Detection (Version stable globale) -->
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/face-landmarks-detection@0.0.3/dist/face-landmarks-detection.js"></script>
-    <style>
-        #output-canvas {
-            width: 100%;
-            height: 100%;
-            object-fit: contain;
-            transform: scaleX(-1);
-        }
-        #log-console::-webkit-scrollbar {
-            width: 6px;
-        }
-        #log-console::-webkit-scrollbar-thumb {
-            background: #334155;
-            border-radius: 4px;
-        }
-    </style>
 </head>
-<body class="bg-slate-950 text-slate-100 font-sans min-h-screen flex flex-col">
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col">
 
-    <!-- En-tête -->
-    <header class="bg-slate-900 border-b border-slate-800 px-4 sm:px-6 py-3 flex flex-wrap justify-between items-center gap-3 shadow-lg">
-        <div class="flex items-center space-x-3">
-            <div id="global-dot" class="h-3 w-3 bg-amber-500 rounded-full animate-pulse"></div>
-            <h1 class="text-lg sm:text-xl font-bold tracking-wider text-white">EGOLENS <span class="text-xs text-emerald-400 font-mono">v16.08-CLINICAL</span></h1>
+    <header class="bg-slate-900 border-b border-slate-800 p-4 flex justify-between items-center">
+        <h1 class="text-xl font-bold">EGOLENS <span class="text-xs text-emerald-400">v16.08-CLINICAL</span></h1>
+        <div class="flex gap-2">
+            <button id="btn-play" class="bg-emerald-600 px-4 py-1 rounded">Démarrer</button>
+            <button id="btn-stop" class="bg-rose-600 px-4 py-1 rounded" disabled>Arrêter</button>
         </div>
-        
-        <div class="flex items-center gap-2">
-            <button id="btn-play" class="bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-1.5 rounded-lg font-medium text-xs transition shadow-md">Démarrer</button>
-            <button id="btn-stop" class="bg-rose-600/50 hover:bg-rose-600 text-white px-4 py-1.5 rounded-lg font-medium text-xs transition shadow-md disabled:opacity-50" disabled>Arrêter</button>
-        </div>
-
-        <div id="system-status" class="text-xs font-mono bg-slate-800 px-3 py-1.5 rounded-md border border-slate-700 text-amber-400">
-            Système en pause
-        </div>
+        <div id="system-status" class="text-xs font-mono text-amber-400">En pause</div>
     </header>
 
-    <!-- Corps Principal -->
-    <main class="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-4 p-4 overflow-hidden">
-        
-        <!-- Colonne Gauche : Flux Vidéo & Infos -->
-        <div class="lg:col-span-4 flex flex-col gap-4">
-            <section class="bg-slate-900 border border-slate-800 rounded-xl p-4 flex flex-col shadow-xl min-h-[280px]">
-                <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-3">Flux Morpho-Facial (Mesh 468 pts)</h2>
-                <div class="relative flex-1 bg-black rounded-lg overflow-hidden border border-slate-800 flex items-center justify-center aspect-video sm:aspect-auto">
-                    <video id="input-video" class="hidden" autoplay playsinline muted></video>
-                    <!-- Canvas masqué pour la capture normalisée basse-résolution -->
-                    <canvas id="ai-canvas" class="hidden" width="320" height="240"></canvas>
-                    <!-- Canvas de rendu visuel -->
-                    <canvas id="output-canvas" class="w-full h-full object-contain"></canvas>
-                    <div id="video-overlay" class="absolute inset-0 bg-slate-950/85 flex items-center justify-center text-slate-400 text-xs font-mono p-4 text-center">
-                        Cliquez sur "Démarrer" pour initialiser le protocole
-                    </div>
-                </div>
-            </section>
-
-            <!-- Télémétrie Instantanée -->
-            <section class="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-xl">
-                <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">Télémétrie Clinique (FACS)</h2>
-                <div class="font-mono text-xs bg-slate-950 p-3 rounded border border-slate-800 space-y-1">
-                    <p>Écart Labial (13-14) : <span id="val-facs" class="text-slate-400 font-bold">0.000 (Calme)</span></p>
-                    <p>Diagnostic IA : <span id="val-diag" class="text-amber-400 font-bold">En attente</span></p>
-                </div>
-            </section>
-        </div>
-
-        <!-- Centre 3D -->
-        <section id="three-container" class="lg:col-span-5 bg-slate-900 border border-slate-800 rounded-xl relative overflow-hidden shadow-xl min-h-[300px]">
+    <main class="p-4 grid grid-cols-1 gap-4">
+        <section class="bg-slate-900 p-4 rounded-xl border border-slate-800">
+            <video id="input-video" class="w-full h-auto rounded border border-slate-700" autoplay playsinline muted></video>
         </section>
-
-        <!-- Journal de Rapport -->
-        <section class="lg:col-span-3 bg-slate-900 border border-slate-800 rounded-xl p-4 flex flex-col shadow-xl h-48 lg:h-auto">
-            <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-400 mb-3">Rapport d'Analyse Final</h2>
-            <div id="log-console" class="flex-1 bg-slate-950 rounded-lg border border-slate-800 p-3 font-mono text-[11px] text-slate-400 overflow-y-auto space-y-1">
-                <p class="text-slate-500">[System] En attente de lancement...</p>
-            </div>
+        <section class="bg-slate-900 p-4 rounded-xl border border-slate-800">
+            <p>Écart Labial : <span id="val-facs" class="font-bold">0.000</span></p>
+            <p>Diagnostic IA : <span id="val-diag" class="text-amber-400 font-bold">En attente</span></p>
         </section>
-
     </main>
 
-    <!-- Thread Principal JavaScript -->
     <script>
         let isRunning = false;
         let isProcessing = false;
-        let currentVelocity = 0; 
-        let lastExpression = "Neutre";
-        let mediaStream = null;
         let model = null;
-        let analysisInterval = null;
-
         const videoElement = document.getElementById('input-video');
-        const aiCanvas = document.getElementById('ai-canvas');
-        const aiCtx = aiCanvas.getContext('2d');
-        const canvasElement = document.getElementById('output-canvas');
-        const canvasCtx = canvasElement.getContext('2d', { alpha: false });
-        
         const valFacsEl = document.getElementById('val-facs');
         const valDiagEl = document.getElementById('val-diag');
-        const logConsole = document.getElementById('log-console');
 
-        function logSystem(msg, isError = false) {
-            console.log(msg);
-            if (logConsole) {
-                const p = document.createElement('p');
-                p.className = isError ? "text-rose-400 font-bold mb-1" : "text-emerald-400 font-bold mb-1";
-                p.textContent = `[SYSTEM] ${msg}`;
-                logConsole.prepend(p);
-                if (logConsole.childElementCount > 12) logConsole.removeChild(logConsole.lastChild);
-            }
-        }
-
-        // --- Initialisation Three.js ---
-        const container = document.getElementById('three-container');
-        const scene = new THREE.Scene();
-        const camera = new THREE.PerspectiveCamera(60, container.clientWidth || 400, 0.1, 1000);
-        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: "high-performance" });
-        renderer.setSize(container.clientWidth || 400, container.clientHeight || 300);
-        container.appendChild(renderer.domElement);
-        camera.position.z = 3;
-
-        const particlesCnt = 300;
-        const geometry = new THREE.BufferGeometry();
-        const posArray = new Float32Array(particlesCnt * 3);
-        for(let i = 0; i < particlesCnt * 3; i++) posArray[i] = (Math.random() - 0.5) * 5;
-        geometry.setAttribute('position', new THREE.BufferAttribute(posArray, 3));
-        const material = new THREE.PointsMaterial({ size: 0.015, color: 0x10b981 });
-        const particlesMesh = new THREE.Points(geometry, material);
-        scene.add(particlesMesh);
-
-        function animate3D() {
-            requestAnimationFrame(animate3D);
-            const dynamicFactor = 1 + (currentVelocity * 500);
-            particlesMesh.rotation.y += 0.001 * dynamicFactor;
-            particlesMesh.rotation.x += 0.0005 * dynamicFactor;
-            renderer.render(scene, camera);
-        }
-        animate3D();
-
-        window.addEventListener('resize', () => {
-            if (container && container.clientWidth > 0) {
-                camera.aspect = container.clientWidth / container.clientHeight;
-                camera.updateProjectionMatrix();
-                renderer.setSize(container.clientWidth, container.clientHeight);
-            }
-        });
-
-        // --- Chargement rigoureux du modèle MediaPipe Face Mesh (API v0.0.3 robuste) ---
         async function initModel() {
-            if (model) return;
-            logSystem("Initialisation du backend WebGL...");
             await tf.setBackend('webgl');
-            await tf.ready();
-            
-            logSystem("Chargement du modèle MediaPipe Face Mesh...");
             model = await faceLandmarksDetection.load(
                 faceLandmarksDetection.SupportedPackages.mediapipeFacemesh,
                 { maxFaces: 1 }
             );
-            logSystem("Modèle Mesh clinique chargé ✔");
         }
 
-        function updateReport(type, meaning) {
-            if (lastExpression !== type) {
-                const logEntry = `[ANALYSE] Type: ${type} | Signification: ${meaning}`;
-                if (logConsole) {
-                    const p = document.createElement('p');
-                    p.className = "text-emerald-400 font-bold mb-1";
-                    p.textContent = logEntry;
-                    logConsole.prepend(p);
-                    if (logConsole.childElementCount > 12) logConsole.removeChild(logConsole.lastChild);
-                }
-                lastExpression = type;
-            }
-        }
-
-        function renderVideoLoop() {
-            if (!isRunning) return;
-            if (videoElement.readyState >= 2) {
-                if (canvasElement.width !== canvasElement.clientWidth || canvasElement.height !== canvasElement.clientHeight) {
-                    canvasElement.width = canvasElement.clientWidth;
-                    canvasElement.height = canvasElement.clientHeight;
-                }
-                canvasCtx.drawImage(videoElement, 0, 0, canvasElement.width, canvasElement.height);
-            }
-            requestAnimationFrame(renderVideoLoop);
-        }
-
-        // --- Analyse Étendue et Étanche (Purge automatique via tf.tidy) ---
         async function runAnalysis() {
             if (!isRunning || !model || isProcessing) return;
             isProcessing = true;
 
             try {
-                if (videoElement.readyState >= 2 && videoElement.videoWidth > 0) {
-                    aiCtx.drawImage(videoElement, 0, 0, 320, 240);
+                const predictions = await model.estimateFaces({
+                    input: videoElement,
+                    returnTensors: false,
+                    flipHorizontal: false
+                });
 
-                    await tf.tidy(async () => {
-                        const predictions = await model.estimateFaces({
-                            input: aiCanvas,
-                            returnTensors: false,
-                            flipHorizontal: false
-                        });
+                if (predictions && predictions.length > 0) {
+                    const keypoints = predictions[0].scaledMesh;
+                    valDiagEl.textContent = "Mesh Actif (468 pts) ✔";
+                    valDiagEl.className = "text-emerald-400 font-bold";
 
-                        if (predictions && predictions.length > 0) {
-                            const keypoints = predictions[0].scaledMesh;
-
-                            if (keypoints && keypoints.length > 400) {
-                                // Repères officiels FACS : Lèvre supérieure (13) et lèvre inférieure (14)
-                                const lipUpper = keypoints[13];
-                                const lipLower = keypoints[14];
-                                const leftEyeOuter = keypoints[33];
-                                const rightEyeOuter = keypoints[263];
-
-                                const eyeDist = Math.hypot(leftEyeOuter[0] - rightEyeOuter[0], leftEyeOuter[1] - rightEyeOuter[1]);
-                                const lipDistance = Math.hypot(lipUpper[0] - lipLower[0], lipUpper[1] - lipLower[1]);
-                                
-                                const normalizedRatio = lipDistance / eyeDist;
-                                currentVelocity = normalizedRatio;
-
-                                valDiagEl.textContent = "Mesh Actif (468 pts) ✔";
-                                valDiagEl.className = "text-emerald-400 font-bold";
-
-                                if (normalizedRatio > 0.14) {
-                                    valFacsEl.style.color = "#10b981";
-                                    valFacsEl.textContent = normalizedRatio.toFixed(3) + " (Ouverture active)";
-                                    updateReport("Cinématique Labiale", "Variation significative de l'écart labial détectée.");
-                                } else {
-                                    valFacsEl.style.color = "#94a3b8";
-                                    valFacsEl.textContent = normalizedRatio.toFixed(3) + " (Calme)";
-                                }
-                            }
-                        } else {
-                            valDiagEl.textContent = "Recherche de la patiente...";
-                            valDiagEl.className = "text-rose-400 font-bold";
-                            currentVelocity = 0;
-                        }
-                    });
+                    const lipUpper = keypoints[13];
+                    const lipLower = keypoints[14];
+                    const eyeDist = Math.hypot(keypoints[33][0] - keypoints[263][0], keypoints[33][1] - keypoints[263][1]);
+                    const lipDistance = Math.hypot(lipUpper[0] - lipLower[0], lipUpper[1] - lipLower[1]);
+                    
+                    const ratio = lipDistance / eyeDist;
+                    valFacsEl.textContent = ratio.toFixed(3) + (ratio > 0.15 ? " (Ouverture active)" : " (Calme)");
+                } else {
+                    valDiagEl.textContent = "Visage non détecté...";
+                    valDiagEl.className = "text-rose-400 font-bold";
                 }
             } catch (err) {
-                console.warn("Erreur d'estimation Mesh :", err);
+                console.error(err);
             } finally {
                 isProcessing = false;
             }
         }
 
         document.getElementById('btn-play').addEventListener('click', async () => {
-            if (isRunning) return;
-
-            const btnPlay = document.getElementById('btn-play');
-            const btnStop = document.getElementById('btn-stop');
-
-            try {
-                btnPlay.disabled = true;
-                document.getElementById('system-status').textContent = "Chargement du modèle lourd...";
-
-                await initModel();
-
-                logSystem("Activation de la webcam HD...");
-                mediaStream = await navigator.mediaDevices.getUserMedia({ 
-                    video: { width: 640, height: 480, facingMode: "user" } 
-                });
-                
-                videoElement.srcObject = mediaStream;
-                await videoElement.play();
-
-                isRunning = true;
-                isProcessing = false;
-                document.getElementById('video-overlay').classList.add('hidden');
-                document.getElementById('system-status').textContent = "Pipeline Clinique Actif";
-                document.getElementById('system-status').className = "text-xs font-mono bg-slate-800 px-3 py-1.5 rounded-md border border-slate-700 text-emerald-400";
-                
-                btnStop.disabled = false;
-                logSystem("Flux vidéo et moteur d'analyse synchronisés.");
-                
-                renderVideoLoop();
-                analysisInterval = setInterval(runAnalysis, 100);
-
-            } catch (err) {
-                isRunning = false;
-                btnPlay.disabled = false;
-                logSystem("Erreur critique : " + err.message, true);
-                alert("Impossible d'initialiser le protocole : " + err.message);
-                document.getElementById('video-overlay').classList.remove('hidden');
-                document.getElementById('system-status').textContent = "Erreur Système";
-            }
+            document.getElementById('system-status').textContent = "Initialisation...";
+            await initModel();
+            const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+            videoElement.srcObject = stream;
+            isRunning = true;
+            document.getElementById('btn-play').disabled = true;
+            document.getElementById('btn-stop').disabled = false;
+            document.getElementById('system-status').textContent = "Pipeline Actif";
+            setInterval(runAnalysis, 100);
         });
 
-        document.getElementById('btn-stop').addEventListener('click', () => {
-            isRunning = false;
-            isProcessing = false;
-            currentVelocity = 0;
-
-            if (analysisInterval) {
-                clearInterval(analysisInterval);
-                analysisInterval = null;
-            }
-
-            if (mediaStream) {
-                mediaStream.getTracks().forEach(track => track.stop());
-                mediaStream = null;
-            }
-            videoElement.srcObject = null;
-
-            document.getElementById('btn-play').disabled = false;
-            document.getElementById('btn-stop').disabled = true;
-            document.getElementById('video-overlay').classList.remove('hidden');
-            document.getElementById('system-status').textContent = "Système en pause";
-            document.getElementById('system-status').className = "text-xs font-mono bg-slate-800 px-3 py-1.5 rounded-md border border-slate-700 text-amber-400";
-            valFacsEl.textContent = "0.000 (Calme)";
-            valDiagEl.textContent = "En attente";
-            logSystem("Session clinique arrêtée.");
-        });
+        document.getElementById('btn-stop').addEventListener('click', () => location.reload());
     </script>
 </body>
 </html>
