@@ -3,10 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>EgoLens - Suite Analytique Ultimate</title>
+    <title>EgoLens - Suite Analytique Lite Recycle</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js" crossorigin="anonymous"></script>
+    <!-- Chargement direct de MediaPipe sur le main thread -->
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js"></script>
     <style>
         #output-canvas {
             width: 100%;
@@ -29,7 +30,7 @@
     <header class="bg-slate-900 border-b border-slate-800 px-4 sm:px-6 py-3 flex flex-wrap justify-between items-center gap-3 shadow-lg">
         <div class="flex items-center space-x-3">
             <div id="global-dot" class="h-3 w-3 bg-amber-500 rounded-full animate-pulse"></div>
-            <h1 class="text-lg sm:text-xl font-bold tracking-wider text-white">EGOLENS <span class="text-xs text-emerald-400 font-mono">v16.08-FLUSH</span></h1>
+            <h1 class="text-lg sm:text-xl font-bold tracking-wider text-white">EGOLENS <span class="text-xs text-emerald-400 font-mono">v16.08-RECYCLE</span></h1>
         </div>
         
         <div class="flex items-center gap-2">
@@ -51,6 +52,7 @@
                 <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-3">Flux Morpho-Facial</h2>
                 <div class="relative flex-1 bg-black rounded-lg overflow-hidden border border-slate-800 flex items-center justify-center aspect-video sm:aspect-auto">
                     <video id="input-video" class="hidden" autoplay playsinline muted></video>
+                    <!-- Le canvas d'affichage reste fluide -->
                     <canvas id="output-canvas" class="w-full h-full object-contain"></canvas>
                     <div id="video-overlay" class="absolute inset-0 bg-slate-950/85 flex items-center justify-center text-slate-400 text-xs font-mono p-4 text-center">
                         Cliquez sur "Démarrer" pour lancer l'analyse
@@ -82,19 +84,26 @@
 
     </main>
 
-    <!-- Logique JavaScript avec Purge Mémoire Intégrée -->
+    <!-- Thread Principal JavaScript -->
     <script>
         let isRunning = false;
         let isProcessing = false;
         let currentVelocity = 0; 
         let lastExpression = "Neutre";
-        let faceMesh = null;
         let mediaStream = null;
-        let flushInterval = null;
+        let faceMesh = null;
+        let recycleTimer = null;
 
         const videoElement = document.getElementById('input-video');
         const canvasElement = document.getElementById('output-canvas');
         const canvasCtx = canvasElement.getContext('2d', { alpha: false });
+        
+        // Canvas allégé exclusivement dédié à l'IA pour réduire la taille des données envoyées à WASM
+        const aiCanvas = document.createElement('canvas');
+        aiCanvas.width = 320;
+        aiCanvas.height = 240;
+        const aiCtx = aiCanvas.getContext('2d', { alpha: false, willReadFrequently: true });
+
         const valFacsEl = document.getElementById('val-facs');
         const valDiagEl = document.getElementById('val-diag');
 
@@ -133,67 +142,66 @@
             }
         });
 
-        // --- Configuration MediaPipe FaceMesh avec Callbacks sécurisés ---
-        function createFaceMeshInstance() {
-            const fm = new FaceMesh({
+        // --- Logique IA et Recyclage (La clé anti-fuite) ---
+        function initFaceMesh() {
+            // Destruction propre de l'ancienne instance si elle existe
+            if (faceMesh) {
+                try {
+                    faceMesh.close(); // Libère la mémoire WebAssembly allouée
+                } catch (e) {
+                    console.warn("Erreur lors de la fermeture de FaceMesh", e);
+                }
+                faceMesh = null;
+            }
+
+            faceMesh = new FaceMesh({
                 locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`
             });
 
-            fm.setOptions({ 
-                maxNumFaces: 1, 
-                refineLandmarks: false, 
-                minDetectionConfidence: 0.5, 
-                minTrackingConfidence: 0.5 
+            // Paramètres stricts pour limiter l'utilisation mémoire
+            faceMesh.setOptions({
+                maxNumFaces: 1,
+                refineLandmarks: false, // On désactive les détails inutiles pour alléger le modèle
+                minDetectionConfidence: 0.5,
+                minTrackingConfidence: 0.5
             });
 
-            fm.onResults((results) => {
-                isProcessing = false;
-                if (!isRunning) return;
-
-                if (canvasElement.width !== canvasElement.clientWidth || canvasElement.height !== canvasElement.clientHeight) {
-                    canvasElement.width = canvasElement.clientWidth;
-                    canvasElement.height = canvasElement.clientHeight;
-                }
-
-                canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
-                if (results && results.image) {
-                    canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
-                }
-
-                if (results && results.multiFaceLandmarks && results.multiFaceLandmarks.length > 0) {
-                    valDiagEl.textContent = "Visage Détecté ✔";
-                    valDiagEl.className = "text-emerald-400 font-bold";
-
-                    const landmarks = results.multiFaceLandmarks[0];
-                    const upperLip = landmarks[13];
-                    const lowerLip = landmarks[14];
-                    const mouthOpenness = Math.abs(upperLip.y - lowerLip.y);
-
-                    currentVelocity = mouthOpenness;
-
-                    if (mouthOpenness > 0.03) { 
-                        valFacsEl.style.color = "#10b981";
-                        valFacsEl.textContent = "Macro Active";
-                        updateReport("Expression Ouverte", "Action intentionnelle détectée.");
-                    } else {
-                        valFacsEl.style.color = "#94a3b8";
-                        valFacsEl.textContent = "0.00 (Calme)";
-                    }
-                } else {
-                    valDiagEl.textContent = "Visage non trouvé";
-                    valDiagEl.className = "text-rose-400 font-bold";
-                    currentVelocity = 0;
-                }
-
-                // Libération explicite des objets pour le Garbage Collector
-                results = null;
-            });
-
-            return fm;
+            faceMesh.onResults(onResults);
+            
+            console.log("[Système] Instance FaceMesh initialisée/recyclée.");
         }
 
-        faceMesh = createFaceMeshInstance();
-        valDiagEl.textContent = "Module IA Prêt ✔";
+        function onResults(results) {
+            isProcessing = false; // Libère le verrou pour la prochaine frame IA
+            
+            if (!isRunning) return;
+
+            if (results && results.multiFaceLandmarks && results.multiFaceLandmarks.length > 0) {
+                const landmarks = results.multiFaceLandmarks[0];
+                
+                // Analyse minimale
+                const upperLip = landmarks[13];
+                const lowerLip = landmarks[14];
+                const mouthOpenness = Math.abs(upperLip.y - lowerLip.y);
+                
+                valDiagEl.textContent = "Visage Suivi ✔";
+                valDiagEl.className = "text-emerald-400 font-bold";
+                currentVelocity = mouthOpenness;
+
+                if (mouthOpenness > 0.03) {
+                    valFacsEl.style.color = "#10b981";
+                    valFacsEl.textContent = "Action Labiale";
+                    updateReport("Ouverture", "Mouvement détecté chez la patiente.");
+                } else {
+                    valFacsEl.style.color = "#94a3b8";
+                    valFacsEl.textContent = "0.00 (Calme)";
+                }
+            } else {
+                valDiagEl.textContent = "Recherche Visage...";
+                valDiagEl.className = "text-rose-400 font-bold";
+                currentVelocity = 0;
+            }
+        }
 
         function updateReport(type, meaning) {
             if (lastExpression !== type) {
@@ -204,31 +212,42 @@
                     p.className = "text-emerald-400 font-bold mb-1";
                     p.textContent = logEntry;
                     logConsole.prepend(p);
-                    
-                    if (logConsole.childElementCount > 10) {
-                        logConsole.removeChild(logConsole.lastChild);
-                    }
+                    if (logConsole.childElementCount > 10) logConsole.removeChild(logConsole.lastChild);
                 }
                 lastExpression = type;
             }
         }
 
-        // --- Boucle de cadencement avec réinitialisation périodique de l'IA ---
-        async function analysisLoop() {
+        // --- Boucle de Rendu Vidéo (Fluide) et Analyse IA (Cadencée) ---
+        async function renderLoop() {
             if (!isRunning) return;
 
-            if (videoElement.readyState >= 2 && !isProcessing && faceMesh) {
-                isProcessing = true;
-                try {
-                    await faceMesh.send({ image: videoElement });
-                } catch (err) {
-                    isProcessing = false;
+            if (videoElement.readyState >= 2) {
+                // 1. Rendu fluide pour l'utilisateur (60 FPS)
+                if (canvasElement.width !== canvasElement.clientWidth || canvasElement.height !== canvasElement.clientHeight) {
+                    canvasElement.width = canvasElement.clientWidth;
+                    canvasElement.height = canvasElement.clientHeight;
+                }
+                canvasCtx.drawImage(videoElement, 0, 0, canvasElement.width, canvasElement.height);
+
+                // 2. Envoi cadencé à MediaPipe (Seulement si le système est prêt et déverrouillé)
+                if (!isProcessing && faceMesh) {
+                    isProcessing = true; // Verrouille pour empêcher l'accumulation
+                    
+                    // On réduit drastiquement la résolution envoyée à l'IA pour préserver le WASM
+                    aiCtx.drawImage(videoElement, 0, 0, aiCanvas.width, aiCanvas.height);
+                    
+                    try {
+                        await faceMesh.send({ image: aiCanvas });
+                    } catch(err) {
+                        console.warn("Saut de frame IA:", err);
+                        isProcessing = false;
+                    }
                 }
             }
-
-            setTimeout(() => {
-                if (isRunning) requestAnimationFrame(analysisLoop);
-            }, 80); // Cadence ralentie à ~12-15 FPS pour un équilibre parfait sans fuite
+            
+            // Boucle principale continue
+            requestAnimationFrame(renderLoop);
         }
 
         // --- Contrôles de la caméra ---
@@ -240,6 +259,10 @@
 
             try {
                 btnPlay.disabled = true;
+                
+                // Initialisation de la première instance IA
+                initFaceMesh();
+
                 mediaStream = await navigator.mediaDevices.getUserMedia({ 
                     video: { width: 640, height: 480, facingMode: "user" } 
                 });
@@ -250,24 +273,23 @@
                 isRunning = true;
                 isProcessing = false;
                 document.getElementById('video-overlay').classList.add('hidden');
-                document.getElementById('system-status').textContent = "Système Actif (Anti-Fuite)";
+                document.getElementById('system-status').textContent = "IA Main Thread (Recycle Actif)";
                 document.getElementById('system-status').className = "text-xs font-mono bg-slate-800 px-3 py-1.5 rounded-md border border-slate-700 text-emerald-400";
                 
                 btnStop.disabled = false;
-                analysisLoop();
+                
+                // Lancement de la boucle principale
+                renderLoop();
 
-                // SÉCURITÉ ANTI-SATURATION : Purge et recréation de l'objet FaceMesh toutes les 15 secondes
-                flushInterval = setInterval(async () => {
-                    if (!isRunning) return;
-                    isProcessing = true;
-                    try {
-                        if (faceMesh) {
-                            await faceMesh.close();
-                        }
-                    } catch (e) {}
-                    faceMesh = createFaceMeshInstance();
-                    isProcessing = false;
-                }, 15000);
+                // LE RECYCLAGE FORCÉ : Toutes les 45 secondes, on détruit et recrée MediaPipe.
+                // Le freeze est imperceptible (environ 50-100ms) mais ça sauve la RAM.
+                recycleTimer = setInterval(() => {
+                    if (isRunning) {
+                        console.log("[Système] Purge mémoire planifiée en cours...");
+                        isProcessing = true; // Bloque l'envoi de frames
+                        initFaceMesh(); // Écrase l'ancienne instance
+                    }
+                }, 45000);
 
             } catch (err) {
                 isRunning = false;
@@ -279,21 +301,20 @@
             }
         });
 
-        document.getElementById('btn-stop').addEventListener('click', async () => {
+        document.getElementById('btn-stop').addEventListener('click', () => {
             isRunning = false;
             isProcessing = false;
             currentVelocity = 0;
 
-            if (flushInterval) {
-                clearInterval(flushInterval);
-                flushInterval = null;
+            if (recycleTimer) {
+                clearInterval(recycleTimer);
+                recycleTimer = null;
             }
 
-            try {
-                if (faceMesh) {
-                    await faceMesh.close();
-                }
-            } catch(e) {}
+            if (faceMesh) {
+                try { faceMesh.close(); } catch(e) {}
+                faceMesh = null;
+            }
 
             if (mediaStream) {
                 mediaStream.getTracks().forEach(track => track.stop());
