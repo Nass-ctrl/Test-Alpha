@@ -14,7 +14,7 @@
 <body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col">
 
     <header class="bg-slate-900 border-b border-slate-800 p-4 flex justify-between items-center">
-        <h1 class="text-xl font-bold">EGOLENS <span class="text-xs text-emerald-400">v16.11-CLINICAL-DUAL-ENGINE</span></h1>
+        <h1 class="text-xl font-bold">EGOLENS <span class="text-xs text-emerald-400">v16.12-CLINICAL-DUAL-ENGINE-DISSONANCE</span></h1>
         <div class="flex gap-2">
             <button id="btn-play" class="bg-emerald-600 px-4 py-1 rounded text-sm">Démarrer</button>
             <button id="btn-stop" class="bg-rose-600 px-4 py-1 rounded text-sm" disabled>Arrêter & Rapport Final</button>
@@ -39,15 +39,19 @@
         
         <!-- Blocs Dual Engine, Convergence & Rapport -->
         <section class="bg-slate-900 p-4 rounded-xl border border-slate-800 flex flex-col justify-between space-y-4">
-            <!-- Micro vs Macro Cards -->
-            <div class="grid grid-cols-2 gap-4">
+            <!-- Micro vs Macro Cards & Dissonance -->
+            <div class="grid grid-cols-3 gap-3">
                 <div class="bg-slate-950 p-3 rounded-xl border border-slate-800">
-                    <span class="text-[10px] uppercase tracking-wider text-slate-400 block mb-1">Micro-Expression (Instantané)</span>
-                    <div id="val-micro" class="text-sm font-bold text-rose-400">Stabilité</div>
+                    <span class="text-[9px] uppercase tracking-wider text-slate-400 block mb-1">Micro (Instantané)</span>
+                    <div id="val-micro" class="text-xs font-bold text-rose-400">Stabilité</div>
                 </div>
                 <div class="bg-slate-950 p-3 rounded-xl border border-slate-800">
-                    <span class="text-[10px] uppercase tracking-wider text-slate-400 block mb-1">Macro-Tendance (Fond)</span>
-                    <div id="val-macro" class="text-sm font-bold text-cyan-400">Repos</div>
+                    <span class="text-[9px] uppercase tracking-wider text-slate-400 block mb-1">Macro (Tendance)</span>
+                    <div id="val-macro" class="text-xs font-bold text-cyan-400">Repos</div>
+                </div>
+                <div class="bg-slate-950 p-3 rounded-xl border border-slate-800">
+                    <span class="text-[9px] uppercase tracking-wider text-slate-400 block mb-1">Dissonance Score</span>
+                    <div id="val-dissonance" class="text-xs font-bold text-emerald-400">0.00</div>
                 </div>
             </div>
 
@@ -80,6 +84,10 @@
         let microStatsCount = 0;
         let sessionStartTime = null;
 
+        // Suivi de la Dissonance
+        let totalDissonanceScore = 0;
+        let dissonanceCount = 0;
+
         const videoElement = document.getElementById('input-video');
         const canvasElement = document.getElementById('output-canvas');
         const canvasCtx = canvasElement.getContext('2d');
@@ -89,6 +97,7 @@
         const valAsymmetryEl = document.getElementById('val-asymmetry');
         const valMicroEl = document.getElementById('val-micro');
         const valMacroEl = document.getElementById('val-macro');
+        const valDissonanceEl = document.getElementById('val-dissonance');
         const valConvergenceEl = document.getElementById('val-convergence');
         const finalReportEl = document.getElementById('final-report');
 
@@ -210,8 +219,9 @@
 
                     const isMicroMouth = Math.abs(current.mouthOpen - macroMouthOpen) > 0.04;
                     const isMicroBrow = Math.abs(current.browDist - macroBrowDist) > 0.02;
+                    const isMicroActive = (isMicroMouth || isMicroBrow);
 
-                    if (isMicroMouth || isMicroBrow) {
+                    if (isMicroActive) {
                         valMicroEl.textContent = "⚠️ MICRO-PIC";
                         microStatsCount++;
                         appendMicroReport();
@@ -220,6 +230,26 @@
                     }
 
                     valMacroEl.textContent = macroMouthOpen > (baseline.mouthOpen + 0.02) ? "Ouverture (Actif)" : "Repos (Stable)";
+
+                    // Calcul du score de dissonance instantané (0.00 à 10.00)
+                    let instantDissonance = 0;
+                    if (isMicroActive) {
+                        const deviation = Math.abs(current.mouthOpen - macroMouthOpen);
+                        instantDissonance = Math.min(Math.round((deviation + (current.asymmetryScore * 2)) * 50 * 10) / 10, 10.0);
+                        totalDissonanceScore += instantDissonance;
+                        dissonanceCount++;
+                    }
+
+                    if (instantDissonance > 6.0) {
+                        valDissonanceEl.textContent = `${instantDissonance.toFixed(2)} (Forte ⚠️)`;
+                        valDissonanceEl.className = "text-xs font-bold text-rose-500 animate-pulse";
+                    } else if (instantDissonance > 2.5) {
+                        valDissonanceEl.textContent = `${instantDissonance.toFixed(2)} (Modérée)`;
+                        valDissonanceEl.className = "text-xs font-bold text-amber-400";
+                    } else {
+                        valDissonanceEl.textContent = `${instantDissonance.toFixed(2)} (Harmonie)`;
+                        valDissonanceEl.className = "text-xs font-bold text-emerald-400";
+                    }
 
                     const deltaMouthOpen = current.mouthOpen - baseline.mouthOpen;
                     const deltaMouthWidth = current.mouthWidth - baseline.mouthWidth;
@@ -333,6 +363,8 @@
             calibrationFrames = [];
             sessionStats = {};
             microStatsCount = 0;
+            totalDissonanceScore = 0;
+            dissonanceCount = 0;
             document.getElementById('btn-play').disabled = true;
             document.getElementById('btn-stop').disabled = false;
             document.getElementById('system-status').textContent = "Pipeline Actif";
@@ -346,11 +378,13 @@
             
             const endTime = new Date();
             const durationSec = sessionStartTime ? Math.round((endTime - sessionStartTime) / 1000) : 0;
+            const avgDissonance = dissonanceCount > 0 ? (totalDissonanceScore / dissonanceCount).toFixed(2) : "0.00";
             
             let summaryHTML = `<div class="p-3 bg-slate-950 border border-emerald-500/50 rounded mt-2">
                 <h3 class="text-emerald-400 font-bold mb-2">📋 RAPPORT EXPERT DE FIN DE SESSION</h3>
                 <p><strong>Durée d'analyse active (Yaw/Pitch normalisés) :</strong> ${durationSec} secondes</p>
                 <p><strong>Total Micro-expressions fugaces (Pics) :</strong> <span class="text-rose-400 font-bold">${microStatsCount}</span> détectées</p>
+                <p><strong>Score Moyen de Dissonance (Macro vs Micro) :</strong> <span class="text-amber-400 font-bold">${avgDissonance} / 10</span></p>
                 <p class="mt-2 text-slate-400 uppercase font-bold text-[10px]">Occurrences pondérées des Action Units :</p>
                 <ul class="list-disc list-inside space-y-1 mt-1 font-mono">`;
             
