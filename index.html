@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>EgoLens - Suite Analytique Clinique Expert & Dual Engine Micro/Macro</title>
+    <title>EgoLens - Suite Analytique Clinique Expert & Matrice Multi-Critères</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-core@3.21.0/dist/tf-core.min.js"></script>
@@ -14,7 +14,7 @@
 <body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col">
 
     <header class="bg-slate-900 border-b border-slate-800 p-4 flex justify-between items-center">
-        <h1 class="text-xl font-bold">EGOLENS <span class="text-xs text-emerald-400">v16.14-CLINICAL-DUAL-ENGINE-FULL-MICRO</span></h1>
+        <h1 class="text-xl font-bold">EGOLENS <span class="text-xs text-emerald-400">v17.0-CLINICAL-MATRIX-ENGINE</span></h1>
         <div class="flex gap-2">
             <button id="btn-play" class="bg-emerald-600 px-4 py-1 rounded text-sm">Démarrer</button>
             <button id="btn-stop" class="bg-rose-600 px-4 py-1 rounded text-sm" disabled>Arrêter & Rapport Final</button>
@@ -37,7 +37,7 @@
             </div>
         </section>
         
-        <!-- Blocs Dual Engine, Convergence & Rapport -->
+        <!-- Blocs Matrice, Convergence & Rapport -->
         <section class="bg-slate-900 p-4 rounded-xl border border-slate-800 flex flex-col justify-between space-y-4">
             <!-- Micro vs Macro Cards & Dissonance -->
             <div class="grid grid-cols-3 gap-3">
@@ -55,9 +55,9 @@
                 </div>
             </div>
 
-            <!-- Convergence Probabiliste Live -->
+            <!-- Convergence Matrice Multi-Critères Live -->
             <div class="bg-slate-950 p-3 rounded-xl border border-slate-700">
-                <span class="text-xs uppercase tracking-wider text-slate-400 block mb-1">Convergence Probabiliste (Live)</span>
+                <span class="text-xs uppercase tracking-wider text-slate-400 block mb-1">Matrice de Co-occurrence (Live)</span>
                 <div id="val-convergence" class="font-bold text-slate-300 text-sm">Système inactif</div>
             </div>
 
@@ -78,14 +78,16 @@
         
         let isCalibrated = false;
         let calibrationFrames = [];
-        let baseline = { mouthOpen: 0, mouthWidth: 0, browDist: 0, noseWrinkle: 0, headPitch: 0, headYaw: 0 };
+        let baseline = { 
+            mouthOpen: 0, mouthWidth: 0, browDist: 0, browHeight: 0, 
+            noseWrinkle: 0, eyeAperture: 0, headPitch: 0, headYaw: 0 
+        };
         let historyBuffer = [];
         let sessionStats = {};
         let microStatsCount = 0;
-        let microDetailsList = []; // Stockage détaillé pour le rapport final
+        let microDetailsList = [];
         let sessionStartTime = null;
 
-        // Suivi de la Dissonance
         let totalDissonanceScore = 0;
         let dissonanceCount = 0;
 
@@ -110,18 +112,17 @@
             );
         }
 
-        const clinicalMeanings = {
-            "AU12 (Sourire Zygomatique - Joie)": "Activation bilatérale/symétrique : Bien-être, valence positive, accord.",
-            "AU101 (Mépris Asymétrique)": "Rétraction unilatérale d'une commissure : Supériorité perçue, jugement critique.",
-            "AU9/10 (Nez plissé / Lèvre sup - Dégoût)": "Rétulsion, rejet d'un stimulus, aversion ou désapprobation.",
-            "AU1/2+5 (Haussement sourcils/paupières - Peur)": "Appréhension, menace perçue, surprise anxieuse ou alerte.",
-            "AU25/26 (Ouverture mandibulaire - Surprise)": "Sursaut, découverte inattendue ou engagement focalisé.",
-            "AU4 (Froncement corrugateur - Colère)": "Tension, concentration intense, frustration, hostilité ou menace.",
-            "AU15 (Abaissement commissures - Tristesse)": "Repli émotionnel, déception, mélancolie.",
+        const matrixSignatures = {
+            "Sourire Duchenne Authentique (AU6 + AU12)": "Activation synergique zygomatique et orbiculaire : Bien-être authentique, valence positive validée.",
+            "Colère / Tension Corrugatrice (AU4 + AU5)": "Froncement corrugateur conjugué à une tension oculaire : Hostilité, concentration intense ou fronde.",
+            "Surprise Synchrone (AU1 + AU2 + AU25)": "Élévation bilatérale des sourcils et ouverture mandibulaire : Sursaut ou découverte inattendue cohérente.",
+            "Mépris Asymétrique (AU101)": "Rétraction unilatérale d'une commissure labiale : Supériorité perçue, jugement critique ou réserve.",
+            "Dégoût / Rétulsion (AU9 + AU10)": "Plissement nasal et élévation de la lèvre supérieure : Rejet instinctif ou aversion.",
+            "Peur / Alerte (AU1 + AU2 + AU20)": "Étirement horizontal des lèvres et élévation des sourcils : Menace perçue ou alerte aiguë.",
+            "Tristesse / Repli (AU15)": "Abaissement des commissures labiales : Mélancolie ou découragement.",
             "Baseline Stable": "Cohérence morphologique alignée avec la ligne de base."
         };
 
-        // Banque exhaustive des significations micro-expressives
         const microMeanings = {
             "Mandibulaire": "Ouverture/fermeture brusque de la mâchoire : Sursaut, rupture de flux, hésitation ou réactivité émotionnelle soudaine.",
             "Sourcilière": "Contraction ou élévation fugitive des sourcils : Alerte cognitive, micro-frustration, doute ou appréhension subite.",
@@ -141,24 +142,28 @@
             return { pitch, yaw };
         }
 
-        function extractMetricsAndAsymmetry(mesh) {
+        function extractMultiZoneMetrics(mesh) {
             const eyeDist = Math.hypot(mesh[33][0] - mesh[263][0], mesh[33][1] - mesh[263][1]);
             const pose = estimateHeadPose(mesh);
             const correctionFactor = 1.0 + Math.abs(pose.yaw) * 0.001;
 
             const mouthOpen = (Math.abs(mesh[13][1] - mesh[14][1]) / eyeDist) * correctionFactor;
+            const mouthWidth = (Math.abs(mesh[61][0] - mesh[291][0]) / eyeDist) * correctionFactor;
+            const browDist = (Math.abs(mesh[70][0] - mesh[300][0]) / eyeDist);
+            const browHeight = ((mesh[70][1] + mesh[300][1]) / 2 - (mesh[33][1] + mesh[263][1]) / 2) / eyeDist;
+            const noseWrinkle = (Math.abs(mesh[2][1] - mesh[168][1]) / eyeDist);
+
+            const leftEyeOpening = Math.abs(mesh[159][1] - mesh[145][1]) / eyeDist;
+            const rightEyeOpening = Math.abs(mesh[386][1] - mesh[374][1]) / eyeDist;
+            const eyeAperture = (leftEyeOpening + rightEyeOpening) / 2;
+
             const lipCenter = mesh[13];
-            const leftDistToCenter = Math.hypot(mesh[61][0] - lipCenter[0], mesh[61][1] - lipCenter[1]);
-            const rightDistToCenter = Math.hypot(mesh[291][0] - lipCenter[0], mesh[291][1] - lipCenter[1]);
-            const asymmetryScore = Math.abs(leftDistToCenter - rightDistToCenter) / eyeDist;
+            const leftDist = Math.hypot(mesh[61][0] - lipCenter[0], mesh[61][1] - lipCenter[1]);
+            const rightDist = Math.hypot(mesh[291][0] - lipCenter[0], mesh[291][1] - lipCenter[1]);
+            const asymmetryScore = Math.abs(leftDist - rightDist) / eyeDist;
 
             return {
-                mouthOpen,
-                mouthWidth: (Math.abs(mesh[61][0] - mesh[291][0]) / eyeDist) * correctionFactor,
-                browDist: (Math.abs(mesh[70][0] - mesh[300][0]) / eyeDist),
-                noseWrinkle: (Math.abs(mesh[2][1] - mesh[168][1]) / eyeDist),
-                asymmetryScore,
-                pose
+                mouthOpen, mouthWidth, browDist, browHeight, noseWrinkle, eyeAperture, asymmetryScore, pose
             };
         }
 
@@ -194,7 +199,7 @@
                     const mesh = predictions[0].scaledMesh;
                     drawMesh(mesh);
 
-                    const current = extractMetricsAndAsymmetry(mesh);
+                    const current = extractMultiZoneMetrics(mesh);
 
                     if (!isCalibrated) {
                         valDiagEl.textContent = "Étalonnage & Alignement Tête...";
@@ -206,7 +211,9 @@
                             baseline.mouthOpen = calibrationFrames.reduce((a,b) => a + b.mouthOpen, 0) / 30;
                             baseline.mouthWidth = calibrationFrames.reduce((a,b) => a + b.mouthWidth, 0) / 30;
                             baseline.browDist = calibrationFrames.reduce((a,b) => a + b.browDist, 0) / 30;
+                            baseline.browHeight = calibrationFrames.reduce((a,b) => a + b.browHeight, 0) / 30;
                             baseline.noseWrinkle = calibrationFrames.reduce((a,b) => a + b.noseWrinkle, 0) / 30;
+                            baseline.eyeAperture = calibrationFrames.reduce((a,b) => a + b.eyeAperture, 0) / 30;
                             baseline.headPitch = calibrationFrames.reduce((a,b) => a + b.pose.pitch, 0) / 30;
                             baseline.headYaw = calibrationFrames.reduce((a,b) => a + b.pose.yaw, 0) / 30;
                             isCalibrated = true;
@@ -218,7 +225,7 @@
                         return;
                     }
 
-                    valDiagEl.textContent = "Analyse Experte Active ✔";
+                    valDiagEl.textContent = "Matrice Clinique Active ✔";
                     valDiagEl.className = "text-emerald-400 font-bold";
 
                     historyBuffer.push(current);
@@ -228,11 +235,11 @@
                     const macroMouthWidth = historyBuffer.reduce((a, b) => a + b.mouthWidth, 0) / historyBuffer.length;
                     const macroBrowDist = historyBuffer.reduce((a, b) => a + b.browDist, 0) / historyBuffer.length;
                     const macroNoseWrinkle = historyBuffer.reduce((a, b) => a + b.noseWrinkle, 0) / historyBuffer.length;
+                    const macroAsymmetry = historyBuffer.reduce((a, b) => a + b.asymmetryScore, 0) / historyBuffer.length;
 
-                    // Détection granulaire multi-micro-expressions
                     const isMicroMouthOpen = Math.abs(current.mouthOpen - macroMouthOpen) > 0.04;
                     const isMicroBrow = Math.abs(current.browDist - macroBrowDist) > 0.02;
-                    const isMicroAsymmetry = Math.abs(current.asymmetryScore - historyBuffer.reduce((a,b)=>a+b.asymmetryScore,0)/historyBuffer.length) > 0.025;
+                    const isMicroAsymmetry = Math.abs(current.asymmetryScore - macroAsymmetry) > 0.025;
                     const isMicroNose = Math.abs(current.noseWrinkle - macroNoseWrinkle) > 0.02;
                     const isMicroMouthWidth = Math.abs(current.mouthWidth - macroMouthWidth) > 0.035;
 
@@ -242,7 +249,6 @@
                         valMicroEl.textContent = "⚠️ MICRO-PIC";
                         microStatsCount++;
                         
-                        // Sélection prioritaire du type de micro-expression détectée
                         let microType = "Mandibulaire";
                         if (isMicroAsymmetry) microType = "Asymétrie Labiale (Mépris/Sourire forcé)";
                         else if (isMicroNose) microType = "Plissement Nasal (Dégoût instantané)";
@@ -254,9 +260,8 @@
                         valMicroEl.textContent = "Stabilité";
                     }
 
-                    valMacroEl.textContent = macroMouthOpen > (baseline.mouthOpen + 0.02) ? "Ouverture (Actif)" : "Repos (Stable)";
+                    valMacroEl.textContent = macroMouthOpen > (baseline.mouthOpen + 0.02) ? "Ouvert (Actif)" : "Repos (Stable)";
 
-                    // Calcul du score de dissonance instantané (0.00 à 10.00)
                     let instantDissonance = 0;
                     if (isMicroActive) {
                         const deviation = Math.abs(current.mouthOpen - macroMouthOpen);
@@ -276,62 +281,63 @@
                         valDissonanceEl.className = "text-xs font-bold text-emerald-400";
                     }
 
-                    const deltaMouthOpen = current.mouthOpen - baseline.mouthOpen;
-                    const deltaMouthWidth = current.mouthWidth - baseline.mouthWidth;
-                    const deltaBrow = baseline.browDist - current.browDist; 
-                    const deltaNose = baseline.noseWrinkle - current.noseWrinkle;
-
                     valAsymmetryEl.textContent = current.asymmetryScore.toFixed(3);
 
+                    const deltaMouthWidth = current.mouthWidth - baseline.mouthWidth;
+                    const deltaMouthOpen = current.mouthOpen - baseline.mouthOpen;
+                    const browContracted = baseline.browDist - current.browDist;
+                    const browRaised = current.browHeight - baseline.browHeight;
+                    const noseRaised = baseline.noseWrinkle - current.noseWrinkle;
+
                     let scores = {
-                        "Baseline Stable": 50,
-                        "AU12 (Sourire Zygomatique - Joie)": 0,
-                        "AU101 (Mépris Asymétrique)": 0,
-                        "AU9/10 (Nez plissé / Lèvre sup - Dégoût)": 0,
-                        "AU1/2+5 (Haussement sourcils/paupières - Peur)": 0,
-                        "AU25/26 (Ouverture mandibulaire - Surprise)": 0,
-                        "AU4 (Froncement corrugateur - Colère)": 0,
-                        "AU15 (Abaissement commissures - Tristesse)": 0
+                        "Baseline Stable": 40,
+                        "Sourire Duchenne Authentique (AU6 + AU12)": 0,
+                        "Colère / Tension Corrugatrice (AU4 + AU5)": 0,
+                        "Surprise Synchrone (AU1 + AU2 + AU25)": 0,
+                        "Mépris Asymétrique (AU101)": 0,
+                        "Dégoût / Rétulsion (AU9 + AU10)": 0,
+                        "Peur / Alerte (AU1 + AU2 + AU20)": 0,
+                        "Tristesse / Repli (AU15)": 0
                     };
 
-                    if (current.asymmetryScore > 0.05 && deltaMouthWidth > 0.02) {
-                        scores["AU101 (Mépris Asymétrique)"] = Math.min(Math.round(current.asymmetryScore * 1200), 98);
+                    if (browContracted > 0.02 && deltaMouthOpen < 0.03) {
+                        scores["Colère / Tension Corrugatrice (AU4 + AU5)"] = Math.min(Math.round((browContracted * 1200)), 96);
                     }
-                    if (deltaMouthWidth > 0.04 && deltaMouthOpen > 0.02) {
-                        scores["AU12 (Sourire Zygomatique - Joie)"] = Math.min(Math.round((deltaMouthWidth + deltaMouthOpen) * 600), 95);
+                    if (deltaMouthWidth > 0.035 && deltaMouthOpen > 0.015 && browContracted < 0.01) {
+                        scores["Sourire Duchenne Authentique (AU6 + AU12)"] = Math.min(Math.round((deltaMouthWidth + deltaMouthOpen) * 700), 95);
                     }
-                    if (deltaNose > 0.025) {
-                        scores["AU9/10 (Nez plissé / Lèvre sup - Dégoût)"] = Math.min(Math.round(deltaNose * 1500), 92);
+                    if (deltaMouthOpen > 0.05 && browRaised > 0.02) {
+                        scores["Surprise Synchrone (AU1 + AU2 + AU25)"] = Math.min(Math.round((deltaMouthOpen + browRaised) * 600), 94);
                     }
-                    if (deltaBrow > 0.025 && deltaMouthOpen > 0.015) {
-                        scores["AU1/2+5 (Haussement sourcils/paupières - Peur)"] = 85;
+                    if (current.asymmetryScore > 0.045 && deltaMouthWidth > 0.01) {
+                        scores["Mépris Asymétrique (AU101)"] = Math.min(Math.round(current.asymmetryScore * 1100), 92);
                     }
-                    if (deltaMouthOpen > 0.06) {
-                        scores["AU25/26 (Ouverture mandibulaire - Surprise)"] = Math.min(Math.round(deltaMouthOpen * 800), 96);
+                    if (noseRaised > 0.02) {
+                        scores["Dégoût / Rétulsion (AU9 + AU10)"] = Math.min(Math.round(noseRaised * 1400), 90);
                     }
-                    if (deltaBrow > 0.03) {
-                        scores["AU4 (Froncement corrugateur - Colère)"] = Math.min(Math.round(deltaBrow * 900), 90);
+                    if (browRaised > 0.025 && deltaMouthOpen > 0.015) {
+                        scores["Peur / Alerte (AU1 + AU2 + AU20)"] = 85;
                     }
                     if (deltaMouthOpen < -0.02) {
-                        scores["AU15 (Abaissement commissures - Tristesse)"] = 82;
+                        scores["Tristesse / Repli (AU15)"] = 82;
                     }
 
-                    let bestAU = "Baseline Stable";
-                    let maxProb = 50;
-                    for (const [au, prob] of Object.entries(scores)) {
+                    let bestMatch = "Baseline Stable";
+                    let maxProb = 40;
+                    for (const [sig, prob] of Object.entries(scores)) {
                         if (prob > maxProb) {
                             maxProb = prob;
-                            bestAU = au;
+                            bestMatch = sig;
                         }
                     }
 
-                    valConvergenceEl.textContent = `🎯 Convergence : ${bestAU} (${maxProb}%)`;
+                    valConvergenceEl.textContent = `🎯 Matrice : ${bestMatch} (${maxProb}%)`;
 
                     let convergenceClass = "font-bold text-slate-300 text-sm";
                     if (maxProb > 75) {
                         convergenceClass = "font-bold text-cyan-400 text-sm";
-                        sessionStats[bestAU] = (sessionStats[bestAU] || 0) + 1;
-                        appendReport(bestAU, maxProb);
+                        sessionStats[bestMatch] = (sessionStats[bestMatch] || 0) + 1;
+                        appendReport(bestMatch, maxProb);
                     }
                     valConvergenceEl.className = convergenceClass;
 
@@ -347,14 +353,14 @@
             }
         }
 
-        let lastLoggedAU = "";
-        function appendReport(au, prob) {
-            if (au === lastLoggedAU || au === "Baseline Stable") return;
-            lastLoggedAU = au;
+        let lastLoggedSig = "";
+        function appendReport(sig, prob) {
+            if (sig === lastLoggedSig || sig === "Baseline Stable") return;
+            lastLoggedSig = sig;
 
             const timestamp = new Date().toLocaleTimeString();
             const p = document.createElement('p');
-            p.innerHTML = `<span class="text-slate-500">[${timestamp}]</span> <strong class="text-cyan-400">${au} [Confiance: ${prob}%]</strong> : ${clinicalMeanings[au]}`;
+            p.innerHTML = `<span class="text-slate-500">[${timestamp}]</span> <strong class="text-cyan-400">${sig} [Confiance: ${prob}%]</strong> : ${matrixSignatures[sig]}`;
             
             if (finalReportEl.querySelector('.text-slate-500') && finalReportEl.children.length === 1) {
                 finalReportEl.innerHTML = '';
@@ -423,14 +429,14 @@
                 summaryHTML += `</ul>`;
             }
 
-            summaryHTML += `<p class="text-slate-400 uppercase font-bold text-[10px] mt-2">Occurrences pondérées des Action Units (Macro) :</p>
+            summaryHTML += `<p class="text-slate-400 uppercase font-bold text-[10px] mt-2">Signatures de la Matrice validées :</p>
                 <ul class="list-disc list-inside space-y-1 font-mono">`;
             
             if (Object.keys(sessionStats).length === 0) {
-                summaryHTML += `<li>Aucune déviation significative au-delà du seuil de certitude.</li>`;
+                summaryHTML += `<li>Aucune signature complexe validée au-delà du seuil de certitude.</li>`;
             } else {
-                for (const [au, count] of Object.entries(sessionStats)) {
-                    summaryHTML += `<li><strong class="text-cyan-300">${au}</strong> : ${count} détections qualifiées</li>`;
+                for (const [sig, count] of Object.entries(sessionStats)) {
+                    summaryHTML += `<li><strong class="text-cyan-300">${sig}</strong> : ${count} occurrences synchrones</li>`;
                 }
             }
             summaryHTML += `</ul></div>`;
