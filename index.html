@@ -3,10 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>EgoLens - Suite Analytique Multithread</title>
+    <title>EgoLens - Suite Analytique Optimisée</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Three.js uniquement sur le thread principal pour la fluidité graphique -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js" crossorigin="anonymous"></script>
     <style>
         #output-canvas {
             width: 100%;
@@ -29,7 +29,7 @@
     <header class="bg-slate-900 border-b border-slate-800 px-4 sm:px-6 py-3 flex flex-wrap justify-between items-center gap-3 shadow-lg">
         <div class="flex items-center space-x-3">
             <div id="global-dot" class="h-3 w-3 bg-amber-500 rounded-full animate-pulse"></div>
-            <h1 class="text-lg sm:text-xl font-bold tracking-wider text-white">EGOLENS <span class="text-xs text-emerald-400 font-mono">v16.08-WORKER</span></h1>
+            <h1 class="text-lg sm:text-xl font-bold tracking-wider text-white">EGOLENS <span class="text-xs text-emerald-400 font-mono">v16.08-STABLE</span></h1>
         </div>
         
         <div class="flex items-center gap-2">
@@ -48,12 +48,12 @@
         <!-- Colonne Gauche : Flux Vidéo & Infos -->
         <div class="lg:col-span-4 flex flex-col gap-4">
             <section class="bg-slate-900 border border-slate-800 rounded-xl p-4 flex flex-col shadow-xl min-h-[280px]">
-                <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-3">Flux Morpho-Facial (Offscreen)</h2>
+                <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-3">Flux Morpho-Facial</h2>
                 <div class="relative flex-1 bg-black rounded-lg overflow-hidden border border-slate-800 flex items-center justify-center aspect-video sm:aspect-auto">
                     <video id="input-video" class="hidden" autoplay playsinline muted></video>
                     <canvas id="output-canvas" class="w-full h-full object-contain"></canvas>
                     <div id="video-overlay" class="absolute inset-0 bg-slate-950/85 flex items-center justify-center text-slate-400 text-xs font-mono p-4 text-center">
-                        Cliquez sur "Démarrer" pour activer le Web Worker
+                        Cliquez sur "Démarrer" pour activer l'analyse
                     </div>
                 </div>
             </section>
@@ -76,20 +76,20 @@
         <section class="lg:col-span-3 bg-slate-900 border border-slate-800 rounded-xl p-4 flex flex-col shadow-xl h-48 lg:h-auto">
             <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-400 mb-3">Rapport d'Analyse Final</h2>
             <div id="log-console" class="flex-1 bg-slate-950 rounded-lg border border-slate-800 p-3 font-mono text-[11px] text-slate-400 overflow-y-auto space-y-1">
-                <p class="text-slate-500">[System] Worker en attente...</p>
+                <p class="text-slate-500">[System] En attente de lancement...</p>
             </div>
         </section>
 
     </main>
 
-    <!-- Orchestration Principale & Blob Worker -->
+    <!-- Logique JavaScript Directe & Ultra-Fluide -->
     <script>
         let isRunning = false;
+        let isProcessing = false;
         let currentVelocity = 0; 
         let lastExpression = "Neutre";
-        let faceWorker = null;
+        let faceMesh = null;
         let mediaStream = null;
-        let animationFrameId = null;
 
         const videoElement = document.getElementById('input-video');
         const canvasElement = document.getElementById('output-canvas');
@@ -97,7 +97,7 @@
         const valFacsEl = document.getElementById('val-facs');
         const valDiagEl = document.getElementById('val-diag');
 
-        // --- Initialisation Three.js (Thread Principal Fluide) ---
+        // --- Initialisation Three.js ---
         const container = document.getElementById('three-container');
         const scene = new THREE.Scene();
         const camera = new THREE.PerspectiveCamera(60, container.clientWidth || 400, 0.1, 1000);
@@ -116,7 +116,7 @@
         scene.add(particlesMesh);
 
         function animate3D() {
-            animationFrameId = requestAnimationFrame(animate3D);
+            requestAnimationFrame(animate3D);
             const dynamicFactor = 1 + (currentVelocity * 200);
             particlesMesh.rotation.y += 0.001 * dynamicFactor;
             particlesMesh.rotation.x += 0.0005 * dynamicFactor;
@@ -132,81 +132,66 @@
             }
         });
 
-        // --- Création dynamique du Web Worker d'Inférence IA (Blob) ---
-        const workerCode = `
-            importScripts("https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js");
-
-            let faceMesh = null;
-
-            async function init() {
+        // --- Initialisation de MediaPipe FaceMesh ---
+        async function initFaceMeshSystem() {
+            try {
                 faceMesh = new FaceMesh({
-                    locateFile: (file) => \`https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/\${file}\`
+                    locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`
                 });
 
                 faceMesh.setOptions({ 
                     maxNumFaces: 1, 
                     refineLandmarks: true, 
-                    minDetectionConfidence: 0.4, 
-                    minTrackingConfidence: 0.4 
+                    minDetectionConfidence: 0.5, 
+                    minTrackingConfidence: 0.5 
                 });
 
                 faceMesh.onResults((results) => {
+                    isProcessing = false;
+                    if (!isRunning) return;
+
+                    if (canvasElement.width !== canvasElement.clientWidth || canvasElement.height !== canvasElement.clientHeight) {
+                        canvasElement.width = canvasElement.clientWidth;
+                        canvasElement.height = canvasElement.clientHeight;
+                    }
+
+                    canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+                    canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
+
                     if (results.multiFaceLandmarks && results.multiFaceLandmarks.length > 0) {
+                        valDiagEl.textContent = "Visage Détecté ✔";
+                        valDiagEl.className = "text-emerald-400 font-bold";
+
                         const landmarks = results.multiFaceLandmarks[0];
                         const upperLip = landmarks[13];
                         const lowerLip = landmarks[14];
                         const mouthOpenness = Math.abs(upperLip.y - lowerLip.y);
-                        postMessage({ status: 'success', openness: mouthOpenness });
+
+                        currentVelocity = mouthOpenness;
+
+                        if (mouthOpenness > 0.03) { 
+                            valFacsEl.style.color = "#10b981";
+                            valFacsEl.textContent = "Macro Active";
+                            updateReport("Expression Ouverte", "Action intentionnelle détectée.");
+                        } else {
+                            valFacsEl.style.color = "#94a3b8";
+                            valFacsEl.textContent = "0.00 (Calme)";
+                        }
                     } else {
-                        postMessage({ status: 'not_found' });
+                        valDiagEl.textContent = "Visage non trouvé";
+                        valDiagEl.className = "text-rose-400 font-bold";
+                        currentVelocity = 0;
                     }
                 });
 
-                await faceMesh.initialize();
-                postMessage({ status: 'ready' });
+                valDiagEl.textContent = "Module IA Prêt ✔";
+            } catch (e) {
+                console.error("Erreur d'initialisation FaceMesh :", e);
+                valDiagEl.textContent = "Erreur IA";
             }
-
-            init();
-
-            onmessage = async function(e) {
-                if (e.data.cmd === 'process' && faceMesh) {
-                    await faceMesh.send({ image: e.data.imageBitmap });
-                }
-            };
-        `;
-
-        const blob = new Blob([workerCode], { type: 'application/javascript' });
-        const workerUrl = URL.createObjectURL(blob);
-
-        function initWorker() {
-            faceWorker = new Worker(workerUrl);
-            
-            faceWorker.onmessage = function(e) {
-                const data = e.data;
-                if (data.status === 'ready') {
-                    valDiagEl.textContent = "Worker Prêt ✔";
-                } else if (data.status === 'success') {
-                    valDiagEl.textContent = "Visage Détecté ✔";
-                    valDiagEl.className = "text-emerald-400 font-bold";
-
-                    const mouthOpenness = data.openness;
-                    currentVelocity = mouthOpenness;
-
-                    if (mouthOpenness > 0.03) {
-                        valFacsEl.style.color = "#10b981";
-                        valFacsEl.textContent = "Macro Active";
-                        updateReport("Expression Ouverte", "Action intentionnelle détectée.");
-                    } else {
-                        valFacsEl.style.color = "#94a3b8";
-                        valFacsEl.textContent = "0.00 (Calme)";
-                    }
-                } else if (data.status === 'not_found') {
-                    valDiagEl.textContent = "Visage non trouvé";
-                    valDiagEl.className = "text-rose-400 font-bold";
-                    currentVelocity = 0;
-                }
-            };
         }
+
+        initFaceMeshSystem();
 
         function updateReport(type, meaning) {
             if (lastExpression !== type) {
@@ -222,36 +207,26 @@
             }
         }
 
-        // --- Boucle d'envoi du flux vidéo vers le Worker (Offscreen Transfer) ---
-        async function processLoop() {
+        // --- Boucle de traitement fluide rythmée (Anti-Saturation) ---
+        async function analysisLoop() {
             if (!isRunning) return;
 
-            if (videoElement.readyState >= 2) {
-                if (canvasElement.width !== canvasElement.clientWidth || canvasElement.height !== canvasElement.clientHeight) {
-                    canvasElement.width = canvasElement.clientWidth;
-                    canvasElement.height = canvasElement.clientHeight;
-                }
-
-                // Rendu visuel propre sur le canvas principal sans surcharger l'IA
-                canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
-                canvasCtx.drawImage(videoElement, 0, 0, canvasElement.width, canvasElement.height);
-
-                // Conversion de l'image vidéo en Bitmap pour l'envoyer au Worker sans bloquer
+            if (videoElement.readyState >= 2 && !isProcessing && faceMesh) {
+                isProcessing = true;
                 try {
-                    const imageBitmap = await createImageBitmap(videoElement);
-                    faceWorker.postMessage({ cmd: 'process', imageBitmap }, [imageBitmap]);
+                    await faceMesh.send({ image: videoElement });
                 } catch (err) {
-                    // Ignore les micro-interruptions de frame
+                    isProcessing = false;
                 }
             }
-            
-            // Rythme d'envoi régulé à environ ~20 FPS pour laisser respirer le processeur
+
+            // Espacement de 40ms (~25 FPS max) pour laisser respirer le CPU et éviter tout gel
             setTimeout(() => {
-                if (isRunning) requestAnimationFrame(processLoop);
-            }, 50);
+                if (isRunning) requestAnimationFrame(analysisLoop);
+            }, 40);
         }
 
-        // --- Contrôles ---
+        // --- Contrôles de la caméra ---
         document.getElementById('btn-play').addEventListener('click', async () => {
             if (isRunning) return;
 
@@ -260,8 +235,6 @@
 
             try {
                 btnPlay.disabled = true;
-                initWorker();
-
                 mediaStream = await navigator.mediaDevices.getUserMedia({ 
                     video: { width: 640, height: 480, facingMode: "user" } 
                 });
@@ -270,17 +243,18 @@
                 await videoElement.play();
 
                 isRunning = true;
+                isProcessing = false;
                 document.getElementById('video-overlay').classList.add('hidden');
-                document.getElementById('system-status').textContent = "Multithread Actif";
+                document.getElementById('system-status').textContent = "Système Actif";
                 document.getElementById('system-status').className = "text-xs font-mono bg-slate-800 px-3 py-1.5 rounded-md border border-slate-700 text-emerald-400";
                 
                 btnStop.disabled = false;
-                processLoop();
+                analysisLoop();
             } catch (err) {
                 isRunning = false;
                 btnPlay.disabled = false;
-                console.error("Erreur d'initialisation :", err);
-                alert("Impossible d'activer la caméra ou le Web Worker.");
+                console.error("Erreur caméra :", err);
+                alert("Impossible d'activer la caméra.");
                 document.getElementById('video-overlay').classList.remove('hidden');
                 document.getElementById('system-status').textContent = "Erreur Système";
             }
@@ -288,12 +262,8 @@
 
         document.getElementById('btn-stop').addEventListener('click', () => {
             isRunning = false;
+            isProcessing = false;
             currentVelocity = 0;
-
-            if (faceWorker) {
-                faceWorker.terminate();
-                faceWorker = null;
-            }
 
             if (mediaStream) {
                 mediaStream.getTracks().forEach(track => track.stop());
