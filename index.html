@@ -31,7 +31,7 @@
     <header class="bg-slate-900 border-b border-slate-800 px-4 sm:px-6 py-3 flex flex-wrap justify-between items-center gap-3 shadow-lg">
         <div class="flex items-center space-x-3">
             <div id="global-dot" class="h-3 w-3 bg-amber-500 rounded-full animate-pulse"></div>
-            <h1 class="text-lg sm:text-xl font-bold tracking-wider text-white">EGOLENS <span class="text-xs text-emerald-400 font-mono">v16.08-DIAG</span></h1>
+            <h1 class="text-lg sm:text-xl font-bold tracking-wider text-white">EGOLENS <span class="text-xs text-emerald-400 font-mono">v16.08-FINAL</span></h1>
         </div>
         
         <div class="flex items-center gap-2">
@@ -64,7 +64,8 @@
             <section class="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-xl">
                 <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">Télémétrie Actuelle</h2>
                 <div class="font-mono text-xs bg-slate-950 p-3 rounded border border-slate-800 space-y-1">
-                    <p>État Expression : <span id="val-facs" class="text-slate-400 font-bold">0.00 (Calme)</span></p>
+                    <p>Valeur Ouverture : <span id="val-open" class="text-emerald-400 font-bold">0.00</span></p>
+                    <p>État Expression : <span id="val-facs" class="text-slate-400 font-bold">Calme</span></p>
                     <p>Diagnostic IA : <span id="val-diag" class="text-amber-400 font-bold">En attente</span></p>
                 </div>
             </section>
@@ -84,7 +85,7 @@
 
     </main>
 
-    <!-- Logique JavaScript avec Diagnostic Intégré -->
+    <!-- Logique JavaScript Directe & Corrigée -->
     <script>
         let isRunning = false;
         let currentVelocity = 0; 
@@ -95,6 +96,7 @@
         const videoElement = document.getElementById('input-video');
         const canvasElement = document.getElementById('output-canvas');
         const canvasCtx = canvasElement.getContext('2d');
+        const valOpenEl = document.getElementById('val-open');
         const valFacsEl = document.getElementById('val-facs');
         const valDiagEl = document.getElementById('val-diag');
 
@@ -133,10 +135,7 @@
             }
         });
 
-        // --- Configuration MediaPipe FaceMesh & Camera Utils ---
-        let expressionBuffer = [];
-        const BUFFER_SIZE = 5;
-
+        // --- Configuration MediaPipe FaceMesh Directe ---
         function initFaceMesh() {
             try {
                 faceMesh = new FaceMesh({
@@ -166,39 +165,38 @@
                         valDiagEl.className = "text-emerald-400 font-bold";
 
                         const landmarks = results.multiFaceLandmarks[0];
+                        // Points de la lèvre supérieure (13) et inférieure (14)
                         const upperLip = landmarks[13];
                         const lowerLip = landmarks[14];
                         const mouthOpenness = Math.abs(upperLip.y - lowerLip.y);
 
-                        expressionBuffer.push(mouthOpenness);
-                        if (expressionBuffer.length > BUFFER_SIZE) expressionBuffer.shift();
+                        // Affichage direct de la valeur brute d'ouverture
+                        valOpenEl.textContent = mouthOpenness.toFixed(4);
+                        currentVelocity = mouthOpenness; // Transmet directement la valeur à l'animation 3D
 
-                        if (expressionBuffer.length === BUFFER_SIZE) {
-                            currentVelocity = Math.abs(expressionBuffer[BUFFER_SIZE - 1] - expressionBuffer[0]);
-                            
-                            if (mouthOpenness > 0.03) { 
-                                valFacsEl.style.color = "#10b981";
-                                valFacsEl.textContent = "Macro Active";
-                                updateReport("Expression Ouverte", "Action intentionnelle détectée (parole ou rire).");
-                            } else if (currentVelocity > 0.0005) { 
-                                valFacsEl.style.color = "#fbbf24";
-                                valFacsEl.textContent = (currentVelocity * 1000).toFixed(2);
-                                updateReport("Micro-Variation", "Réaction subconsciente ou stress émotionnel.");
-                            } else {
-                                valFacsEl.style.color = "#94a3b8";
-                                valFacsEl.textContent = "0.00 (Calme)";
-                            }
+                        // Détection immédiate sans tampon complexe
+                        if (mouthOpenness > 0.04) { 
+                            valFacsEl.style.color = "#10b981";
+                            valFacsEl.textContent = "Macro Active (Ouvert)";
+                            updateReport("Expression Ouverte", "Action intentionnelle détectée (parole ou rire).");
+                        } else if (mouthOpenness > 0.015) { 
+                            valFacsEl.style.color = "#fbbf24";
+                            valFacsEl.textContent = "Micro-Variation";
+                            updateReport("Micro-Variation", "Réaction subconsciente ou mouvement labial.");
+                        } else {
+                            valFacsEl.style.color = "#94a3b8";
+                            valFacsEl.textContent = "Calme";
                         }
                     } else {
-                        valDiagEl.textContent = "Visage non trouvé (rapprochez-vous)";
+                        valDiagEl.textContent = "Visage non trouvé";
                         valDiagEl.className = "text-rose-400 font-bold";
+                        valOpenEl.textContent = "0.00";
                         currentVelocity = 0;
                     }
                 });
             } catch (e) {
                 console.error("Erreur d'instanciation FaceMesh :", e);
-                valDiagEl.textContent = "Erreur Chargement IA";
-                valDiagEl.className = "text-rose-500 font-bold";
+                valDiagEl.textContent = "Erreur IA";
             }
         }
 
@@ -218,7 +216,7 @@
             }
         }
 
-        // --- Contrôles via Camera Utils natif de MediaPipe ---
+        // --- Contrôles de la caméra ---
         document.getElementById('btn-play').addEventListener('click', async () => {
             if (isRunning) return;
 
@@ -248,11 +246,10 @@
             } catch (err) {
                 isRunning = false;
                 btnPlay.disabled = false;
-                console.error("Erreur d'accès à la caméra :", err);
-                alert("Impossible d'activer la caméra. Vérifiez qu'aucune autre application ne l'utilise.");
+                console.error("Erreur caméra :", err);
+                alert("Impossible d'activer la caméra.");
                 document.getElementById('video-overlay').classList.remove('hidden');
                 document.getElementById('system-status').textContent = "Erreur Système";
-                document.getElementById('system-status').className = "text-xs font-mono bg-slate-800 px-3 py-1.5 rounded-md border border-slate-700 text-rose-400";
             }
         });
 
@@ -270,10 +267,9 @@
             document.getElementById('btn-stop').disabled = true;
             document.getElementById('video-overlay').classList.remove('hidden');
             document.getElementById('system-status').textContent = "Système en pause";
-            document.getElementById('system-status').className = "text-xs font-mono bg-slate-800 px-3 py-1.5 rounded-md border border-slate-700 text-amber-400";
-            valFacsEl.textContent = "0.00 (Calme)";
+            valFacsEl.textContent = "Calme";
+            valOpenEl.textContent = "0.00";
             valDiagEl.textContent = "En attente";
-            valDiagEl.className = "text-amber-400 font-bold";
         });
     </script>
 </body>
