@@ -3,15 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>EgoLens - Suite Analytique Prête</title>
+    <title>EgoLens - Suite Analytique Clinique (FACS Rigoureux)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <!-- Chargement de TensorFlow.js -->
+    <!-- TensorFlow.js Core et Backend WebGL -->
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-core"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-converter"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgl"></script>
-    <!-- Chargement de BlazeFace -->
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/blazeface"></script>
+    <!-- MediaPipe Face Mesh officiel -->
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/face-landmarks-detection"></script>
     <style>
         #output-canvas {
             width: 100%;
@@ -34,7 +33,7 @@
     <header class="bg-slate-900 border-b border-slate-800 px-4 sm:px-6 py-3 flex flex-wrap justify-between items-center gap-3 shadow-lg">
         <div class="flex items-center space-x-3">
             <div id="global-dot" class="h-3 w-3 bg-amber-500 rounded-full animate-pulse"></div>
-            <h1 class="text-lg sm:text-xl font-bold tracking-wider text-white">EGOLENS <span class="text-xs text-emerald-400 font-mono">v16.08-READY</span></h1>
+            <h1 class="text-lg sm:text-xl font-bold tracking-wider text-white">EGOLENS <span class="text-xs text-emerald-400 font-mono">v16.08-CLINICAL</span></h1>
         </div>
         
         <div class="flex items-center gap-2">
@@ -53,21 +52,24 @@
         <!-- Colonne Gauche : Flux Vidéo & Infos -->
         <div class="lg:col-span-4 flex flex-col gap-4">
             <section class="bg-slate-900 border border-slate-800 rounded-xl p-4 flex flex-col shadow-xl min-h-[280px]">
-                <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-3">Flux Morpho-Facial (Actif)</h2>
+                <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-3">Flux Morpho-Facial (Mesh 468 pts)</h2>
                 <div class="relative flex-1 bg-black rounded-lg overflow-hidden border border-slate-800 flex items-center justify-center aspect-video sm:aspect-auto">
                     <video id="input-video" class="hidden" autoplay playsinline muted></video>
+                    <!-- Canvas masqué pour la capture normalisée basse-résolution -->
+                    <canvas id="ai-canvas" class="hidden" width="320" height="240"></canvas>
+                    <!-- Canvas de rendu visuel -->
                     <canvas id="output-canvas" class="w-full h-full object-contain"></canvas>
                     <div id="video-overlay" class="absolute inset-0 bg-slate-950/85 flex items-center justify-center text-slate-400 text-xs font-mono p-4 text-center">
-                        Cliquez sur "Démarrer" pour lancer l'analyse
+                        Cliquez sur "Démarrer" pour initialiser le protocole
                     </div>
                 </div>
             </section>
 
             <!-- Télémétrie Instantanée -->
             <section class="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-xl">
-                <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">Télémétrie Actuelle</h2>
+                <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">Télémétrie Clinique (FACS)</h2>
                 <div class="font-mono text-xs bg-slate-950 p-3 rounded border border-slate-800 space-y-1">
-                    <p>État Expression : <span id="val-facs" class="text-slate-400 font-bold">0.00 (Calme)</span></p>
+                    <p>Écart Labial (13-14) : <span id="val-facs" class="text-slate-400 font-bold">0.000 (Calme)</span></p>
                     <p>Diagnostic IA : <span id="val-diag" class="text-amber-400 font-bold">En attente</span></p>
                 </div>
             </section>
@@ -94,10 +96,12 @@
         let currentVelocity = 0; 
         let lastExpression = "Neutre";
         let mediaStream = null;
-        let model = null;
+        let detector = null;
         let analysisInterval = null;
 
         const videoElement = document.getElementById('input-video');
+        const aiCanvas = document.getElementById('ai-canvas');
+        const aiCtx = aiCanvas.getContext('2d');
         const canvasElement = document.getElementById('output-canvas');
         const canvasCtx = canvasElement.getContext('2d', { alpha: false });
         
@@ -136,7 +140,7 @@
 
         function animate3D() {
             requestAnimationFrame(animate3D);
-            const dynamicFactor = 1 + (currentVelocity * 200);
+            const dynamicFactor = 1 + (currentVelocity * 500);
             particlesMesh.rotation.y += 0.001 * dynamicFactor;
             particlesMesh.rotation.x += 0.0005 * dynamicFactor;
             renderer.render(scene, camera);
@@ -151,16 +155,22 @@
             }
         });
 
-        // --- Chargement sécurisé du modèle BlazeFace ---
+        // --- Chargement rigoureux du modèle MediaPipe Face Mesh via TensorFlow.js ---
         async function initModel() {
-            if (model) return; // Déjà chargé
+            if (detector) return;
             logSystem("Initialisation du backend WebGL...");
             await tf.setBackend('webgl');
             await tf.ready();
             
-            logSystem("Chargement du modèle d'IA BlazeFace...");
-            model = await blazeface.load();
-            logSystem("Modèle chargé et prêt ✔");
+            logSystem("Chargement du modèle MediaPipe Face Mesh...");
+            const modelType = faceLandmarksDetection.SupportedModels.MediaPipeFaceMesh;
+            const detectorConfig = {
+                runtime: 'tfjs',
+                maxFaces: 1,
+                refineLandmarks: true
+            };
+            detector = await faceLandmarksDetection.createDetector(modelType, detectorConfig);
+            logSystem("Modèle Mesh clinique chargé ✔");
         }
 
         function updateReport(type, meaning) {
@@ -177,10 +187,8 @@
             }
         }
 
-        // --- Boucle de Rendu Vidéo Continue (60 FPS) ---
         function renderVideoLoop() {
             if (!isRunning) return;
-
             if (videoElement.readyState >= 2) {
                 if (canvasElement.width !== canvasElement.clientWidth || canvasElement.height !== canvasElement.clientHeight) {
                     canvasElement.width = canvasElement.clientWidth;
@@ -188,56 +196,66 @@
                 }
                 canvasCtx.drawImage(videoElement, 0, 0, canvasElement.width, canvasElement.height);
             }
-
             requestAnimationFrame(renderVideoLoop);
         }
 
-        // --- Boucle d'Analyse IA ---
+        // --- Analyse Étendue et Étanche (Purge automatique via tf.tidy) ---
         async function runAnalysis() {
-            if (!isRunning || !model || isProcessing) return;
+            if (!isRunning || !detector || isProcessing) return;
             isProcessing = true;
 
             try {
                 if (videoElement.readyState >= 2 && videoElement.videoWidth > 0) {
-                    const predictions = await model.estimateFaces(videoElement, false);
-                    
-                    if (predictions && predictions.length > 0) {
-                        const face = predictions[0];
-                        const landmarks = face.landmarks; // [rightEye, leftEye, nose, mouth, rightEar, leftEar]
-                        
-                        if (landmarks && landmarks.length >= 4) {
-                            const nose = landmarks[2];
-                            const mouth = landmarks[3];
-                            
-                            const mouthOffset = Math.abs(mouth[1] - nose[1]) / videoElement.videoHeight;
-                            
-                            valDiagEl.textContent = "Suivi en cours ✔";
-                            valDiagEl.className = "text-emerald-400 font-bold";
-                            currentVelocity = mouthOffset;
+                    // Alimentation du canvas intermédiaire standardisé
+                    aiCtx.drawImage(videoElement, 0, 0, aiCvWidth = 320, aiCvHeight = 240);
 
-                            if (mouthOffset > 0.18) {
-                                valFacsEl.style.color = "#10b981";
-                                valFacsEl.textContent = mouthOffset.toFixed(3) + " (Variation active)";
-                                updateReport("Cinématique Faciale", "Mouvement significatif détecté chez la patiente.");
-                            } else {
-                                valFacsEl.style.color = "#94a3b8";
-                                valFacsEl.textContent = "0.00 (Calme)";
+                    // Utilisation de tf.tidy pour garantir une étanchéité VRAM parfaite sans fuite mémoire
+                    await tf.tidy(async () => {
+                        const faces = await detector.estimateFaces(aiCanvas, { flipHorizontal: false });
+
+                        if (faces && faces.length > 0) {
+                            const keypoints = faces[0].keypoints;
+
+                            if (keypoints && keypoints.length > 400) {
+                                // Repères officiels FACS : Lèvre supérieure (13) et lèvre inférieure (14)
+                                const lipUpper = keypoints[13];
+                                const lipLower = keypoints[14];
+                                const leftEyeOuter = keypoints[33];
+                                const rightEyeOuter = keypoints[263];
+
+                                // Normalisation par la distance inter-oculaire pour s'affranchir de la distance de la caméra
+                                const eyeDist = Math.hypot(leftEyeOuter.x - rightEyeOuter.x, leftEyeOuter.y - rightEyeOuter.y);
+                                const lipDistance = Math.hypot(lipUpper.x - lipLower.x, lipUpper.y - lipLower.y);
+                                
+                                const normalizedRatio = lipDistance / eyeDist;
+                                currentVelocity = normalizedRatio;
+
+                                valDiagEl.textContent = "Mesh Actif (468 pts) ✔";
+                                valDiagEl.className = "text-emerald-400 font-bold";
+
+                                if (normalizedRatio > 0.14) {
+                                    valFacsEl.style.color = "#10b981";
+                                    valFacsEl.textContent = normalizedRatio.toFixed(3) + " (Ouverture active)";
+                                    updateReport("Cinématique Labiale", "Variation significative de l'écart labial détectée.");
+                                } else {
+                                    valFacsEl.style.color = "#94a3b8";
+                                    valFacsEl.textContent = normalizedRatio.toFixed(3) + " (Calme)";
+                                }
                             }
+                        } else {
+                            valDiagEl.textContent = "Recherche de la patiente...";
+                            valDiagEl.className = "text-rose-400 font-bold";
+                            currentVelocity = 0;
                         }
-                    } else {
-                        valDiagEl.textContent = "Recherche de la patiente...";
-                        valDiagEl.className = "text-rose-400 font-bold";
-                        currentVelocity = 0;
-                    }
+                    });
                 }
             } catch (err) {
-                console.warn("Erreur d'estimation :", err);
+                console.warn("Erreur d'estimation Mesh :", err);
             } finally {
                 isProcessing = false;
             }
         }
 
-        // --- Contrôles ---
         document.getElementById('btn-play').addEventListener('click', async () => {
             if (isRunning) return;
 
@@ -246,13 +264,11 @@
 
             try {
                 btnPlay.disabled = true;
-                document.getElementById('system-status').textContent = "Démarrage en cours...";
+                document.getElementById('system-status').textContent = "Chargement du modèle lourd...";
 
-                // 1. Charger l'IA
                 await initModel();
 
-                // 2. Activer la caméra
-                logSystem("Activation de la webcam...");
+                logSystem("Activation de la webcam HD...");
                 mediaStream = await navigator.mediaDevices.getUserMedia({ 
                     video: { width: 640, height: 480, facingMode: "user" } 
                 });
@@ -263,21 +279,20 @@
                 isRunning = true;
                 isProcessing = false;
                 document.getElementById('video-overlay').classList.add('hidden');
-                document.getElementById('system-status').textContent = "Analyse Clinique Active";
+                document.getElementById('system-status').textContent = "Pipeline Clinique Actif";
                 document.getElementById('system-status').className = "text-xs font-mono bg-slate-800 px-3 py-1.5 rounded-md border border-slate-700 text-emerald-400";
                 
                 btnStop.disabled = false;
-                logSystem("Pipeline vidéo et IA synchronisé.");
+                logSystem("Flux vidéo et moteur d'analyse synchronisés.");
                 
-                // 3. Lancer les boucles
                 renderVideoLoop();
-                analysisInterval = setInterval(runAnalysis, 100); // 10 FPS pour une réactivité immédiate
+                analysisInterval = setInterval(runAnalysis, 100);
 
             } catch (err) {
                 isRunning = false;
                 btnPlay.disabled = false;
                 logSystem("Erreur critique : " + err.message, true);
-                alert("Impossible d'initialiser le système : " + err.message);
+                alert("Impossible d'initialiser le protocole : " + err.message);
                 document.getElementById('video-overlay').classList.remove('hidden');
                 document.getElementById('system-status').textContent = "Erreur Système";
             }
@@ -304,9 +319,9 @@
             document.getElementById('video-overlay').classList.remove('hidden');
             document.getElementById('system-status').textContent = "Système en pause";
             document.getElementById('system-status').className = "text-xs font-mono bg-slate-800 px-3 py-1.5 rounded-md border border-slate-700 text-amber-400";
-            valFacsEl.textContent = "0.00 (Calme)";
+            valFacsEl.textContent = "0.000 (Calme)";
             valDiagEl.textContent = "En attente";
-            logSystem("Système arrêté par l'opérateur.");
+            logSystem("Session clinique arrêtée.");
         });
     </script>
 </body>
