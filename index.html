@@ -3,447 +3,228 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>EgoLens - Suite Analytique Clinique Expert & Matrice Multi-Critères</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-core@3.21.0/dist/tf-core.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-converter@3.21.0/dist/tf-converter.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgl@3.21.0/dist/tf-backend-webgl.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/face-landmarks-detection@0.0.3/dist/face-landmarks-detection.js"></script>
+    <title>Transformateur de Visage Animal</title>
+    <style>
+        body {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #2c3e50;
+            color: white;
+            font-family: sans-serif;
+        }
+
+        video, canvas {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            max-width: 100vw;
+            max-height: 100vh;
+            object-fit: cover;
+        }
+
+        video {
+            z-index: 1;
+        }
+
+        canvas {
+            z-index: 2;
+            pointer-events: none; /* Important pour interagir avec la vidéo si nécessaire */
+        }
+
+        #controls {
+            position: absolute;
+            bottom: 20px;
+            z-index: 3;
+            display: flex;
+            gap: 10px;
+            background: rgba(0, 0, 0, 0.5);
+            padding: 10px;
+            border-radius: 10px;
+        }
+
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+            background-color: #3498db;
+            color: white;
+            border: none;
+            border-radius: 5px;
+        }
+
+        button:hover {
+            background-color: #2980b9;
+        }
+
+        #loading {
+            position: absolute;
+            z-index: 4;
+            font-size: 24px;
+        }
+    </style>
 </head>
-<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col">
+<body>
 
-    <header class="bg-slate-900 border-b border-slate-800 p-4 flex justify-between items-center">
-        <h1 class="text-xl font-bold">EGOLENS <span class="text-xs text-emerald-400">v17.0-CLINICAL-MATRIX-ENGINE</span></h1>
-        <div class="flex gap-2">
-            <button id="btn-play" class="bg-emerald-600 px-4 py-1 rounded text-sm">Démarrer</button>
-            <button id="btn-stop" class="bg-rose-600 px-4 py-1 rounded text-sm" disabled>Arrêter & Rapport Final</button>
-        </div>
-        <div id="system-status" class="text-xs font-mono text-amber-400">En pause</div>
-    </header>
+    <div id="loading">Chargement du modèle...</div>
+    <video id="video" autoplay playsinline></video>
+    <canvas id="output"></canvas>
 
-    <main class="p-4 grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <!-- Flux Vidéo & Canvas Mesh -->
-        <section class="bg-slate-900 p-4 rounded-xl border border-slate-800 flex flex-col">
-            <div class="relative w-full aspect-video rounded border border-slate-700 overflow-hidden mb-4 bg-black flex items-center justify-center">
-                <video id="input-video" class="absolute inset-0 w-full h-full object-cover" autoplay playsinline muted></video>
-                <canvas id="output-canvas" class="absolute inset-0 w-full h-full object-cover z-10 pointer-events-none"></canvas>
-            </div>
-            <div class="bg-slate-950 p-3 rounded border border-slate-800 text-xs font-mono flex-1 space-y-1">
-                <p class="text-slate-400 uppercase font-bold mb-2">Télémétrie Clinique & Compensation 3D :</p>
-                <p>Statut Pipeline : <span id="val-diag" class="text-amber-400 font-bold">En attente</span></p>
-                <p>Étalonnage & Correction Tête : <span id="val-calibration" class="text-slate-400 font-bold">Non initialisé</span></p>
-                <p>Asymétrie Hémiface (G/D) : <span id="val-asymmetry" class="text-indigo-400 font-bold">0.000</span></p>
-            </div>
-        </section>
-        
-        <!-- Blocs Matrice, Convergence & Rapport -->
-        <section class="bg-slate-900 p-4 rounded-xl border border-slate-800 flex flex-col justify-between space-y-4">
-            <!-- Micro vs Macro Cards & Dissonance -->
-            <div class="grid grid-cols-3 gap-3">
-                <div class="bg-slate-950 p-3 rounded-xl border border-slate-800">
-                    <span class="text-[9px] uppercase tracking-wider text-slate-400 block mb-1">Micro (Instantané)</span>
-                    <div id="val-micro" class="text-xs font-bold text-rose-400">Stabilité</div>
-                </div>
-                <div class="bg-slate-950 p-3 rounded-xl border border-slate-800">
-                    <span class="text-[9px] uppercase tracking-wider text-slate-400 block mb-1">Macro (Tendance)</span>
-                    <div id="val-macro" class="text-xs font-bold text-cyan-400">Repos</div>
-                </div>
-                <div class="bg-slate-950 p-3 rounded-xl border border-slate-800">
-                    <span class="text-[9px] uppercase tracking-wider text-slate-400 block mb-1">Dissonance Score</span>
-                    <div id="val-dissonance" class="text-xs font-bold text-emerald-400">0.00</div>
-                </div>
-            </div>
+    <div id="controls">
+        <button onclick="setAnimal('cat')">Chat</button>
+        <button onclick="setAnimal('dog')">Chien</button>
+        <button onclick="setAnimal('tiger')">Tigre</button>
+        <button onclick="setAnimal('panda')">Panda</button>
+    </div>
 
-            <!-- Convergence Matrice Multi-Critères Live -->
-            <div class="bg-slate-950 p-3 rounded-xl border border-slate-700">
-                <span class="text-xs uppercase tracking-wider text-slate-400 block mb-1">Matrice de Co-occurrence (Live)</span>
-                <div id="val-convergence" class="font-bold text-slate-300 text-sm">Système inactif</div>
-            </div>
-
-            <!-- Rapport d'analyse -->
-            <div class="bg-slate-950 p-4 rounded-xl border border-slate-800 flex-1 flex flex-col">
-                <h2 class="text-xs uppercase tracking-wider text-slate-400 mb-2">Rapport d'Analyse Avancé & Synthèse</h2>
-                <div id="final-report" class="font-mono text-xs text-slate-300 space-y-2 overflow-y-auto max-h-48 p-2 bg-slate-900 rounded border border-slate-800 flex-1">
-                    <p class="text-slate-500">[SYSTEM] En attente de l'étalonnage de la patiente...</p>
-                </div>
-            </div>
-        </section>
-    </main>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-core@4.2.0/dist/tf-core.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-converter@4.2.0/dist/tf-converter.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgl@4.2.0/dist/tf-backend-webgl.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/face-landmarks-detection@1.0.2/dist/face-landmarks-detection.min.js"></script>
 
     <script>
-        let isRunning = false;
-        let isProcessing = false;
-        let model = null;
+        const video = document.getElementById('video');
+        const canvas = document.getElementById('output');
+        const ctx = canvas.getContext('2d');
+        const loadingEl = document.getElementById('loading');
         
-        let isCalibrated = false;
-        let calibrationFrames = [];
-        let baseline = { 
-            mouthOpen: 0, mouthWidth: 0, browDist: 0, browHeight: 0, 
-            noseWrinkle: 0, eyeAperture: 0, headPitch: 0, headYaw: 0 
-        };
-        let historyBuffer = [];
-        let sessionStats = {};
-        let microStatsCount = 0;
-        let microDetailsList = [];
-        let sessionStartTime = null;
+        let model;
+        let currentAnimal = 'cat'; // Animal par défaut
+        let animationFrameId;
 
-        let totalDissonanceScore = 0;
-        let dissonanceCount = 0;
-
-        const videoElement = document.getElementById('input-video');
-        const canvasElement = document.getElementById('output-canvas');
-        const canvasCtx = canvasElement.getContext('2d');
-
-        const valDiagEl = document.getElementById('val-diag');
-        const valCalibrationEl = document.getElementById('val-calibration');
-        const valAsymmetryEl = document.getElementById('val-asymmetry');
-        const valMicroEl = document.getElementById('val-micro');
-        const valMacroEl = document.getElementById('val-macro');
-        const valDissonanceEl = document.getElementById('val-dissonance');
-        const valConvergenceEl = document.getElementById('val-convergence');
-        const finalReportEl = document.getElementById('final-report');
-
-        async function initModel() {
-            await tf.setBackend('webgl');
-            model = await faceLandmarksDetection.load(
-                faceLandmarksDetection.SupportedPackages.mediapipeFacemesh,
-                { maxFaces: 1 }
-            );
-        }
-
-        const matrixSignatures = {
-            "Sourire Duchenne Authentique (AU6 + AU12)": "Activation synergique zygomatique et orbiculaire : Bien-être authentique, valence positive validée.",
-            "Colère / Tension Corrugatrice (AU4 + AU5)": "Froncement corrugateur conjugué à une tension oculaire : Hostilité, concentration intense ou fronde.",
-            "Surprise Synchrone (AU1 + AU2 + AU25)": "Élévation bilatérale des sourcils et ouverture mandibulaire : Sursaut ou découverte inattendue cohérente.",
-            "Mépris Asymétrique (AU101)": "Rétraction unilatérale d'une commissure labiale : Supériorité perçue, jugement critique ou réserve.",
-            "Dégoût / Rétulsion (AU9 + AU10)": "Plissement nasal et élévation de la lèvre supérieure : Rejet instinctif ou aversion.",
-            "Peur / Alerte (AU1 + AU2 + AU20)": "Étirement horizontal des lèvres et élévation des sourcils : Menace perçue ou alerte aiguë.",
-            "Tristesse / Repli (AU15)": "Abaissement des commissures labiales : Mélancolie ou découragement.",
-            "Baseline Stable": "Cohérence morphologique alignée avec la ligne de base."
+        // Charger les images des animaux
+        const animalAssets = {
+            cat: { src: 'https://raw.githubusercontent.com/vladocar/Face-Filter/master/assets/cat_ears.png', offsetX: 0, offsetY: -0.5, scale: 1.8 },
+            dog: { src: 'https://raw.githubusercontent.com/vladocar/Face-Filter/master/assets/dog_ears.png', offsetX: 0, offsetY: -0.5, scale: 1.8 },
+            tiger: { src: 'https://raw.githubusercontent.com/vladocar/Face-Filter/master/assets/tiger_ears.png', offsetX: 0, offsetY: -0.5, scale: 1.8 },
+            panda: { src: 'https://raw.githubusercontent.com/vladocar/Face-Filter/master/assets/panda_ears.png', offsetX: 0, offsetY: -0.45, scale: 2.0 }
         };
 
-        const microMeanings = {
-            "Mandibulaire": "Ouverture/fermeture brusque de la mâchoire : Sursaut, rupture de flux, hésitation ou réactivité émotionnelle soudaine.",
-            "Sourcilière": "Contraction ou élévation fugitive des sourcils : Alerte cognitive, micro-frustration, doute ou appréhension subite.",
-            "Asymétrie Labiale (Mépris/Sourire forcé)": "Torsion unilatérale soudaine de la commissure : Dissimulation, ironie latente, jugement critique ou micro-mépris fugace.",
-            "Plissement Nasal (Dégoût instantané)": "Élévation subite du nez et de la lèvre supérieure : Rejet instinctif, aversion soudaine ou désapprobation intériorisée.",
-            "Écartement Buccal (Sursaut/Joie Fugace)": "Élargissement rapide et bref de la bouche : Surprise positive, accord inattendu ou soulagement instantané."
-        };
+        const images = {};
 
-        function estimateHeadPose(mesh) {
-            const noseTip = mesh[1];
-            const leftEye = mesh[33];
-            const rightEye = mesh[263];
-            const midEyeX = (leftEye[0] + rightEye[0]) / 2;
-            const yaw = noseTip[0] - midEyeX;
-            const midEyeY = (leftEye[1] + rightEye[1]) / 2;
-            const pitch = noseTip[1] - midEyeY;
-            return { pitch, yaw };
-        }
-
-        function extractMultiZoneMetrics(mesh) {
-            const eyeDist = Math.hypot(mesh[33][0] - mesh[263][0], mesh[33][1] - mesh[263][1]);
-            const pose = estimateHeadPose(mesh);
-            const correctionFactor = 1.0 + Math.abs(pose.yaw) * 0.001;
-
-            const mouthOpen = (Math.abs(mesh[13][1] - mesh[14][1]) / eyeDist) * correctionFactor;
-            const mouthWidth = (Math.abs(mesh[61][0] - mesh[291][0]) / eyeDist) * correctionFactor;
-            const browDist = (Math.abs(mesh[70][0] - mesh[300][0]) / eyeDist);
-            const browHeight = ((mesh[70][1] + mesh[300][1]) / 2 - (mesh[33][1] + mesh[263][1]) / 2) / eyeDist;
-            const noseWrinkle = (Math.abs(mesh[2][1] - mesh[168][1]) / eyeDist);
-
-            const leftEyeOpening = Math.abs(mesh[159][1] - mesh[145][1]) / eyeDist;
-            const rightEyeOpening = Math.abs(mesh[386][1] - mesh[374][1]) / eyeDist;
-            const eyeAperture = (leftEyeOpening + rightEyeOpening) / 2;
-
-            const lipCenter = mesh[13];
-            const leftDist = Math.hypot(mesh[61][0] - lipCenter[0], mesh[61][1] - lipCenter[1]);
-            const rightDist = Math.hypot(mesh[291][0] - lipCenter[0], mesh[291][1] - lipCenter[1]);
-            const asymmetryScore = Math.abs(leftDist - rightDist) / eyeDist;
-
-            return {
-                mouthOpen, mouthWidth, browDist, browHeight, noseWrinkle, eyeAperture, asymmetryScore, pose
-            };
-        }
-
-        function drawMesh(mesh) {
-            if (canvasElement.width !== videoElement.videoWidth || canvasElement.height !== videoElement.videoHeight) {
-                canvasElement.width = videoElement.videoWidth || 640;
-                canvasElement.height = videoElement.videoHeight || 480;
-            }
-            canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
-            
-            canvasCtx.fillStyle = 'rgba(16, 185, 129, 0.8)';
-            for (let i = 0; i < mesh.length; i++) {
-                const x = mesh[i][0];
-                const y = mesh[i][1];
-                canvasCtx.beginPath();
-                canvasCtx.arc(x, y, 1.2, 0, 2 * Math.PI);
-                canvasCtx.fill();
-            }
-        }
-
-        async function runAnalysis() {
-            if (!isRunning || !model || isProcessing) return;
-            isProcessing = true;
-
-            try {
-                const predictions = await model.estimateFaces({
-                    input: videoElement,
-                    returnTensors: false,
-                    flipHorizontal: false
-                });
-
-                if (predictions && predictions.length > 0) {
-                    const mesh = predictions[0].scaledMesh;
-                    drawMesh(mesh);
-
-                    const current = extractMultiZoneMetrics(mesh);
-
-                    if (!isCalibrated) {
-                        valDiagEl.textContent = "Étalonnage & Alignement Tête...";
-                        valDiagEl.className = "text-amber-400 font-bold";
-                        valCalibrationEl.textContent = `Capture baseline (${calibrationFrames.length}/30)`;
-                        
-                        calibrationFrames.push(current);
-                        if (calibrationFrames.length >= 30) {
-                            baseline.mouthOpen = calibrationFrames.reduce((a,b) => a + b.mouthOpen, 0) / 30;
-                            baseline.mouthWidth = calibrationFrames.reduce((a,b) => a + b.mouthWidth, 0) / 30;
-                            baseline.browDist = calibrationFrames.reduce((a,b) => a + b.browDist, 0) / 30;
-                            baseline.browHeight = calibrationFrames.reduce((a,b) => a + b.browHeight, 0) / 30;
-                            baseline.noseWrinkle = calibrationFrames.reduce((a,b) => a + b.noseWrinkle, 0) / 30;
-                            baseline.eyeAperture = calibrationFrames.reduce((a,b) => a + b.eyeAperture, 0) / 30;
-                            baseline.headPitch = calibrationFrames.reduce((a,b) => a + b.pose.pitch, 0) / 30;
-                            baseline.headYaw = calibrationFrames.reduce((a,b) => a + b.pose.yaw, 0) / 30;
-                            isCalibrated = true;
-                            sessionStartTime = new Date();
-                            valCalibrationEl.textContent = "Étalonné (Pitch/Yaw corrigés) ✔";
-                            valCalibrationEl.className = "text-emerald-400 font-bold";
-                        }
-                        isProcessing = false;
-                        return;
-                    }
-
-                    valDiagEl.textContent = "Matrice Clinique Active ✔";
-                    valDiagEl.className = "text-emerald-400 font-bold";
-
-                    historyBuffer.push(current);
-                    if (historyBuffer.length > 20) historyBuffer.shift();
-
-                    const macroMouthOpen = historyBuffer.reduce((a, b) => a + b.mouthOpen, 0) / historyBuffer.length;
-                    const macroMouthWidth = historyBuffer.reduce((a, b) => a + b.mouthWidth, 0) / historyBuffer.length;
-                    const macroBrowDist = historyBuffer.reduce((a, b) => a + b.browDist, 0) / historyBuffer.length;
-                    const macroNoseWrinkle = historyBuffer.reduce((a, b) => a + b.noseWrinkle, 0) / historyBuffer.length;
-                    const macroAsymmetry = historyBuffer.reduce((a, b) => a + b.asymmetryScore, 0) / historyBuffer.length;
-
-                    const isMicroMouthOpen = Math.abs(current.mouthOpen - macroMouthOpen) > 0.04;
-                    const isMicroBrow = Math.abs(current.browDist - macroBrowDist) > 0.02;
-                    const isMicroAsymmetry = Math.abs(current.asymmetryScore - macroAsymmetry) > 0.025;
-                    const isMicroNose = Math.abs(current.noseWrinkle - macroNoseWrinkle) > 0.02;
-                    const isMicroMouthWidth = Math.abs(current.mouthWidth - macroMouthWidth) > 0.035;
-
-                    const isMicroActive = (isMicroMouthOpen || isMicroBrow || isMicroAsymmetry || isMicroNose || isMicroMouthWidth);
-
-                    if (isMicroActive) {
-                        valMicroEl.textContent = "⚠️ MICRO-PIC";
-                        microStatsCount++;
-                        
-                        let microType = "Mandibulaire";
-                        if (isMicroAsymmetry) microType = "Asymétrie Labiale (Mépris/Sourire forcé)";
-                        else if (isMicroNose) microType = "Plissement Nasal (Dégoût instantané)";
-                        else if (isMicroMouthWidth) microType = "Écartement Buccal (Sursaut/Joie Fugace)";
-                        else if (isMicroBrow) microType = "Sourcilière";
-
-                        appendMicroReport(microType);
-                    } else {
-                        valMicroEl.textContent = "Stabilité";
-                    }
-
-                    valMacroEl.textContent = macroMouthOpen > (baseline.mouthOpen + 0.02) ? "Ouvert (Actif)" : "Repos (Stable)";
-
-                    let instantDissonance = 0;
-                    if (isMicroActive) {
-                        const deviation = Math.abs(current.mouthOpen - macroMouthOpen);
-                        instantDissonance = Math.min(Math.round((deviation + (current.asymmetryScore * 2)) * 50 * 10) / 10, 10.0);
-                        totalDissonanceScore += instantDissonance;
-                        dissonanceCount++;
-                    }
-
-                    if (instantDissonance > 6.0) {
-                        valDissonanceEl.textContent = `${instantDissonance.toFixed(2)} (Forte ⚠️)`;
-                        valDissonanceEl.className = "text-xs font-bold text-rose-500 animate-pulse";
-                    } else if (instantDissonance > 2.5) {
-                        valDissonanceEl.textContent = `${instantDissonance.toFixed(2)} (Modérée)`;
-                        valDissonanceEl.className = "text-xs font-bold text-amber-400";
-                    } else {
-                        valDissonanceEl.textContent = `${instantDissonance.toFixed(2)} (Harmonie)`;
-                        valDissonanceEl.className = "text-xs font-bold text-emerald-400";
-                    }
-
-                    valAsymmetryEl.textContent = current.asymmetryScore.toFixed(3);
-
-                    const deltaMouthWidth = current.mouthWidth - baseline.mouthWidth;
-                    const deltaMouthOpen = current.mouthOpen - baseline.mouthOpen;
-                    const browContracted = baseline.browDist - current.browDist;
-                    const browRaised = current.browHeight - baseline.browHeight;
-                    const noseRaised = baseline.noseWrinkle - current.noseWrinkle;
-
-                    let scores = {
-                        "Baseline Stable": 40,
-                        "Sourire Duchenne Authentique (AU6 + AU12)": 0,
-                        "Colère / Tension Corrugatrice (AU4 + AU5)": 0,
-                        "Surprise Synchrone (AU1 + AU2 + AU25)": 0,
-                        "Mépris Asymétrique (AU101)": 0,
-                        "Dégoût / Rétulsion (AU9 + AU10)": 0,
-                        "Peur / Alerte (AU1 + AU2 + AU20)": 0,
-                        "Tristesse / Repli (AU15)": 0
+        async function preloadImages() {
+            const promises = Object.keys(animalAssets).map(key => {
+                return new Promise((resolve, reject) => {
+                    const img = new Image();
+                    img.onload = () => {
+                        images[key] = img;
+                        resolve();
                     };
-
-                    if (browContracted > 0.02 && deltaMouthOpen < 0.03) {
-                        scores["Colère / Tension Corrugatrice (AU4 + AU5)"] = Math.min(Math.round((browContracted * 1200)), 96);
-                    }
-                    if (deltaMouthWidth > 0.035 && deltaMouthOpen > 0.015 && browContracted < 0.01) {
-                        scores["Sourire Duchenne Authentique (AU6 + AU12)"] = Math.min(Math.round((deltaMouthWidth + deltaMouthOpen) * 700), 95);
-                    }
-                    if (deltaMouthOpen > 0.05 && browRaised > 0.02) {
-                        scores["Surprise Synchrone (AU1 + AU2 + AU25)"] = Math.min(Math.round((deltaMouthOpen + browRaised) * 600), 94);
-                    }
-                    if (current.asymmetryScore > 0.045 && deltaMouthWidth > 0.01) {
-                        scores["Mépris Asymétrique (AU101)"] = Math.min(Math.round(current.asymmetryScore * 1100), 92);
-                    }
-                    if (noseRaised > 0.02) {
-                        scores["Dégoût / Rétulsion (AU9 + AU10)"] = Math.min(Math.round(noseRaised * 1400), 90);
-                    }
-                    if (browRaised > 0.025 && deltaMouthOpen > 0.015) {
-                        scores["Peur / Alerte (AU1 + AU2 + AU20)"] = 85;
-                    }
-                    if (deltaMouthOpen < -0.02) {
-                        scores["Tristesse / Repli (AU15)"] = 82;
-                    }
-
-                    let bestMatch = "Baseline Stable";
-                    let maxProb = 40;
-                    for (const [sig, prob] of Object.entries(scores)) {
-                        if (prob > maxProb) {
-                            maxProb = prob;
-                            bestMatch = sig;
-                        }
-                    }
-
-                    valConvergenceEl.textContent = `🎯 Matrice : ${bestMatch} (${maxProb}%)`;
-
-                    let convergenceClass = "font-bold text-slate-300 text-sm";
-                    if (maxProb > 75) {
-                        convergenceClass = "font-bold text-cyan-400 text-sm";
-                        sessionStats[bestMatch] = (sessionStats[bestMatch] || 0) + 1;
-                        appendReport(bestMatch, maxProb);
-                    }
-                    valConvergenceEl.className = convergenceClass;
-
-                } else {
-                    valDiagEl.textContent = "Visage non détecté...";
-                    valDiagEl.className = "text-rose-400 font-bold";
-                    canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
-                }
-            } catch (err) {
-                console.error(err);
-            } finally {
-                isProcessing = false;
-            }
-        }
-
-        let lastLoggedSig = "";
-        function appendReport(sig, prob) {
-            if (sig === lastLoggedSig || sig === "Baseline Stable") return;
-            lastLoggedSig = sig;
-
-            const timestamp = new Date().toLocaleTimeString();
-            const p = document.createElement('p');
-            p.innerHTML = `<span class="text-slate-500">[${timestamp}]</span> <strong class="text-cyan-400">${sig} [Confiance: ${prob}%]</strong> : ${matrixSignatures[sig]}`;
-            
-            if (finalReportEl.querySelector('.text-slate-500') && finalReportEl.children.length === 1) {
-                finalReportEl.innerHTML = '';
-            }
-            finalReportEl.prepend(p);
-        }
-
-        let lastMicroLogTime = 0;
-        function appendMicroReport(type) {
-            const now = Date.now();
-            if (now - lastMicroLogTime < 1500) return;
-            lastMicroLogTime = now;
-
-            const timestamp = new Date().toLocaleTimeString();
-            microDetailsList.push({ timestamp, type, meaning: microMeanings[type] });
-
-            const p = document.createElement('p');
-            p.innerHTML = `<span class="text-slate-500">[${timestamp}]</span> <strong class="text-rose-400">⚡ MICRO-EXPRESSION (${type})</strong> : ${microMeanings[type]}`;
-            
-            if (finalReportEl.querySelector('.text-slate-500') && finalReportEl.children.length === 1) {
-                finalReportEl.innerHTML = '';
-            }
-            finalReportEl.prepend(p);
-        }
-
-        document.getElementById('btn-play').addEventListener('click', async () => {
-            document.getElementById('system-status').textContent = "Initialisation...";
-            await initModel();
-            const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-            videoElement.srcObject = stream;
-            isRunning = true;
-            isCalibrated = false;
-            calibrationFrames = [];
-            sessionStats = {};
-            microStatsCount = 0;
-            microDetailsList = [];
-            totalDissonanceScore = 0;
-            dissonanceCount = 0;
-            document.getElementById('btn-play').disabled = true;
-            document.getElementById('btn-stop').disabled = false;
-            document.getElementById('system-status').textContent = "Pipeline Actif";
-            setInterval(runAnalysis, 50);
-        });
-
-        document.getElementById('btn-stop').addEventListener('click', () => {
-            isRunning = false;
-            document.getElementById('system-status').textContent = "Session Terminée";
-            canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
-            
-            const endTime = new Date();
-            const durationSec = sessionStartTime ? Math.round((endTime - sessionStartTime) / 1000) : 0;
-            const avgDissonance = dissonanceCount > 0 ? (totalDissonanceScore / dissonanceCount).toFixed(2) : "0.00";
-            
-            let summaryHTML = `<div class="p-3 bg-slate-950 border border-emerald-500/50 rounded mt-2 space-y-2">
-                <h3 class="text-emerald-400 font-bold mb-2">📋 RAPPORT EXPERT DE FIN DE SESSION</h3>
-                <p><strong>Durée d'analyse active (Yaw/Pitch normalisés) :</strong> ${durationSec} secondes</p>
-                <p><strong>Total Micro-expressions fugaces (Pics) :</strong> <span class="text-rose-400 font-bold">${microStatsCount}</span> détectées</p>
-                <p><strong>Score Moyen de Dissonance (Macro vs Micro) :</strong> <span class="text-amber-400 font-bold">${avgDissonance} / 10</span></p>`;
-            
-            if (microDetailsList.length > 0) {
-                summaryHTML += `<p class="text-slate-400 uppercase font-bold text-[10px] mt-2">Journal & Signification des Micro-expressions :</p>
-                <ul class="list-disc list-inside space-y-1 font-mono text-[11px]">`;
-                microDetailsList.forEach(item => {
-                    summaryHTML += `<li><span class="text-slate-500">[${item.timestamp}]</span> <strong class="text-rose-400">${item.type}</strong> : ${item.meaning}</li>`;
+                    img.onerror = reject;
+                    img.src = animalAssets[key].src;
                 });
-                summaryHTML += `</ul>`;
+            });
+            await Promise.all(promises);
+        }
+
+        function setAnimal(animal) {
+            currentAnimal = animal;
+        }
+
+        async function setupCamera() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    video: { facingMode: 'user' },
+                    audio: false
+                });
+                video.srcObject = stream;
+                return new Promise((resolve) => {
+                    video.onloadedmetadata = () => {
+                        resolve(video);
+                    };
+                });
+            } catch (e) {
+                console.error('Erreur caméra :', e);
+                loadingEl.innerText = "Erreur d'accès à la caméra.";
+                throw e;
+            }
+        }
+
+        async function loadFaceModel() {
+            const modelConfig = faceDetection.SupportedModels.MediaPipeFaceMesh;
+            const detectorConfig = {
+                runtime: 'tfjs',
+                refineLandmarks: true,
+                maxFaces: 1
+            };
+            model = await faceDetection.createDetector(modelConfig, detectorConfig);
+            loadingEl.style.display = 'none';
+            console.log("Modèle chargé");
+        }
+
+        function drawMesh(keypoints) {
+            if (!images[currentAnimal]) return;
+
+            // Obtenir les points de repère pour le positionnement (basé sur le modèle MediaPipe)
+            const faceCenter = keypoints[168]; // Point entre les yeux
+            const leftEarPoint = keypoints[234]; // Côté gauche du front
+            const rightEarPoint = keypoints[454]; // Côté droit du front
+            const topHeadPoint = keypoints[10]; // Haut du front
+
+            // Calculer la largeur et l'angle de la tête
+            const faceWidth = Math.abs(rightEarPoint.x - leftEarPoint.x);
+            const headAngle = Math.atan2(rightEarPoint.y - leftEarPoint.y, rightEarPoint.x - leftEarPoint.x);
+
+            // Ajuster le masque en fonction de l'animal
+            const asset = animalAssets[currentAnimal];
+            const imageWidth = faceWidth * asset.scale;
+            const imageHeight = imageWidth * (images[currentAnimal].height / images[currentAnimal].width);
+
+            // Positionner le masque
+            const drawX = faceCenter.x;
+            const drawY = faceCenter.y + (imageHeight * asset.offsetY);
+
+            // Dessiner et faire pivoter l'image
+            ctx.save();
+            ctx.translate(drawX, drawY);
+            ctx.rotate(headAngle);
+            ctx.drawImage(images[currentAnimal], -imageWidth / 2, -imageHeight / 2, imageWidth, imageHeight);
+            ctx.restore();
+        }
+
+        async function detectFaces() {
+            const faces = await model.estimateFaces(video, { flipHorizontal: false });
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            if (faces.length > 0) {
+                drawMesh(faces[0].keypoints);
             }
 
-            summaryHTML += `<p class="text-slate-400 uppercase font-bold text-[10px] mt-2">Signatures de la Matrice validées :</p>
-                <ul class="list-disc list-inside space-y-1 font-mono">`;
-            
-            if (Object.keys(sessionStats).length === 0) {
-                summaryHTML += `<li>Aucune signature complexe validée au-delà du seuil de certitude.</li>`;
-            } else {
-                for (const [sig, count] of Object.entries(sessionStats)) {
-                    summaryHTML += `<li><strong class="text-cyan-300">${sig}</strong> : ${count} occurrences synchrones</li>`;
-                }
+            animationFrameId = requestAnimationFrame(detectFaces);
+        }
+
+        async function main() {
+            try {
+                await setupCamera();
+                video.play();
+                
+                // Ajuster le canvas à la taille de la vidéo une fois chargée
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+
+                await preloadImages();
+                await loadFaceModel();
+                detectFaces();
+            } catch (e) {
+                // Gérer les erreurs silencieusement ou afficher un message
             }
-            summaryHTML += `</ul></div>`;
-            
-            finalReportEl.prepend(document.createRange().createContextualFragment(summaryHTML));
-            document.getElementById('btn-stop').disabled = true;
+        }
+
+        // Gérer le redimensionnement de la fenêtre
+        window.addEventListener('resize', () => {
+             if (video.videoWidth > 0) {
+                 canvas.width = video.videoWidth;
+                 canvas.height = video.videoHeight;
+             }
         });
+
+        main();
+
     </script>
 </body>
 </html>
