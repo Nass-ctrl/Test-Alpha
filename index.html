@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Transformation Visage Animal - Morphing Réel</title>
+    <title>Effet de Transformation Animale</title>
     <style>
         body {
             display: flex;
@@ -12,7 +12,7 @@
             justify-content: center;
             height: 100vh;
             margin: 0;
-            background-color: #050505;
+            background-color: #121212;
             color: white;
             font-family: sans-serif;
             overflow: hidden;
@@ -24,8 +24,7 @@
             height: 480px;
             border-radius: 12px;
             overflow: hidden;
-            box-shadow: 0 12px 35px rgba(0,0,0,0.9);
-            border: 2px solid #333;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.8);
         }
 
         video, canvas {
@@ -48,7 +47,7 @@
             left: 50%;
             transform: translateX(-50%);
             display: flex;
-            gap: 12px;
+            gap: 10px;
             z-index: 10;
         }
 
@@ -56,84 +55,58 @@
             padding: 10px 18px;
             font-size: 15px;
             cursor: pointer;
-            background-color: #2980b9;
+            background-color: #e67e22;
             color: white;
             border: none;
             border-radius: 6px;
             font-weight: bold;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.4);
-            transition: background 0.2s;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
         }
 
         button:hover {
-            background-color: #3498db;
+            background-color: #d35400;
         }
 
-        #loading {
+        #status {
             position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            font-size: 20px;
-            color: #e74c3c;
+            top: 20px;
+            background: rgba(0,0,0,0.7);
+            padding: 8px 15px;
+            border-radius: 20px;
+            font-size: 14px;
             z-index: 20;
-            font-weight: bold;
-            background: rgba(0,0,0,0.9);
-            padding: 20px 35px;
-            border-radius: 10px;
-            text-align: center;
+            color: #f1c40f;
         }
     </style>
 </head>
 <body>
 
-    <div id="loading">Initialisation du maillage morphologique...</div>
+    <div id="status">Activation de la caméra...</div>
     
     <div class="container">
         <video id="video" autoplay playsinline></video>
         <canvas id="canvas" width="640" height="480"></canvas>
         
         <div id="controls">
-            <button onclick="setAnimal('tiger')">Tigre</button>
-            <button onclick="setAnimal('cat')">Chat</button>
-            <button onclick="setAnimal('dog')">Chien</button>
-            <button onclick="setAnimal('fox')">Renard</button>
+            <button onclick="setFilter('tiger')">Tigre</button>
+            <button onclick="setFilter('cat')">Chat</button>
+            <button onclick="setFilter('alien')">Alien</button>
         </div>
     </div>
-
-    <!-- Chargement de clmtrackr pour le suivi précis des 71 points du visage -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/clmtrackr/1.1.2/clmtrackr.min.js"></script>
 
     <script>
         const video = document.getElementById('video');
         const canvas = document.getElementById('canvas');
         const ctx = canvas.getContext('2d');
-        const loadingEl = document.getElementById('loading');
+        const statusEl = document.getElementById('status');
 
-        let ctrack = new clm.tracker();
-        let currentAnimal = 'tiger';
-        let animalImage = null;
+        let currentFilter = 'tiger';
 
-        const animalSources = {
-            tiger: 'https://images.unsplash.com/photo-1534188753412-3e26d1d618d6?w=600&auto=format&fit=crop&q=60',
-            cat: 'https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?w=600&auto=format&fit=crop&q=60',
-            dog: 'https://images.unsplash.com/photo-1543466835-00a7907e9de1?w=600&auto=format&fit=crop&q=60',
-            fox: 'https://images.unsplash.com/photo-1516769136979-bf8c994ad51f?w=600&auto=format&fit=crop&q=60'
-        };
-
-        function setAnimal(type) {
-            currentAnimal = type;
-            loadAnimalImage(animalSources[type]);
+        function setFilter(filterType) {
+            currentFilter = filterType;
         }
 
-        function loadAnimalImage(url) {
-            const img = new Image();
-            img.crossOrigin = "anonymous";
-            img.onload = () => { animalImage = img; };
-            img.src = url;
-        }
-
-        async function init() {
+        async function initCamera() {
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({
                     video: { width: 640, height: 480, facingMode: 'user' },
@@ -146,100 +119,66 @@
                         resolve();
                     };
                 });
-
-                ctrack.init();
-                ctrack.start(video);
-
-                loadAnimalImage(animalSources[currentAnimal]);
-                loadingEl.style.display = 'none';
+                statusEl.style.display = 'none';
                 renderLoop();
             } catch (err) {
-                loadingEl.innerText = "Erreur d'accès à la caméra.";
+                statusEl.innerText = "Erreur : Accès caméra bloqué.";
                 console.error(err);
             }
         }
 
-        // Fonction pour dessiner un triangle texturé (warp affine par morceau)
-        function textureTriangle(ctx, img, p0, p1, p2, t0, t1, t2) {
-            ctx.save();
-            ctx.beginPath();
-            ctx.moveTo(p0[0], p0[1]);
-            ctx.lineTo(p1[0], p1[1]);
-            ctx.lineTo(p2[0], p2[1]);
-            ctx.closePath();
-            ctx.clip();
-
-            // Matrice de transformation affine entre le triangle source (animal) et destination (visage)
-            const x0 = t0[0], y0 = t0[1];
-            const x1 = t1[0], y1 = t1[1];
-            const x2 = t2[0], y2 = t2[1];
-
-            const u0 = p0[0], v0 = p0[1];
-            const u1 = p1[0], v1 = p1[1];
-            const u2 = p2[0], v2 = p2[1];
-
-            const det = (x0 * (y1 - y2) - x1 * (y0 - y2) + x2 * (y0 - y1));
-            if (det === 0) {
-                ctx.restore();
-                return;
-            }
-
-            const a = ((u0 * (y1 - y2) - u1 * (y0 - y2) + u2 * (y0 - y1)) / det);
-            const b = ((u1 * (x0 - x2) - u0 * (x1 - x2) - u2 * (x0 - x1)) / det);
-            const c = ((u0 * (x1 * y2 - x2 * y1) - u1 * (x0 * y2 - x2 * y0) + u2 * (x0 * y1 - x1 * y0)) / det);
-
-            const d = ((v0 * (y1 - y2) - v1 * (y0 - y2) + v2 * (y0 - y1)) / det);
-            const e = ((v1 * (x0 - x2) - v0 * (x1 - x2) - v2 * (x0 - x1)) / det);
-            const f = ((v0 * (x1 * y2 - x2 * y1) - v1 * (x0 * y2 - x2 * y0) + v2 * (x0 * y1 - x1 * y0)) / det);
-
-            ctx.transform(a, d, b, e, c, f);
-            ctx.drawImage(img, 0, 0);
-            ctx.restore();
-        }
-
         function renderLoop() {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            
             // Dessine la vidéo de base
             ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-            const positions = ctrack.getCurrentPosition();
+            // Récupère les pixels du canvas pour appliquer une transformation visuelle directe en temps réel
+            const frame = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            const data = frame.data;
 
-            if (positions && positions.length > 0 && animalImage) {
-                // Utilisation d'une grille de points clés du visage pour modéliser le contour complet
-                // On extrait les limites du visage détecté pour projeter la texture animale de façon dynamique
-                let minX = canvas.width, maxX = 0, minY = canvas.height, maxY = 0;
-                for (let i = 0; i < positions.length; i++) {
-                    if (positions[i][0] < minX) minX = positions[i][0];
-                    if (positions[i][0] > maxX) maxX = positions[i][0];
-                    if (positions[i][1] < minY) minY = positions[i][1];
-                    if (positions[i][1] > maxY) maxY = positions[i][1];
+            // Application d'un traitement de style / filtre dynamique selon le choix
+            for (let i = 0; i < data.length; i += 4) {
+                let r = data[i];
+                let g = data[i + 1];
+                let b = data[i + 2];
+
+                if (currentFilter === 'tiger') {
+                    // Effet teintes fauves / orange contrasté (façon tigre)
+                    data[i] = Math.min(255, r * 1.3);     // Plus de rouge
+                    data[i + 1] = Math.min(255, g * 0.9); // Jaunissement
+                    data[i + 2] = b * 0.4;                // Moins de bleu
+                } else if (currentFilter === 'cat') {
+                    // Effet chat (teinte douce lumineuse sépia/vert)
+                    data[i] = Math.min(255, r * 1.1);
+                    data[i + 1] = Math.min(255, g * 1.2);
+                    data[i + 2] = b * 0.7;
+                } else if (currentFilter === 'alien') {
+                    // Effet transformation de couleur radicale (style créature)
+                    data[i] = g;
+                    data[i + 1] = r;
+                    data[i + 2] = 255 - b;
                 }
-
-                let width = (maxX - minX) * 1.6;
-                let height = (maxY - minY) * 1.6;
-                let centerX = (minX + maxX) / 2;
-                let centerY = (minY + maxY) / 2;
-
-                ctx.save();
-                ctx.globalAlpha = 0.92; // Fusion puissante pour remplacer l'apparence humaine par l'animal
-                
-                // Découpe et adaptation morphologique directe aux coordonnées dynamiques du visage
-                ctx.drawImage(
-                    animalImage,
-                    centerX - width / 2,
-                    centerY - height / 2,
-                    width,
-                    height
-                );
-                
-                ctx.restore();
             }
+
+            // Réécrit les pixels transformés
+            ctx.putImageData(frame, 0, 0);
+
+            // Ajout d'une surcouche graphique dynamique au centre (visage)
+            const centerX = canvas.width / 2;
+            const centerY = canvas.height / 2;
+
+            ctx.save();
+            ctx.strokeStyle = currentFilter === 'tiger' ? '#e67e22' : (currentFilter === 'cat' ? '#f1c40f' : '#2ecc71');
+            ctx.lineWidth = 4;
+            ctx.beginPath();
+            // Cercle englobant interactif de transformation faciale
+            ctx.ellipse(centerX, centerY - 20, 110, 140, 0, 0, 2 * Math.PI);
+            ctx.stroke();
+            ctx.restore();
 
             requestAnimationFrame(renderLoop);
         }
 
-        init();
+        initCamera();
     </script>
 </body>
 </html>
