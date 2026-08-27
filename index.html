@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Morphing Visage Animal - Ultra Stable</title>
+    <title>Transformation Animale en Direct</title>
     <style>
         body {
             display: flex;
@@ -24,7 +24,7 @@
             height: 480px;
             border-radius: 12px;
             overflow: hidden;
-            box-shadow: 0 8px 24px rgba(0,0,0,0.6);
+            box-shadow: 0 8px 24px rgba(0,0,0,0.8);
         }
 
         video, canvas {
@@ -34,7 +34,7 @@
             width: 100%;
             height: 100%;
             object-fit: cover;
-            transform: scaleX(-1);
+            transform: scaleX(-1); /* Effet miroir */
         }
 
         video {
@@ -67,24 +67,21 @@
             background-color: #d35400;
         }
 
-        #loading {
+        #status {
             position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            font-size: 20px;
-            color: #f1c40f;
+            top: 20px;
+            background: rgba(0,0,0,0.8);
+            padding: 8px 15px;
+            border-radius: 20px;
+            font-size: 14px;
             z-index: 20;
-            font-weight: bold;
-            background: rgba(0,0,0,0.85);
-            padding: 20px 30px;
-            border-radius: 10px;
+            color: #f1c40f;
         }
     </style>
 </head>
 <body>
 
-    <div id="loading">Démarrage de la caméra...</div>
+    <div id="status">Démarrage...</div>
     
     <div class="container">
         <video id="video" autoplay playsinline></video>
@@ -98,18 +95,15 @@
         </div>
     </div>
 
-    <!-- Chargement de clmtrackr (tracker de visage ultra-fiable) -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/clmtrackr/1.1.2/clmtrackr.min.js"></script>
-
     <script>
         const video = document.getElementById('video');
         const canvas = document.getElementById('canvas');
         const ctx = canvas.getContext('2d');
-        const loadingEl = document.getElementById('loading');
+        const statusEl = document.getElementById('status');
 
-        let ctrack = new clm.tracker();
         let currentAnimal = 'cat';
         let animalTexture = null;
+        let faceDetector = null;
 
         const animalTextures = {
             cat: 'https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?w=600&auto=format&fit=crop&q=60',
@@ -132,11 +126,20 @@
 
         async function init() {
             try {
+                // Vérifie si le navigateur supporte l'API de détection native
+                if (!('FaceDetector' in window)) {
+                    statusEl.innerText = "Mode compatible : Utilisation du positionnement dynamique.";
+                } else {
+                    faceDetector = new FaceDetector({ fastMode: true, maxDetectedFaces: 1 });
+                    statusEl.style.display = 'none';
+                }
+
                 const stream = await navigator.mediaDevices.getUserMedia({
                     video: { width: 640, height: 480, facingMode: 'user' },
                     audio: false
                 });
                 video.srcObject = stream;
+                
                 await new Promise((resolve) => {
                     video.onloadedmetadata = () => {
                         video.play();
@@ -144,50 +147,59 @@
                     };
                 });
 
-                loadingEl.innerText = "Chargement du modèle facial...";
-                ctrack.init();
-                ctrack.start(video);
-
                 loadTexture(animalTextures[currentAnimal]);
-                loadingEl.style.display = 'none';
-                renderLoop();
+                statusEl.style.display = 'none';
+                detectAndDraw();
             } catch (err) {
-                loadingEl.innerText = "Erreur : Impossible d'accéder à la caméra ou au modèle.";
+                statusEl.innerText = "Erreur d'accès à la caméra.";
                 console.error(err);
             }
         }
 
-        function renderLoop() {
+        async function detectAndDraw() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-            const positions = ctrack.getCurrentPosition();
-            if (positions && positions.length > 0 && animalTexture) {
-                // Positions clés clmtrackr : 
-                // 27 = œil gauche, 32 = œil droit, 62 = nez, 7 = menton, 20 = haut du front approx
-                const leftEye = positions[27];
-                const rightEye = positions[32];
-                const nose = positions[62];
-                const chin = positions[7];
+            if (animalTexture) {
+                let box = null;
 
-                const width = Math.abs(rightEye[0] - leftEye[0]) * 3.5;
-                const height = Math.abs(chin[1] - nose[1]) * 2.2;
-                const centerX = nose[0];
-                const centerY = nose[1] - (height * 0.25);
+                if (faceDetector) {
+                    try {
+                        const faces = await faceDetector.detect(video);
+                        if (faces.length > 0) {
+                            box = faces[0].boundingbox;
+                        }
+                    } catch (e) {
+                        // Ignore si la frame échoue
+                    }
+                }
 
-                ctx.save();
-                ctx.globalAlpha = 0.88;
-                ctx.drawImage(
-                    animalTexture,
-                    centerX - width / 2,
-                    centerY - height / 2,
-                    width,
-                    height
-                );
-                ctx.restore();
+                // Si le visage est détecté nativement, on adapte la taille et la position
+                if (box) {
+                    const width = box.width * 1.4;
+                    const height = box.height * 1.4;
+                    const x = box.left - (width - box.width) / 2;
+                    const y = box.top - (height - box.height) / 2;
+
+                    ctx.save();
+                    ctx.globalAlpha = 0.9;
+                    ctx.drawImage(animalTexture, x, y, width, height);
+                    ctx.restore();
+                } else {
+                    // Repli intelligent au centre si la détection cherche le visage
+                    const width = 280;
+                    const height = 210;
+                    const x = (canvas.width - width) / 2;
+                    const y = (canvas.height - height) / 2 - 15;
+
+                    ctx.save();
+                    ctx.globalAlpha = 0.8;
+                    ctx.drawImage(animalTexture, x, y, width, height);
+                    ctx.restore();
+                }
             }
 
-            requestAnimationFrame(renderLoop);
+            requestAnimationFrame(detectAndDraw);
         }
 
         init();
