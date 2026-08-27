@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Morphing Visage Animal Direct</title>
+    <title>Morphing Visage Animal - Ultra Stable</title>
     <style>
         body {
             display: flex;
@@ -34,7 +34,7 @@
             width: 100%;
             height: 100%;
             object-fit: cover;
-            transform: scaleX(-1); /* Effet miroir */
+            transform: scaleX(-1);
         }
 
         video {
@@ -61,7 +61,6 @@
             border-radius: 6px;
             font-weight: bold;
             box-shadow: 0 4px 6px rgba(0,0,0,0.3);
-            transition: background 0.2s;
         }
 
         button:hover {
@@ -73,11 +72,11 @@
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            font-size: 22px;
+            font-size: 20px;
             color: #f1c40f;
             z-index: 20;
             font-weight: bold;
-            background: rgba(0,0,0,0.8);
+            background: rgba(0,0,0,0.85);
             padding: 20px 30px;
             border-radius: 10px;
         }
@@ -85,7 +84,7 @@
 </head>
 <body>
 
-    <div id="loading">Chargement des modèles IA... Veuillez patienter</div>
+    <div id="loading">Démarrage de la caméra...</div>
     
     <div class="container">
         <video id="video" autoplay playsinline></video>
@@ -99,11 +98,8 @@
         </div>
     </div>
 
-    <!-- Dépendances TensorFlow.js & Face Landmarks Detection (Runtime MediaPipe Stable) -->
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-core@4.10.0/dist/tf-core.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-converter@4.10.0/dist/tf-converter.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgl@4.10.0/dist/tf-backend-webgl.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/face-landmarks-detection@1.0.5/dist/face-landmarks-detection.min.js"></script>
+    <!-- Chargement de clmtrackr (tracker de visage ultra-fiable) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/clmtrackr/1.1.2/clmtrackr.min.js"></script>
 
     <script>
         const video = document.getElementById('video');
@@ -111,7 +107,7 @@
         const ctx = canvas.getContext('2d');
         const loadingEl = document.getElementById('loading');
 
-        let detector = null;
+        let ctrack = new clm.tracker();
         let currentAnimal = 'cat';
         let animalTexture = null;
 
@@ -130,107 +126,71 @@
         function loadTexture(url) {
             const img = new Image();
             img.crossOrigin = "anonymous";
-            img.onload = () => {
-                animalTexture = img;
-            };
+            img.onload = () => { animalTexture = img; };
             img.src = url;
         }
 
-        async function initCamera() {
+        async function init() {
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({
                     video: { width: 640, height: 480, facingMode: 'user' },
                     audio: false
                 });
                 video.srcObject = stream;
-                return new Promise((resolve) => {
+                await new Promise((resolve) => {
                     video.onloadedmetadata = () => {
                         video.play();
                         resolve();
                     };
                 });
-            } catch (err) {
-                loadingEl.innerText = "Erreur : Accès caméra refusé ou indisponible.";
-                console.error(err);
-            }
-        }
 
-        async function initModel() {
-            try {
-                await tf.setBackend('webgl');
-                await tf.ready();
+                loadingEl.innerText = "Chargement du modèle facial...";
+                ctrack.init();
+                ctrack.start(video);
 
-                const model = faceLandmarksDetection.SupportedModels.MediaPipeFaceMesh;
-                const detectorConfig = {
-                    runtime: 'mediapipe',
-                    solutionPath: 'https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh',
-                    refineLandmarks: true,
-                    maxFaces: 1
-                };
-                
-                detector = await faceLandmarksDetection.createDetector(model, detectorConfig);
+                loadTexture(animalTextures[currentAnimal]);
                 loadingEl.style.display = 'none';
+                renderLoop();
             } catch (err) {
-                loadingEl.innerText = "Erreur de chargement des modèles IA.";
+                loadingEl.innerText = "Erreur : Impossible d'accéder à la caméra ou au modèle.";
                 console.error(err);
             }
         }
 
-        function drawMorphingFace(keypoints) {
-            if (!animalTexture) return;
-
-            // Repères morphologiques clés
-            const leftEye = keypoints[33];
-            const rightEye = keypoints[263];
-            const noseTip = keypoints[1];
-            const chin = keypoints[152];
-            const forehead = keypoints[10];
-
-            if (!leftEye || !rightEye || !noseTip || !chin || !forehead) return;
-
-            const width = Math.abs(rightEye.x - leftEye.x) * 3.4;
-            const height = Math.abs(chin.y - forehead.y) * 1.35;
-            const centerX = noseTip.x;
-            const centerY = (noseTip.y + forehead.y) / 2;
-
-            ctx.save();
-            ctx.globalAlpha = 0.88;
-            ctx.drawImage(
-                animalTexture,
-                centerX - width / 2,
-                centerY - height / 2,
-                width,
-                height
-            );
-            ctx.restore();
-        }
-
-        async function renderLoop() {
+        function renderLoop() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-            if (detector) {
-                try {
-                    const faces = await detector.estimateFaces(video, { flipHorizontal: false });
-                    if (faces && faces.length > 0) {
-                        drawMorphingFace(faces[0].keypoints);
-                    }
-                } catch (e) {
-                    // Ignore les micro-erreurs de timing des frames
-                }
+            const positions = ctrack.getCurrentPosition();
+            if (positions && positions.length > 0 && animalTexture) {
+                // Positions clés clmtrackr : 
+                // 27 = œil gauche, 32 = œil droit, 62 = nez, 7 = menton, 20 = haut du front approx
+                const leftEye = positions[27];
+                const rightEye = positions[32];
+                const nose = positions[62];
+                const chin = positions[7];
+
+                const width = Math.abs(rightEye[0] - leftEye[0]) * 3.5;
+                const height = Math.abs(chin[1] - nose[1]) * 2.2;
+                const centerX = nose[0];
+                const centerY = nose[1] - (height * 0.25);
+
+                ctx.save();
+                ctx.globalAlpha = 0.88;
+                ctx.drawImage(
+                    animalTexture,
+                    centerX - width / 2,
+                    centerY - height / 2,
+                    width,
+                    height
+                );
+                ctx.restore();
             }
 
             requestAnimationFrame(renderLoop);
         }
 
-        async function main() {
-            loadTexture(animalTextures[currentAnimal]);
-            await initCamera();
-            await initModel();
-            renderLoop();
-        }
-
-        main();
+        init();
     </script>
 </body>
 </html>
