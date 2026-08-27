@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Morphing Animal Morphologique</title>
+    <title>Morphing Visage Animal Direct</title>
     <style>
         body {
             display: flex;
@@ -12,7 +12,7 @@
             justify-content: center;
             height: 100vh;
             margin: 0;
-            background-color: #1a1a1a;
+            background-color: #111;
             color: white;
             font-family: sans-serif;
             overflow: hidden;
@@ -22,6 +22,9 @@
             position: relative;
             width: 640px;
             height: 480px;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.6);
         }
 
         video, canvas {
@@ -35,25 +38,30 @@
         }
 
         video {
-            display: none; /* Cache la vidéo brute, tout se fait sur le canvas */
+            display: none;
         }
 
         #controls {
             position: absolute;
-            bottom: -60px;
+            bottom: 15px;
+            left: 50%;
+            transform: translateX(-50%);
             display: flex;
             gap: 10px;
+            z-index: 10;
         }
 
         button {
-            padding: 10px 20px;
-            font-size: 16px;
+            padding: 10px 18px;
+            font-size: 15px;
             cursor: pointer;
             background-color: #e67e22;
             color: white;
             border: none;
-            border-radius: 5px;
+            border-radius: 6px;
             font-weight: bold;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+            transition: background 0.2s;
         }
 
         button:hover {
@@ -62,14 +70,22 @@
 
         #loading {
             position: absolute;
-            font-size: 20px;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 22px;
             color: #f1c40f;
+            z-index: 20;
+            font-weight: bold;
+            background: rgba(0,0,0,0.8);
+            padding: 20px 30px;
+            border-radius: 10px;
         }
     </style>
 </head>
 <body>
 
-    <div id="loading">Chargement des modèles de morphing...</div>
+    <div id="loading">Chargement des modèles IA... Veuillez patienter</div>
     
     <div class="container">
         <video id="video" autoplay playsinline></video>
@@ -83,11 +99,11 @@
         </div>
     </div>
 
-    <!-- TensorFlow.js et Face Landmarks Detection -->
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-core@4.2.0/dist/tf-core.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-converter@4.2.0/dist/tf-converter.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgl@4.2.0/dist/tf-backend-webgl.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/face-landmarks-detection@1.0.2/dist/face-landmarks-detection.min.js"></script>
+    <!-- Dépendances TensorFlow.js & Face Landmarks Detection (Runtime MediaPipe Stable) -->
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-core@4.10.0/dist/tf-core.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-converter@4.10.0/dist/tf-converter.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgl@4.10.0/dist/tf-backend-webgl.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/face-landmarks-detection@1.0.5/dist/face-landmarks-detection.min.js"></script>
 
     <script>
         const video = document.getElementById('video');
@@ -95,11 +111,10 @@
         const ctx = canvas.getContext('2d');
         const loadingEl = document.getElementById('loading');
 
-        let detector;
+        let detector = null;
         let currentAnimal = 'cat';
         let animalTexture = null;
 
-        // URLs d'images de textures animales (visages complets/fourrure transparente)
         const animalTextures = {
             cat: 'https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?w=600&auto=format&fit=crop&q=60',
             dog: 'https://images.unsplash.com/photo-1543466835-00a7907e9de1?w=600&auto=format&fit=crop&q=60',
@@ -122,53 +137,64 @@
         }
 
         async function initCamera() {
-            const stream = await navigator.mediaDevices.getUserMedia({
-                video: { width: 640, height: 480, facingMode: 'user' },
-                audio: false
-            });
-            video.srcObject = stream;
-            return new Promise((resolve) => {
-                video.onloadedmetadata = () => {
-                    video.play();
-                    resolve();
-                };
-            });
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    video: { width: 640, height: 480, facingMode: 'user' },
+                    audio: false
+                });
+                video.srcObject = stream;
+                return new Promise((resolve) => {
+                    video.onloadedmetadata = () => {
+                        video.play();
+                        resolve();
+                    };
+                });
+            } catch (err) {
+                loadingEl.innerText = "Erreur : Accès caméra refusé ou indisponible.";
+                console.error(err);
+            }
         }
 
         async function initModel() {
-            const model = faceDetection.SupportedModels.MediaPipeFaceMesh;
-            const detectorConfig = {
-                runtime: 'tfjs',
-                refineLandmarks: true,
-                maxFaces: 1
-            };
-            detector = await faceDetection.createDetector(model, detectorConfig);
-            loadingEl.style.display = 'none';
+            try {
+                await tf.setBackend('webgl');
+                await tf.ready();
+
+                const model = faceLandmarksDetection.SupportedModels.MediaPipeFaceMesh;
+                const detectorConfig = {
+                    runtime: 'mediapipe',
+                    solutionPath: 'https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh',
+                    refineLandmarks: true,
+                    maxFaces: 1
+                };
+                
+                detector = await faceLandmarksDetection.createDetector(model, detectorConfig);
+                loadingEl.style.display = 'none';
+            } catch (err) {
+                loadingEl.innerText = "Erreur de chargement des modèles IA.";
+                console.error(err);
+            }
         }
 
-        // Triangulation simplifiée pour déformer les zones du visage (Mesh mapping)
         function drawMorphingFace(keypoints) {
             if (!animalTexture) return;
 
-            // Repères clés du visage (Yeux, Nez, Mâchoire, Front)
+            // Repères morphologiques clés
             const leftEye = keypoints[33];
             const rightEye = keypoints[263];
             const noseTip = keypoints[1];
             const chin = keypoints[152];
             const forehead = keypoints[10];
 
-            // Calculer la boîte englobante morphologique du visage détecté
-            const width = Math.abs(rightEye.x - leftEye.x) * 3.2;
-            const height = Math.abs(chin.y - forehead.y) * 1.3;
+            if (!leftEye || !rightEye || !noseTip || !chin || !forehead) return;
+
+            const width = Math.abs(rightEye.x - leftEye.x) * 3.4;
+            const height = Math.abs(chin.y - forehead.y) * 1.35;
             const centerX = noseTip.x;
             const centerY = (noseTip.y + forehead.y) / 2;
 
             ctx.save();
-            // Effet de fusion/transparence pour épouser les traits humains sous la texture animale
-            ctx.globalAlpha = 0.85;
-            ctx.globalCompositeOperation = 'source-over';
-
-            // Déformation de la texture animale selon les coordonnées faciales dynamiques
+            ctx.globalAlpha = 0.88;
             ctx.drawImage(
                 animalTexture,
                 centerX - width / 2,
@@ -176,18 +202,21 @@
                 width,
                 height
             );
-
             ctx.restore();
         }
 
         async function renderLoop() {
-            // Dessiner le flux vidéo de base en arrière-plan
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
             ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
             if (detector) {
-                const faces = await detector.estimateFaces(video, { flipHorizontal: false });
-                if (faces.length > 0) {
-                    drawMorphingFace(faces[0].keypoints);
+                try {
+                    const faces = await detector.estimateFaces(video, { flipHorizontal: false });
+                    if (faces && faces.length > 0) {
+                        drawMorphingFace(faces[0].keypoints);
+                    }
+                } catch (e) {
+                    // Ignore les micro-erreurs de timing des frames
                 }
             }
 
@@ -195,9 +224,9 @@
         }
 
         async function main() {
+            loadTexture(animalTextures[currentAnimal]);
             await initCamera();
             await initModel();
-            loadTexture(animalTextures[currentAnimal]);
             renderLoop();
         }
 
